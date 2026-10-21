@@ -1,0 +1,32 @@
+# Gradle
+.gradle/
+build/
+**/build/
+!gradle/wrapper/gradle-wrapper.jar
+
+# Android Studio / IntelliJ
+.idea/
+*.iml
+captures/
+.externalNativeBuild/
+.cxx/
+
+# Local config (contains SDK path, never commit)
+local.properties
+
+# Signing keys and secrets
+*.jks
+*.keystore
+keystore.properties
+secrets.properties
+
+# Test fixtures captured from a real Sentry account must be scrubbed before committing
+app/src/test/resources/fixtures/raw/
+
+# OS junk
+.DS_Store
+Thumbs.db
+
+# Logs and screenshots from device test runs
+*.log
+device-captures/
