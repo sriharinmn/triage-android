@@ -1,24 +1,35 @@
 package io.github.sriharinmn.triage.ui.connect
 
 import androidx.activity.ComponentActivity
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.hasImeAction
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performImeAction
+import androidx.compose.ui.text.input.ImeAction
 import io.github.sriharinmn.triage.data.account.ConnectError
 import io.github.sriharinmn.triage.remote.OrganizationDto
 import io.github.sriharinmn.triage.theme.TriageTheme
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 
 class ConnectContentTest {
   @get:Rule val composeTestRule = createAndroidComposeRule<ComponentActivity>()
 
-  private fun show(state: ConnectUiState, onOrganizationChosen: (OrganizationDto) -> Unit = {}) {
+  private fun show(
+    state: ConnectUiState,
+    onOrganizationChosen: (OrganizationDto) -> Unit = {},
+    onSubmit: () -> Unit = {},
+  ) {
     composeTestRule.setContent {
       TriageTheme {
         ConnectContent(
@@ -28,7 +39,7 @@ class ConnectContentTest {
           onTokenChange = {},
           onOpenTokenPage = {},
           onPasteToken = {},
-          onSubmit = {},
+          onSubmit = onSubmit,
           onOrganizationChosen = onOrganizationChosen,
           onBackFromOrganizations = {},
         )
@@ -81,5 +92,25 @@ class ConnectContentTest {
   fun tokenField_disabledWhileValidating() {
     show(ConnectUiState(token = "sntryu_abc", step = Step.Validating))
     composeTestRule.onNodeWithTag(ConnectTags.TOKEN).assertIsNotEnabled()
+  }
+
+  @Test
+  fun tokenField_doneKeySubmits() {
+    var submitted = false
+    show(ConnectUiState(token = "sntryu_abc"), onSubmit = { submitted = true })
+
+    composeTestRule.onNodeWithTag(ConnectTags.TOKEN).performImeAction()
+
+    assertTrue(submitted)
+  }
+
+  @Test
+  fun tokenField_isPasswordField() {
+    show(ConnectUiState(token = "sntryu_abc"))
+    // Compose exposes no semantics property for KeyboardType, so Done and the masking flag are what we can observe.
+    composeTestRule
+      .onNodeWithTag(ConnectTags.TOKEN)
+      .assert(hasImeAction(ImeAction.Done))
+      .assert(SemanticsMatcher.keyIsDefined(SemanticsProperties.Password))
   }
 }

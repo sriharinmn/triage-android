@@ -14,6 +14,7 @@
     <string name="connect_token_label">Personal token</string>
     <string name="connect_paste">Paste</string>
     <string name="connect_button">Connect</string>
+    <string name="connect_validating">Checking your token…</string>
     <string name="connect_choose_org_title">Choose an organization</string>
     <string name="connect_back">Back</string>
     <string name="connect_disclaimer">Triage is not affiliated with or endorsed by Sentry or Functional Software, Inc.</string>

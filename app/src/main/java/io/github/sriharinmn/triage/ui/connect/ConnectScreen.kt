@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
@@ -33,6 +34,11 @@ import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
@@ -63,7 +69,15 @@ fun ConnectScreen(viewModel: ConnectViewModel, modifier: Modifier = Modifier) {
     onHostChoiceChange = viewModel::onHostChoiceChange,
     onSelfHostedUrlChange = viewModel::onSelfHostedUrlChange,
     onTokenChange = viewModel::onTokenChange,
-    onOpenTokenPage = { viewModel.requestTokenPageUrl()?.let(uriHandler::openUri) },
+    onOpenTokenPage = {
+      viewModel.requestTokenPageUrl()?.let { url ->
+        try {
+          uriHandler.openUri(url)
+        } catch (e: IllegalArgumentException) {
+          // No app can open the URL: AndroidUriHandler wraps ActivityNotFoundException in this. Nothing to recover.
+        }
+      }
+    },
     onPasteToken = {
       scope.launch {
         val clip = clipboard.getClipEntry()?.clipData
@@ -159,8 +173,15 @@ internal fun ConnectContent(
         label = { Text(stringResource(R.string.connect_token_label)) },
         singleLine = true,
         visualTransformation = PasswordVisualTransformation(),
+        keyboardOptions =
+          KeyboardOptions(keyboardType = KeyboardType.Password, autoCorrectEnabled = false, imeAction = ImeAction.Done),
+        keyboardActions = KeyboardActions(onDone = { if (state.canSubmit) onSubmit() }),
         isError = state.error != null,
-        supportingText = { state.error?.let { Text(stringResource(it.messageRes())) } },
+        supportingText = {
+          state.error?.let {
+            Text(stringResource(it.messageRes()), modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite })
+          }
+        },
         trailingIcon = {
           TextButton(onClick = onPasteToken, enabled = inputsEnabled) { Text(stringResource(R.string.connect_paste)) }
         },
@@ -173,7 +194,11 @@ internal fun ConnectContent(
         modifier = Modifier.fillMaxWidth().testTag(ConnectTags.CONNECT),
       ) {
         if (state.step == Step.Validating) {
-          CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+          val validatingDescription = stringResource(R.string.connect_validating)
+          CircularProgressIndicator(
+            modifier = Modifier.size(20.dp).semantics { contentDescription = validatingDescription },
+            strokeWidth = 2.dp,
+          )
         } else {
           Text(stringResource(R.string.connect_button))
         }
