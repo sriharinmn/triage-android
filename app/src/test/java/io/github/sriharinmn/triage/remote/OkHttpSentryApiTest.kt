@@ -1,5 +1,8 @@
 package io.github.sriharinmn.triage.remote
 
+import java.time.ZoneOffset
+import java.time.ZonedDateTime
+import java.time.format.DateTimeFormatter
 import java.util.concurrent.TimeUnit
 import kotlin.system.measureTimeMillis
 import kotlinx.coroutines.Dispatchers
@@ -20,7 +23,8 @@ import org.junit.Test
 class OkHttpSentryApiTest {
   private lateinit var server: MockWebServer
   // MockWebServer serves plain http.
-  private val api = OkHttpSentryApi(OkHttpClient(), userAgent = "Triage-Test", requireHttps = false)
+  private val client = OkHttpClient()
+  private val api = OkHttpSentryApi(client, userAgent = "Triage-Test", requireHttps = false)
 
   @Before
   fun setUp() {
@@ -63,9 +67,26 @@ class OkHttpSentryApiTest {
   }
 
   @Test
-  fun rateLimited_readsRetryAfter() = runTest {
+  fun rateLimited_readsRetryAfterSeconds() = runTest {
     server.enqueue(MockResponse().setResponseCode(429).setHeader("Retry-After", "30"))
     assertEquals(ApiResult.Failure(ApiError.RateLimited(30)), api.listOrganizations(baseUrl(), "t"))
+  }
+
+  @Test
+  fun rateLimited_readsRetryAfterHttpDate() = runTest {
+    val inTwoMinutes = DateTimeFormatter.RFC_1123_DATE_TIME.format(ZonedDateTime.now(ZoneOffset.UTC).plusSeconds(120))
+    server.enqueue(MockResponse().setResponseCode(429).setHeader("Retry-After", inTwoMinutes))
+
+    val error = (api.listOrganizations(baseUrl(), "t") as ApiResult.Failure).error as ApiError.RateLimited
+
+    val seconds = error.retryAfterSeconds
+    assertTrue("retryAfterSeconds=$seconds", seconds != null && seconds in 100..121)
+  }
+
+  @Test
+  fun rateLimitedWithoutRetryAfter_hasNoDelay() = runTest {
+    server.enqueue(MockResponse().setResponseCode(429))
+    assertEquals(ApiResult.Failure(ApiError.RateLimited(null)), api.listOrganizations(baseUrl(), "t"))
   }
 
   @Test
@@ -121,9 +142,94 @@ class OkHttpSentryApiTest {
     val elapsedMs = measureTimeMillis { job.cancelAndJoin() }
 
     assertTrue("cancelAndJoin took ${elapsedMs}ms", elapsedMs < 2_000)
+    // The OkHttp call itself must be cancelled, not just abandoned while it keeps the connection busy.
+    val deadline = System.currentTimeMillis() + 2_000
+    while (client.dispatcher.runningCallsCount() > 0 && System.currentTimeMillis() < deadline) Thread.sleep(20)
+    assertEquals(0, client.dispatcher.runningCallsCount())
   }
 
+  @Test
+  fun request_asksForJson() = runTest {
+    server.enqueue(MockResponse().setResponseCode(200).setBody("[]"))
+    api.listOrganizations(baseUrl(), "t")
+    assertEquals("application/json", server.takeRequest().getHeader("Accept"))
+  }
+
+  @Test
+  fun baseUrlWithPath_keepsThePath() = runTest {
+    server.enqueue(MockResponse().setResponseCode(200).setBody("[]"))
+    api.listOrganizations("${baseUrl()}/sentry/", "t")
+    assertEquals("/sentry/api/0/organizations/", server.takeRequest().path)
+  }
+
+  @Test
+  fun emptyBody_mapsToParse() = runTest {
+    server.enqueue(MockResponse().setResponseCode(200).setBody(""))
+    assertEquals(ApiResult.Failure(ApiError.Parse), api.listOrganizations(baseUrl(), "t"))
+  }
+
+  @Test
+  fun noContent_mapsToParse() = runTest {
+    server.enqueue(MockResponse().setResponseCode(204))
+    assertEquals(ApiResult.Failure(ApiError.Parse), api.listOrganizations(baseUrl(), "t"))
+  }
+
+  @Test
+  fun wrongShapeJson_mapsToParse() = runTest {
+    server.enqueue(MockResponse().setResponseCode(200).setBody("""{"detail": "not a list"}"""))
+    assertEquals(ApiResult.Failure(ApiError.Parse), api.listOrganizations(baseUrl(), "t"))
+  }
+
+  @Test
+  fun listOrganizations_followsNextCursorAcrossPages() = runTest {
+    server.enqueue(
+      MockResponse().setResponseCode(200).setBody(ACME_PAGE).setHeader("Link", nextLink(results = true, "0:100:0"))
+    )
+    server.enqueue(
+      MockResponse().setResponseCode(200).setBody(BETA_PAGE).setHeader("Link", nextLink(results = false, "0:200:0"))
+    )
+
+    val result = api.listOrganizations(baseUrl(), "t")
+
+    assertEquals(listOf("acme", "beta-gmbh"), (result as ApiResult.Success).value.map { it.slug })
+    assertEquals("/api/0/organizations/", server.takeRequest().path)
+    val second = server.takeRequest().requestUrl!!
+    assertEquals("/api/0/organizations/", second.encodedPath)
+    assertEquals("0:100:0", second.queryParameter("cursor"))
+  }
+
+  @Test
+  fun listOrganizations_stopsAfterTenPages() = runTest {
+    repeat(11) {
+      server.enqueue(
+        MockResponse().setResponseCode(200).setBody(ACME_PAGE).setHeader("Link", nextLink(results = true, "c$it"))
+      )
+    }
+
+    val result = api.listOrganizations(baseUrl(), "t")
+
+    assertEquals(10, (result as ApiResult.Success).value.size)
+    assertEquals(10, server.requestCount)
+  }
+
+  @Test
+  fun listOrganizations_failureOnALaterPage_isReturned() = runTest {
+    server.enqueue(
+      MockResponse().setResponseCode(200).setBody(ACME_PAGE).setHeader("Link", nextLink(results = true, "0:100:0"))
+    )
+    server.enqueue(MockResponse().setResponseCode(500))
+
+    assertEquals(ApiResult.Failure(ApiError.Http(500)), api.listOrganizations(baseUrl(), "t"))
+  }
+
+  private fun nextLink(results: Boolean, cursor: String) =
+    """<https://sentry.io/api/0/organizations/?cursor=0:0:1>; rel="previous"; results="false"; cursor="0:0:1", """ +
+      """<https://sentry.io/api/0/organizations/?cursor=$cursor>; rel="next"; results="$results"; cursor="$cursor""""
+
   private companion object {
+    const val ACME_PAGE = """[{"id": "1", "slug": "acme", "name": "Acme Inc"}]"""
+    const val BETA_PAGE = """[{"id": "2", "slug": "beta-gmbh", "name": "Beta GmbH"}]"""
+
     val ORGS_JSON =
       """
       [
