@@ -11,7 +11,11 @@ import io.github.sriharinmn.triage.testing.TestClock
 import io.github.sriharinmn.triage.testing.issueDto
 import io.github.sriharinmn.triage.testing.projectDto
 import java.time.Duration
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -167,6 +171,96 @@ class IssueRepositoryTest {
 
     assertNull(repository.lastRefreshed(oldFilter))
     assertTrue(repository.observeInbox(oldFilter).first().issues.isEmpty())
+    assertEquals(listOf("1"), shownIds())
+  }
+
+  @Test
+  fun loadMore_isHeldWhileRateLimited() = runTest {
+    api.issuesHandler = { page("1", next = "c2") }
+    repository.refresh(TEST_ACCOUNT, filter)
+    api.projectsResult = ApiResult.Failure(ApiError.RateLimited(30))
+    assertEquals(LoadResult.Failure(InboxError.RateLimited(30)), repository.refreshProjects(TEST_ACCOUNT))
+
+    assertEquals(LoadResult.Failure(InboxError.RateLimited(30)), repository.loadMore(TEST_ACCOUNT, filter))
+
+    assertEquals(1, api.issueCalls.size)
+  }
+
+  @Test
+  fun aRateLimitedLoadMore_holdsEveryOtherCall() = runTest {
+    api.issuesHandler = { call ->
+      if (call.cursor == null) page("1", next = "c2") else ApiResult.Failure(ApiError.RateLimited(20))
+    }
+    repository.refresh(TEST_ACCOUNT, filter)
+
+    assertEquals(LoadResult.Failure(InboxError.RateLimited(20)), repository.loadMore(TEST_ACCOUNT, filter))
+
+    assertEquals(LoadResult.Failure(InboxError.RateLimited(20)), repository.refresh(TEST_ACCOUNT, filter))
+    assertEquals(LoadResult.Failure(InboxError.RateLimited(20)), repository.refreshProjects(TEST_ACCOUNT))
+    assertEquals(2, api.issueCalls.size)
+    assertTrue(api.projectCalls.isEmpty())
+  }
+
+  @Test
+  fun aFailedLoadMore_keepsTheListAndItsCursor() = runTest {
+    api.issuesHandler = { page("1", "2", next = "c2") }
+    repository.refresh(TEST_ACCOUNT, filter)
+    api.issuesHandler = { ApiResult.Failure(ApiError.Network("offline")) }
+
+    assertEquals(LoadResult.Failure(InboxError.Network), repository.loadMore(TEST_ACCOUNT, filter))
+
+    assertEquals(listOf("1", "2"), shownIds())
+    assertTrue(repository.observeInbox(filter).first().hasMore)
+
+    api.issuesHandler = { page("3") }
+    assertEquals(LoadResult.Success, repository.loadMore(TEST_ACCOUNT, filter))
+    assertEquals("c2", api.issueCalls.last().cursor)
+    assertEquals(listOf("1", "2", "3"), shownIds())
+  }
+
+  @Test
+  fun retryAfter_isClampedBetweenOneSecondAndAnHour() = runTest {
+    api.issuesHandler = { ApiResult.Failure(ApiError.RateLimited(0)) }
+    assertEquals(LoadResult.Failure(InboxError.RateLimited(1)), repository.refresh(TEST_ACCOUNT, filter))
+    assertEquals(LoadResult.Failure(InboxError.RateLimited(1)), repository.refresh(TEST_ACCOUNT, filter))
+    assertEquals(1, api.issueCalls.size)
+
+    repository.clear()
+    api.issuesHandler = { ApiResult.Failure(ApiError.RateLimited(Long.MAX_VALUE)) }
+    assertEquals(LoadResult.Failure(InboxError.RateLimited(3600)), repository.refresh(TEST_ACCOUNT, filter))
+
+    api.issuesHandler = { page("1") }
+    clock.advance(Duration.ofSeconds(3599))
+    assertEquals(LoadResult.Failure(InboxError.RateLimited(1)), repository.refresh(TEST_ACCOUNT, filter))
+    assertEquals(2, api.issueCalls.size)
+
+    clock.advance(Duration.ofSeconds(1))
+    assertEquals(LoadResult.Success, repository.refresh(TEST_ACCOUNT, filter))
+    assertEquals(3, api.issueCalls.size)
+  }
+
+  @OptIn(ExperimentalCoroutinesApi::class)
+  @Test
+  fun aShorterRateLimit_doesNotShortenALongerHold() = runTest {
+    // Two calls pass the gate together; their 429s then arrive longest first, as concurrent loads can.
+    val longHold = CompletableDeferred<ApiResult<Page<IssueDto>>>()
+    val shortHold = CompletableDeferred<ApiResult<Page<IssueDto>>>()
+    val responses = ArrayDeque(listOf(longHold, shortHold))
+    api.issuesHandler = { responses.removeFirst().await() }
+    val escalating = filter.copy(tab = InboxTab.Escalating)
+    launch { repository.refresh(TEST_ACCOUNT, filter) }
+    launch { repository.refresh(TEST_ACCOUNT, escalating) }
+    runCurrent()
+    assertEquals(2, api.issueCalls.size)
+
+    longHold.complete(ApiResult.Failure(ApiError.RateLimited(60)))
+    runCurrent()
+    clock.advance(Duration.ofSeconds(1))
+    shortHold.complete(ApiResult.Failure(ApiError.RateLimited(5)))
+    runCurrent()
+
+    assertEquals(LoadResult.Failure(InboxError.RateLimited(59)), repository.refresh(TEST_ACCOUNT, filter))
+    assertEquals(2, api.issueCalls.size)
   }
 
   @Test

@@ -6,6 +6,7 @@ import io.github.sriharinmn.triage.remote.ApiResult
 import io.github.sriharinmn.triage.remote.SentryApi
 import java.time.Duration
 import java.time.Instant
+import java.util.concurrent.atomic.AtomicReference
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 
@@ -26,6 +27,7 @@ sealed interface InboxError {
   data object Server : InboxError
 }
 
+/** Whether a load reached Sentry and updated the cache; failures say why in terms the screen explains. */
 sealed interface LoadResult {
   data object Success : LoadResult
 
@@ -44,7 +46,8 @@ class IssueRepository(
   private val cache: IssueCache,
   private val clock: () -> Instant = Instant::now,
 ) {
-  @Volatile private var rateLimitedUntil: Instant? = null
+  /** Until when calls are held after a 429; updated atomically because loads run concurrently. */
+  private val rateLimitedUntil = AtomicReference<Instant?>(null)
 
   val projects: Flow<List<Project>> = cache.observeProjects()
 
@@ -66,7 +69,7 @@ class IssueRepository(
         cache.prune(now - CACHE_MAX_AGE)
         LoadResult.Success
       }
-      is ApiResult.Failure -> failure(result.error)
+      is ApiResult.Failure -> failureAndHoldIfRateLimited(result.error)
     }
   }
 
@@ -80,7 +83,7 @@ class IssueRepository(
         cache.appendPage(filter.listKey, result.value.items.map { it.toIssue() }, result.value.nextCursor)
         LoadResult.Success
       }
-      is ApiResult.Failure -> failure(result.error)
+      is ApiResult.Failure -> failureAndHoldIfRateLimited(result.error)
     }
   }
 
@@ -92,34 +95,38 @@ class IssueRepository(
         cache.replaceProjects(result.value.filter { it.hasAccess }.map { it.toProject() })
         LoadResult.Success
       }
-      is ApiResult.Failure -> failure(result.error)
+      is ApiResult.Failure -> failureAndHoldIfRateLimited(result.error)
     }
   }
 
   /** Forgets every cached list and project; used on disconnect. */
   suspend fun clear() {
     cache.clear()
-    rateLimitedUntil = null
+    rateLimitedUntil.set(null)
   }
 
   private fun rateLimitFailure(): LoadResult.Failure? {
-    val until = rateLimitedUntil ?: return null
+    val until = rateLimitedUntil.get() ?: return null
     val remainingMillis = Duration.between(clock(), until).toMillis()
     if (remainingMillis <= 0) {
-      rateLimitedUntil = null
+      // Clear only the hold we read, so a newer 429 that landed meanwhile isn't erased.
+      rateLimitedUntil.compareAndSet(until, null)
       return null
     }
     return LoadResult.Failure(InboxError.RateLimited((remainingMillis + 999) / 1000))
   }
 
-  private fun failure(error: ApiError): LoadResult.Failure =
+  /** Maps [error] for the screen and, for a 429, also starts holding every call until Sentry's Retry-After passes. */
+  private fun failureAndHoldIfRateLimited(error: ApiError): LoadResult.Failure =
     LoadResult.Failure(
       when (error) {
         ApiError.Unauthorized -> InboxError.Unauthorized
         ApiError.Forbidden -> InboxError.Forbidden
         is ApiError.RateLimited -> {
-          val seconds = error.retryAfterSeconds ?: DEFAULT_RETRY_AFTER_SECONDS
-          rateLimitedUntil = clock().plusSeconds(seconds)
+          val seconds =
+            (error.retryAfterSeconds ?: DEFAULT_RETRY_AFTER_SECONDS)
+              .coerceIn(MIN_RETRY_AFTER_SECONDS, MAX_RETRY_AFTER_SECONDS)
+          holdUntilAtLeast(clock().plusSeconds(seconds))
           InboxError.RateLimited(seconds)
         }
         is ApiError.Network -> InboxError.Network
@@ -128,10 +135,20 @@ class IssueRepository(
       }
     )
 
+  /** Concurrent 429s never shorten an existing hold: the later instant wins. */
+  private fun holdUntilAtLeast(candidate: Instant) {
+    rateLimitedUntil.updateAndGet { current -> if (current == null || candidate > current) candidate else current }
+  }
+
   private companion object {
     val CACHE_MAX_AGE: Duration = Duration.ofDays(7)
 
     /** Used when Sentry sends 429 without a usable Retry-After. */
     const val DEFAULT_RETRY_AFTER_SECONDS = 60L
+
+    // Bounds on any Retry-After we obey: a server can't lock the app for longer than an hour, and 0 would mean no
+    // back-off at all.
+    const val MIN_RETRY_AFTER_SECONDS = 1L
+    const val MAX_RETRY_AFTER_SECONDS = 3600L
   }
 }
