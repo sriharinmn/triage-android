@@ -3,6 +3,7 @@
 build/
 **/build/
 !gradle/wrapper/gradle-wrapper.jar
+.kotlin/
 
 # Android Studio / IntelliJ
 .idea/

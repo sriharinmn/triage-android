@@ -1,0 +1,35 @@
+<resources>
+    <string name="app_name">Triage</string>
+
+    <string name="connect_title">Connect to Sentry</string>
+    <string name="connect_subtitle">Triage reads your issues straight from your Sentry server. Nothing goes through our servers.</string>
+    <string name="connect_host_cloud">Sentry.io</string>
+    <string name="connect_host_self_hosted">Self-hosted</string>
+    <string name="connect_server_url">Server URL</string>
+    <string name="connect_server_url_error">Enter your server\'s https:// address</string>
+    <string name="connect_step1_title">1. Create a personal token</string>
+    <string name="connect_step1_body">On the token page, create a Personal Token with: Organization Read, Project Read, Issue &amp; Event Read &amp; Write, Member Read.</string>
+    <string name="connect_open_token_page">Open token page</string>
+    <string name="connect_step2_title">2. Paste it here</string>
+    <string name="connect_token_label">Personal token</string>
+    <string name="connect_paste">Paste</string>
+    <string name="connect_button">Connect</string>
+    <string name="connect_validating">Checking your token…</string>
+    <string name="connect_choose_org_title">Choose an organization</string>
+    <string name="connect_back">Back</string>
+    <string name="connect_disclaimer">Triage is not affiliated with or endorsed by Sentry or Functional Software, Inc.</string>
+
+    <string name="connect_error_empty_token">Paste your token first.</string>
+    <string name="connect_error_org_token">That\'s an organization token. Create a Personal Token instead.</string>
+    <string name="connect_error_invalid_token">Sentry rejected this token. Check it\'s copied in full and belongs to this server.</string>
+    <string name="connect_error_missing_scopes">This token is missing permissions. Create a new one with the permissions listed above.</string>
+    <string name="connect_error_no_orgs">This account isn\'t a member of any organization.</string>
+    <string name="connect_error_rate_limited">Sentry is rate limiting requests. Try again in a minute.</string>
+    <string name="connect_error_network">Couldn\'t reach the server. Check your connection and the server URL.</string>
+    <string name="connect_error_unknown">Something went wrong talking to Sentry. Try again.</string>
+    <string name="connect_error_save_failed">Couldn\'t save your connection on this phone. Try again.</string>
+
+    <string name="home_connected_to">Connected to %1$s</string>
+    <string name="home_coming_soon">Your issue inbox arrives in the next update.</string>
+    <string name="home_disconnect">Disconnect</string>
+</resources>
