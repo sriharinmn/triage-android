@@ -1,5 +1,6 @@
 package io.github.sriharinmn.triage.ui.inbox
 
+import android.text.format.DateFormat
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -46,6 +47,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
@@ -62,12 +64,11 @@ import io.github.sriharinmn.triage.data.issues.InboxTab
 import io.github.sriharinmn.triage.data.issues.Issue
 import io.github.sriharinmn.triage.data.issues.IssueSort
 import java.time.Instant
-import java.time.ZoneId
-import java.time.format.DateTimeFormatter
-import java.time.format.FormatStyle
+import java.util.Date
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
+/** Test tags for the inbox's interactive and scrollable parts. */
 object InboxTags {
   const val LIST = "inbox_list"
   const val MENU = "inbox_menu"
@@ -83,8 +84,7 @@ object InboxTags {
 /** Ask for the next page once the last visible row is this close to the end of the list. */
 private const val LOAD_MORE_THRESHOLD = 5
 
-private val TIME_FORMAT: DateTimeFormatter = DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT)
-
+/** The inbox: tabs, filters and the issue list, wired to [viewModel]. */
 @Composable
 fun InboxScreen(viewModel: InboxViewModel, modifier: Modifier = Modifier) {
   val state by viewModel.state.collectAsStateWithLifecycle()
@@ -120,8 +120,6 @@ fun InboxScreen(viewModel: InboxViewModel, modifier: Modifier = Modifier) {
       }
     },
     onDisconnectConfirmed = viewModel::onDisconnectConfirmed,
-    // A rejected or under-scoped token can only be replaced, so Reconnect is a disconnect without the dialog.
-    onReconnect = viewModel::onDisconnectConfirmed,
     onDisconnectFailureShown = viewModel::onDisconnectFailureShown,
     snackbarHostState = snackbarHostState,
     modifier = modifier,
@@ -142,21 +140,26 @@ internal fun InboxContent(
   onRetryLoadMore: () -> Unit,
   onIssueClick: (Issue) -> Unit,
   onDisconnectConfirmed: () -> Unit,
-  onReconnect: () -> Unit,
   onDisconnectFailureShown: () -> Unit,
   modifier: Modifier = Modifier,
   snackbarHostState: SnackbarHostState = remember { SnackbarHostState() },
 ) {
   var confirmingDisconnect by rememberSaveable { mutableStateOf(false) }
+  val context = LocalContext.current
   val error = state.error
   val errorText = error?.let { errorMessage(it) }
   val retryLabel = stringResource(R.string.inbox_retry)
   val disconnectFailedText = stringResource(R.string.inbox_disconnect_failed)
   val hasIssues = state.issues.isNotEmpty()
+  // A rejected or under-scoped token can only be replaced, and Sentry shows a token only once (a 403 may also be fixable
+  // by changing the token's permissions on Sentry), so Reconnect asks first, with the same dialog as Disconnect.
+  val onReconnect = { confirmingDisconnect = true }
 
   // Over a cached list a failed refresh is a snackbar; with nothing cached, the full-screen message says it instead.
-  LaunchedEffect(error, hasIssues) {
-    if (errorText != null && hasIssues && !error.needsReconnect()) {
+  // The error stays set during the next refresh, so keying on isRefreshing makes a repeated failure show it again:
+  // starting a refresh cancels (dismisses) the old snackbar, and the failure that ends it shows a new one.
+  LaunchedEffect(error, hasIssues, state.isRefreshing) {
+    if (!state.isRefreshing && errorText != null && hasIssues && !error.needsReconnect()) {
       val result = snackbarHostState.showSnackbar(errorText, actionLabel = retryLabel, duration = SnackbarDuration.Long)
       if (result == SnackbarResult.ActionPerformed) onRefresh()
     }
@@ -195,7 +198,7 @@ internal fun InboxContent(
           ReconnectBanner(message = errorText, onReconnect = onReconnect)
         } else if (refreshedAt != null) {
           Text(
-            stringResource(R.string.inbox_updated_stale, TIME_FORMAT.format(refreshedAt.atZone(ZoneId.systemDefault()))),
+            stringResource(R.string.inbox_updated_stale, DateFormat.getTimeFormat(context).format(Date(refreshedAt.toEpochMilli()))),
             style = MaterialTheme.typography.labelMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
@@ -210,13 +213,15 @@ internal fun InboxContent(
         when {
           // A new key per filter resets the scroll position when the list changes.
           hasIssues -> key(state.filter) { IssueList(state, now, onIssueClick, onLoadMore, onRetryLoadMore) }
+          // Retry (or a pull) shows progress instead of the unchanged error while the new attempt runs.
+          state.isRefreshing -> LoadingPanel()
           errorText != null ->
             MessagePanel(
               message = errorText,
               actionLabel = stringResource(if (error.needsReconnect()) R.string.inbox_reconnect else R.string.inbox_retry),
               onAction = if (error.needsReconnect()) onReconnect else onRefresh,
             )
-          refreshedAt == null || state.isRefreshing -> LoadingPanel()
+          refreshedAt == null -> LoadingPanel()
           else -> MessagePanel(message = stringResource(state.filter.tab.emptyRes()))
         }
       }
@@ -286,8 +291,11 @@ private fun IssueList(
       lastVisible >= info.totalItemsCount - LOAD_MORE_THRESHOLD
     }
   }
-  // The ViewModel ignores calls while a page is loading, after a failure, or on the last page.
-  LaunchedEffect(nearEnd, state.hasMore, state.issues.size) { if (nearEnd && state.hasMore) onLoadMore() }
+  // The ViewModel ignores calls while a page is loading, after a failure, or on the last page. It also ignores them during
+  // a refresh, so the effect re-runs when the refresh ends to pick up a request that was dropped.
+  LaunchedEffect(nearEnd, state.hasMore, state.issues.size, state.isRefreshing) {
+    if (nearEnd && state.hasMore && !state.isRefreshing) onLoadMore()
+  }
 
   LazyColumn(state = listState, modifier = Modifier.fillMaxSize().testTag(InboxTags.LIST)) {
     items(state.issues, key = { it.id }) { issue ->

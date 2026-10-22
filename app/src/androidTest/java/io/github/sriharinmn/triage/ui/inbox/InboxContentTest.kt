@@ -1,10 +1,14 @@
 package io.github.sriharinmn.triage.ui.inbox
 
 import androidx.activity.ComponentActivity
+import androidx.compose.runtime.MutableState
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -50,11 +54,14 @@ class InboxContentTest {
 
   private val loaded = InboxUiState(orgName = "Example Org", issues = listOf(issue("1"), issue("2")), refreshedAt = now)
 
-  private fun show(state: InboxUiState) {
+  private fun show(state: InboxUiState) = show(mutableStateOf(state))
+
+  /** Shows the inbox for whatever [state] holds, so a test can change the state after the first composition. */
+  private fun show(state: MutableState<InboxUiState>) {
     composeTestRule.setContent {
       TriageTheme {
         InboxContent(
-          state = state,
+          state = state.value,
           now = now,
           onTabSelected = { calls += "tab:${it.name}" },
           onProjectSelected = { calls += "project:$it" },
@@ -65,7 +72,6 @@ class InboxContentTest {
           onRetryLoadMore = { calls += "retryLoadMore" },
           onIssueClick = { calls += "open:${it.id}" },
           onDisconnectConfirmed = { calls += "disconnect" },
-          onReconnect = { calls += "reconnect" },
           onDisconnectFailureShown = {},
         )
       }
@@ -116,8 +122,50 @@ class InboxContentTest {
     show(InboxUiState(orgName = "Example Org", error = InboxError.Unauthorized))
 
     composeTestRule.onNodeWithText("Reconnect").performClick()
+    assertTrue(calls.isEmpty())
+    composeTestRule.onNodeWithText("Disconnect from Sentry?").assertIsDisplayed()
+    composeTestRule.onNodeWithText("Disconnect").performClick()
 
-    assertEquals(listOf("reconnect"), calls)
+    assertEquals(listOf("disconnect"), calls)
+  }
+
+  @Test
+  fun refreshingWithNoCache_showsTheSpinnerNotTheOldError() {
+    show(InboxUiState(orgName = "Example Org", error = InboxError.Network, isRefreshing = true))
+
+    composeTestRule.onNodeWithText(NETWORK_ERROR).assertDoesNotExist()
+    composeTestRule.onNodeWithContentDescription("Loading issues…").assertIsDisplayed()
+  }
+
+  @Test
+  fun aRepeatedFailure_showsTheSnackbarAgain() {
+    val state = mutableStateOf(loaded.copy(error = InboxError.Network))
+    show(state)
+    waitForText(NETWORK_ERROR, present = true)
+
+    // The same error stays set while the next refresh runs; starting it dismisses the old snackbar.
+    composeTestRule.runOnIdle { state.value = state.value.copy(isRefreshing = true) }
+    waitForText(NETWORK_ERROR, present = false)
+
+    // The retry fails with the very same error, and the snackbar comes back.
+    composeTestRule.runOnIdle { state.value = state.value.copy(isRefreshing = false) }
+    waitForText(NETWORK_ERROR, present = true)
+  }
+
+  @Test
+  fun loadMore_isRequestedNearTheEnd_whenNotRefreshing() {
+    show(loaded.copy(hasMore = true))
+    composeTestRule.waitForIdle()
+
+    assertTrue("loadMore" in calls)
+  }
+
+  @Test
+  fun loadMore_isNotRequested_whileRefreshing() {
+    show(loaded.copy(hasMore = true, isRefreshing = true))
+    composeTestRule.waitForIdle()
+
+    assertTrue("loadMore" !in calls)
   }
 
   @Test
@@ -170,5 +218,16 @@ class InboxContentTest {
     composeTestRule.onNodeWithText("Disconnect").performClick()
 
     assertEquals(listOf("disconnect"), calls)
+  }
+
+  private fun waitForText(text: String, present: Boolean) {
+    composeTestRule.waitUntil(timeoutMillis = 5_000) {
+      composeTestRule.onAllNodesWithText(text).fetchSemanticsNodes().isNotEmpty() == present
+    }
+    if (present) composeTestRule.onNodeWithText(text).assertIsDisplayed()
+  }
+
+  private companion object {
+    const val NETWORK_ERROR = "Couldn't reach Sentry. Check your connection."
   }
 }

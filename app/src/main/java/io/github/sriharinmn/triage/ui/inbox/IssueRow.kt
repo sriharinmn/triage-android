@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -113,13 +114,19 @@ private fun StatusLabel(text: String) {
   )
 }
 
-/** 24 hourly bars, scaled to the busiest hour; empty hours get a hairline so the shape still reads as a timeline. */
+/**
+ * 24 hourly bars, scaled to the busiest hour; empty hours get a hairline so the shape still reads as a timeline.
+ * With no stats at all it draws nothing and says nothing, rather than announcing "0 events".
+ */
 @Composable
 private fun Sparkline(hourlyEvents: List<Long>, color: Color, modifier: Modifier = Modifier) {
+  if (hourlyEvents.isEmpty()) {
+    Spacer(modifier)
+    return
+  }
   val total = hourlyEvents.sum()
   val description = pluralStringResource(R.plurals.issue_events_last_24h, total.toQuantity(), total)
   Canvas(modifier.semantics { contentDescription = description }) {
-    if (hourlyEvents.isEmpty()) return@Canvas
     val peak = hourlyEvents.max().coerceAtLeast(1)
     val slot = size.width / hourlyEvents.size
     val barWidth = (slot * 0.7f).coerceAtLeast(1f)
