@@ -25,6 +25,37 @@ class OkHttpSentryApi(
   override suspend fun listOrganizations(baseUrl: String, token: String): ApiResult<List<OrganizationDto>> =
     getAllPages(apiUrl(baseUrl, "organizations"), token) { body -> json.decodeFromString<List<OrganizationDto>>(body) }
 
+  override suspend fun listProjects(baseUrl: String, token: String, orgSlug: String): ApiResult<List<ProjectDto>> =
+    getAllPages(apiUrl(baseUrl, "organizations", orgSlug, "projects"), token) { body ->
+      json.decodeFromString<List<ProjectDto>>(body)
+    }
+
+  override suspend fun listIssues(
+    baseUrl: String,
+    token: String,
+    orgSlug: String,
+    params: IssueListParams,
+    cursor: String?,
+  ): ApiResult<Page<IssueDto>> {
+    val url =
+      apiUrl(baseUrl, "organizations", orgSlug, "issues")
+        ?.newBuilder()
+        ?.apply {
+          addQueryParameter("query", params.query)
+          addQueryParameter("project", params.projectId ?: ALL_PROJECTS)
+          params.environment?.let { addQueryParameter("environment", it) }
+          addQueryParameter("sort", params.sort)
+          addQueryParameter("statsPeriod", params.statsPeriod)
+          addQueryParameter("groupStatsPeriod", "24h")
+          addQueryParameter("limit", params.limit.toString())
+          // The inbox shows neither lifetime nor filtered stats; leaving them out makes the request cheaper for Sentry.
+          addQueryParameter("collapse", "lifetime")
+          addQueryParameter("collapse", "filtered")
+        }
+        ?.build()
+    return getPage(url?.withCursor(cursor), token) { body -> json.decodeFromString<List<IssueDto>>(body) }
+  }
+
   /** `{baseUrl}/api/0/{segments}/`, each segment percent-encoded, or null if [baseUrl] isn't a URL. */
   private fun apiUrl(baseUrl: String, vararg segments: String): HttpUrl? =
     baseUrl
@@ -128,5 +159,8 @@ class OkHttpSentryApi(
   private companion object {
     /** 10 pages of 100 organizations or projects is far beyond any account we expect; it stops a runaway loop. */
     const val MAX_PAGES = 10
+
+    /** Sentry's `project` value for "every project this token can access". */
+    const val ALL_PROJECTS = "-1"
   }
 }
