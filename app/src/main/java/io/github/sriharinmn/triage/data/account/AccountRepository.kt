@@ -5,6 +5,7 @@ import io.github.sriharinmn.triage.remote.ApiResult
 import io.github.sriharinmn.triage.remote.OrganizationDto
 import io.github.sriharinmn.triage.remote.SentryApi
 import kotlinx.coroutines.flow.Flow
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 
 sealed interface ConnectResult {
   data class Organizations(val organizations: List<OrganizationDto>) : ConnectResult
@@ -41,13 +42,16 @@ class AccountRepository(private val api: SentryApi, private val store: AccountSt
     }
   }
 
+  /**
+   * Call only after a successful [fetchOrganizations] for the same host and token; it does not re-validate the token.
+   */
   suspend fun connect(host: SentryHost, rawToken: String, organization: OrganizationDto) {
     // Self-hosted installs often report misconfigured URLs in links, so only trust them on sentry.io.
     val links = if (host is SentryHost.Cloud) organization.links else null
     store.save(
       Account(
-        apiBaseUrl = links?.regionUrl.cleanUrl() ?: host.baseUrl,
-        webBaseUrl = links?.organizationUrl.cleanUrl() ?: host.baseUrl,
+        apiBaseUrl = links?.regionUrl.sentryCloudOrigin() ?: host.baseUrl,
+        webBaseUrl = links?.organizationUrl.sentryCloudOrigin() ?: host.baseUrl,
         token = rawToken.trim(),
         orgSlug = organization.slug,
         orgName = organization.name,
@@ -59,7 +63,15 @@ class AccountRepository(private val api: SentryApi, private val store: AccountSt
     store.clear()
   }
 
-  private fun String?.cleanUrl(): String? = this?.trim()?.trimEnd('/')?.takeIf { it.isNotEmpty() }
+  /**
+   * The `https://host` origin of a server-supplied link, or null unless it is an https link to sentry.io or one of its
+   * subdomains. The token is sent to the API link, so a link pointing anywhere else must never be stored.
+   */
+  private fun String?.sentryCloudOrigin(): String? {
+    val url = this?.trim()?.toHttpUrlOrNull() ?: return null
+    val isSentryHost = url.host == SENTRY_DOMAIN || url.host.endsWith(".$SENTRY_DOMAIN")
+    return if (url.isHttps && isSentryHost) "https://${url.host}" else null
+  }
 
   private fun ApiError.toConnectError(): ConnectError =
     when (this) {
@@ -73,5 +85,6 @@ class AccountRepository(private val api: SentryApi, private val store: AccountSt
 
   private companion object {
     const val ORG_TOKEN_PREFIX = "sntrys_"
+    const val SENTRY_DOMAIN = "sentry.io"
   }
 }

@@ -16,6 +16,8 @@ import okhttp3.Response
 class OkHttpSentryApi(
   private val client: OkHttpClient,
   private val userAgent: String,
+  /** Refuse to send the token over anything but https. Only tests against a plain-http MockWebServer turn this off. */
+  private val requireHttps: Boolean = true,
   private val json: Json = SentryJson,
 ) : SentryApi {
 
@@ -26,6 +28,7 @@ class OkHttpSentryApi(
     val url =
       "${baseUrl.trimEnd('/')}/$path".toHttpUrlOrNull()
         ?: return ApiResult.Failure(ApiError.Network("Invalid server URL"))
+    if (requireHttps && !url.isHttps) return ApiResult.Failure(ApiError.Network("Server URL must use https"))
     val request =
       try {
         Request.Builder()

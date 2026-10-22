@@ -54,6 +54,9 @@ dependencies {
   implementation(libs.androidx.lifecycle.runtime.ktx)
   implementation(libs.androidx.activity.compose)
 
+  // Coroutines runtime: declared so the app and the unit tests run the same version
+  implementation(libs.kotlinx.coroutines.android)
+
   // Arch Components
   implementation(libs.androidx.lifecycle.runtime.compose)
   implementation(libs.androidx.lifecycle.viewmodel.compose)

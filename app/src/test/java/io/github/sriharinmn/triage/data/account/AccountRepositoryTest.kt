@@ -2,6 +2,7 @@ package io.github.sriharinmn.triage.data.account
 
 import io.github.sriharinmn.triage.remote.ApiError
 import io.github.sriharinmn.triage.remote.ApiResult
+import io.github.sriharinmn.triage.remote.OrganizationLinksDto
 import io.github.sriharinmn.triage.testing.EU_ORG
 import io.github.sriharinmn.triage.testing.FakeSentryApi
 import io.github.sriharinmn.triage.testing.InMemoryAccountStore
@@ -17,6 +18,9 @@ class AccountRepositoryTest {
   private val api = FakeSentryApi()
   private val store = InMemoryAccountStore()
   private val repository = AccountRepository(api, store)
+
+  private fun orgWithLinks(regionUrl: String?, organizationUrl: String?) =
+    US_ORG.copy(links = OrganizationLinksDto(organizationUrl = organizationUrl, regionUrl = regionUrl))
 
   @Test
   fun blankToken_isRejectedWithoutCallingApi() = runTest {
@@ -93,6 +97,50 @@ class AccountRepositoryTest {
   @Test
   fun connect_onCloudWithoutLinks_fallsBackToSentryIo() = runTest {
     repository.connect(SentryHost.Cloud, "sntryu_abc", US_ORG.copy(links = null))
+    assertEquals("https://sentry.io", store.current?.apiBaseUrl)
+    assertEquals("https://sentry.io", store.current?.webBaseUrl)
+  }
+
+  @Test
+  fun connect_onCloud_rejectsNonHttpsLinks() = runTest {
+    val org = orgWithLinks(regionUrl = "http://de.sentry.io", organizationUrl = "http://beta.sentry.io")
+    repository.connect(SentryHost.Cloud, "sntryu_abc", org)
+    assertEquals("https://sentry.io", store.current?.apiBaseUrl)
+    assertEquals("https://sentry.io", store.current?.webBaseUrl)
+  }
+
+  @Test
+  fun connect_onCloud_rejectsForeignHostLinks() = runTest {
+    val org =
+      orgWithLinks(regionUrl = "https://evil.example.com", organizationUrl = "https://sentry.io.evil.example.com")
+    repository.connect(SentryHost.Cloud, "sntryu_abc", org)
+    assertEquals("https://sentry.io", store.current?.apiBaseUrl)
+    assertEquals("https://sentry.io", store.current?.webBaseUrl)
+  }
+
+  @Test
+  fun connect_onCloud_blankOrMissingLinkFallsBackPerField() = runTest {
+    repository.connect(
+      SentryHost.Cloud,
+      "sntryu_abc",
+      orgWithLinks(regionUrl = "  ", organizationUrl = "https://acme.sentry.io"),
+    )
+    assertEquals("https://sentry.io", store.current?.apiBaseUrl)
+    assertEquals("https://acme.sentry.io", store.current?.webBaseUrl)
+
+    repository.connect(
+      SentryHost.Cloud,
+      "sntryu_abc",
+      orgWithLinks(regionUrl = "https://us.sentry.io", organizationUrl = null),
+    )
+    assertEquals("https://us.sentry.io", store.current?.apiBaseUrl)
+    assertEquals("https://sentry.io", store.current?.webBaseUrl)
+  }
+
+  @Test
+  fun connect_onCloud_acceptsBareApexLinks() = runTest {
+    val org = orgWithLinks(regionUrl = "https://sentry.io", organizationUrl = "https://sentry.io/")
+    repository.connect(SentryHost.Cloud, "sntryu_abc", org)
     assertEquals("https://sentry.io", store.current?.apiBaseUrl)
     assertEquals("https://sentry.io", store.current?.webBaseUrl)
   }

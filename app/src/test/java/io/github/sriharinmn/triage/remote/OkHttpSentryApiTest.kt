@@ -19,7 +19,8 @@ import org.junit.Test
 
 class OkHttpSentryApiTest {
   private lateinit var server: MockWebServer
-  private val api = OkHttpSentryApi(OkHttpClient(), userAgent = "Triage-Test")
+  // MockWebServer serves plain http.
+  private val api = OkHttpSentryApi(OkHttpClient(), userAgent = "Triage-Test", requireHttps = false)
 
   @Before
   fun setUp() {
@@ -95,6 +96,18 @@ class OkHttpSentryApiTest {
     val result = api.listOrganizations(baseUrl(), "sntryu_abc\nInjected: x")
 
     assertEquals(ApiResult.Failure(ApiError.Unauthorized), result)
+    assertEquals(0, server.requestCount)
+  }
+
+  @Test
+  fun insecureUrl_isRefusedWhenHttpsRequired() = runTest {
+    // Queued so that a missing guard shows up as a successful call rather than a slow timeout.
+    server.enqueue(MockResponse().setResponseCode(200).setBody("[]"))
+    val strictApi = OkHttpSentryApi(OkHttpClient(), userAgent = "Triage-Test")
+
+    val result = strictApi.listOrganizations(baseUrl(), "sntryu_abc")
+
+    assertTrue("expected a network failure: $result", result is ApiResult.Failure && result.error is ApiError.Network)
     assertEquals(0, server.requestCount)
   }
 
