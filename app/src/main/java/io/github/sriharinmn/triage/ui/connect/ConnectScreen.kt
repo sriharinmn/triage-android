@@ -33,6 +33,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.contentDescription
@@ -64,6 +65,8 @@ fun ConnectScreen(viewModel: ConnectViewModel, modifier: Modifier = Modifier) {
   val scope = rememberCoroutineScope()
 
   BackHandler(enabled = state.step == Step.ChooseOrganization) { viewModel.onBackFromOrganizations() }
+  // Back while a token is being checked cancels the check instead of leaving the app.
+  BackHandler(enabled = state.canCancel) { viewModel.onCancelValidation() }
 
   ConnectContent(
     state = state,
@@ -234,8 +237,13 @@ private fun ConnectError.message(): String =
     ConnectError.MissingScopes -> stringResource(R.string.connect_error_missing_scopes)
     ConnectError.NoOrganizations -> stringResource(R.string.connect_error_no_orgs)
     is ConnectError.RateLimited ->
-      retryAfterSeconds?.takeIf { it > 0 }?.let { stringResource(R.string.connect_error_rate_limited_seconds, it) }
-        ?: stringResource(R.string.connect_error_rate_limited)
+      retryAfterSeconds?.takeIf { it > 0 }?.let { seconds ->
+        pluralStringResource(
+          R.plurals.connect_error_rate_limited_seconds,
+          seconds.coerceAtMost(Int.MAX_VALUE.toLong()).toInt(),
+          seconds,
+        )
+      } ?: stringResource(R.string.connect_error_rate_limited)
     ConnectError.Network -> stringResource(R.string.connect_error_network)
     ConnectError.Unknown -> stringResource(R.string.connect_error_unknown)
     ConnectError.SaveFailed -> stringResource(R.string.connect_error_save_failed)

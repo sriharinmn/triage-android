@@ -13,6 +13,7 @@ sealed interface ConnectResult {
   data class Error(val reason: ConnectError) : ConnectResult
 }
 
+/** Why connecting failed, mapped to a message by the Connect screen. */
 sealed interface ConnectError {
   data object EmptyToken : ConnectError
 

@@ -26,7 +26,8 @@ fun TriageNavigation(account: Account, container: AppContainer) {
     entryProvider =
       entryProvider {
         entry<Inbox> {
-          // Keyed by server and org, so a different account never reuses this ViewModel.
+          // AccountGate gives these screens a per-account ViewModel store, so this ViewModel is dropped on disconnect;
+          // the key also names the account.
           val inboxViewModel: InboxViewModel =
             viewModel(key = "inbox|${account.apiBaseUrl}|${account.orgSlug}") {
               InboxViewModel(account, container.issueRepository, container.inboxSettings, container.disconnector)
