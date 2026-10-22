@@ -17,14 +17,20 @@ sealed interface SentryHost {
   data class SelfHosted(override val baseUrl: String) : SentryHost
 }
 
+private val MALFORMED_SCHEME = Regex("(?i)^https?:?/")
+
 /**
  * Turns whatever the user typed into `https://host[:port][/path]` with no trailing slash, or null
- * if it isn't a usable https URL. A pasted `/api/0` suffix is removed.
+ * if it isn't a usable https URL. A pasted `/api/0` suffix is removed. A scheme typed without its
+ * `://` (such as `https:/host`) is rejected rather than read as a host name.
  */
 fun normalizeBaseUrl(input: String): String? {
   var text = input.trim()
   if (text.isEmpty() || text.any { it.isWhitespace() }) return null
-  if (!text.contains("://")) text = "https://$text"
+  if (!text.contains("://")) {
+    if (MALFORMED_SCHEME.containsMatchIn(text)) return null
+    text = "https://$text"
+  }
   val url = text.toHttpUrlOrNull() ?: return null
   if (url.scheme != "https") return null
 
@@ -35,5 +41,7 @@ fun normalizeBaseUrl(input: String): String? {
   }
   val path = if (segments.isEmpty()) "" else segments.joinToString(separator = "/", prefix = "/")
   val port = if (url.port == HttpUrl.defaultPort(url.scheme)) "" else ":${url.port}"
-  return "https://${url.host}$port$path"
+  // OkHttp strips the brackets from IPv6 literals; put them back so the result is a valid URL.
+  val host = if (':' in url.host) "[${url.host}]" else url.host
+  return "https://$host$port$path"
 }

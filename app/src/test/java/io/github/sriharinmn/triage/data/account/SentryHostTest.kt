@@ -43,6 +43,19 @@ class SentryHostTest {
   }
 
   @Test
+  fun normalize_rejectsMalformedScheme() {
+    assertNull(normalizeBaseUrl("https:/sentry.example.com"))
+    assertNull(normalizeBaseUrl("https//sentry.example.com"))
+    assertNull(normalizeBaseUrl("http:/sentry.example.com"))
+  }
+
+  @Test
+  fun normalize_keepsBracketsForIpv6Host() {
+    assertEquals("https://[::1]:8443", normalizeBaseUrl("https://[::1]:8443/"))
+    assertEquals("https://[2001:db8::1]", normalizeBaseUrl("[2001:db8::1]"))
+  }
+
+  @Test
   fun cloudHost_pointsAtSentryIo() {
     assertEquals("https://sentry.io", SentryHost.Cloud.baseUrl)
     assertEquals("https://sentry.io/settings/account/api/auth-tokens/", SentryHost.Cloud.tokenPageUrl)
