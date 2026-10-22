@@ -1,0 +1,12 @@
+{
+  "name": "triage-demo-errors",
+  "private": true,
+  "description": "Sends realistic test errors to the owner's triage-demo Sentry projects",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "dependencies": {
+    "@sentry/node": "11.8.0"
+  }
+}
