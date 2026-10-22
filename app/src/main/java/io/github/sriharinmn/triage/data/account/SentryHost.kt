@@ -17,7 +17,7 @@ sealed interface SentryHost {
   data class SelfHosted(override val baseUrl: String) : SentryHost
 }
 
-private val MALFORMED_SCHEME = Regex("(?i)^https?:?/")
+private val MALFORMED_SCHEME = Regex("(?i)^https?[:/]")
 
 /**
  * Turns whatever the user typed into `https://host[:port][/path]` with no trailing slash, or null

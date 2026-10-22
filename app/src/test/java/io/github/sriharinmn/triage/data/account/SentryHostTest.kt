@@ -47,6 +47,15 @@ class SentryHostTest {
     assertNull(normalizeBaseUrl("https:/sentry.example.com"))
     assertNull(normalizeBaseUrl("https//sentry.example.com"))
     assertNull(normalizeBaseUrl("http:/sentry.example.com"))
+    assertNull(normalizeBaseUrl("https:"))
+    assertNull(normalizeBaseUrl("https:443/sentry"))
+    assertNull(normalizeBaseUrl("HTTPS:/sentry.example.com"))
+  }
+
+  @Test
+  fun normalize_acceptsHostsThatStartWithHttp() {
+    assertEquals("https://httpbin.org", normalizeBaseUrl("httpbin.org"))
+    assertEquals("https://https.example.com", normalizeBaseUrl("https.example.com"))
   }
 
   @Test
