@@ -32,4 +32,72 @@
     <string name="home_connected_to">Connected to %1$s</string>
     <string name="home_coming_soon">Your issue inbox arrives in the next update.</string>
     <string name="home_disconnect">Disconnect</string>
+
+    <string name="inbox_tab_for_review">For review</string>
+    <string name="inbox_tab_unresolved">Unresolved</string>
+    <string name="inbox_tab_regressed">Regressed</string>
+    <string name="inbox_tab_escalating">Escalating</string>
+
+    <string name="inbox_filter_all_projects">All projects</string>
+    <string name="inbox_filter_all_environments">All environments</string>
+    <string name="inbox_filter_project_title">Project</string>
+    <string name="inbox_filter_environment_title">Environment</string>
+    <string name="inbox_filter_sort_title">Sort by</string>
+    <string name="inbox_sort_last_seen">Last seen</string>
+    <string name="inbox_sort_first_seen">First seen</string>
+    <string name="inbox_sort_events">Events</string>
+    <string name="inbox_sort_users">Users</string>
+
+    <string name="inbox_empty_for_review">Nothing to review.</string>
+    <string name="inbox_empty_unresolved">No unresolved issues in the last 14 days.</string>
+    <string name="inbox_empty_regressed">No regressions in the last 14 days.</string>
+    <string name="inbox_empty_escalating">Nothing is escalating.</string>
+    <string name="inbox_loading">Loading issues…</string>
+
+    <string name="inbox_updated_stale">Updated %1$s · couldn\'t refresh</string>
+    <string name="inbox_retry">Retry</string>
+    <string name="inbox_reconnect">Reconnect</string>
+    <string name="inbox_load_more_failed">Couldn\'t load more.</string>
+    <string name="inbox_error_unauthorized">Sentry no longer accepts your token. Reconnect with a new one.</string>
+    <string name="inbox_error_forbidden">Your token can\'t read issues. Create a new Personal Token with Organization Read, Project Read, Issue &amp; Event Read &amp; Write, and Member Read, then reconnect.</string>
+    <string name="inbox_error_rate_limited">Sentry asked us to slow down. Try again in %1$d s.</string>
+    <string name="inbox_error_rate_limited_unknown">Sentry asked us to slow down. Try again in a minute.</string>
+    <string name="inbox_error_network">Couldn\'t reach Sentry. Check your connection.</string>
+    <string name="inbox_error_server">Sentry sent something unexpected. Try again.</string>
+    <string name="inbox_open_failed">Couldn\'t open the browser.</string>
+
+    <string name="inbox_menu">More options</string>
+    <string name="inbox_disconnect">Disconnect…</string>
+    <string name="inbox_disconnect_title">Disconnect from Sentry?</string>
+    <string name="inbox_disconnect_body">Triage will forget your token and cached issues on this phone. Sentry shows a token only once, so you\'ll need to create a new one to reconnect.</string>
+    <string name="inbox_disconnect_confirm">Disconnect</string>
+    <string name="inbox_disconnect_cancel">Cancel</string>
+    <string name="inbox_disconnect_failed">Couldn\'t disconnect. Try again.</string>
+
+    <string name="issue_badge_new">New</string>
+    <string name="issue_badge_regressed">Regressed</string>
+    <string name="issue_badge_escalating">Escalating</string>
+    <string name="issue_badge_unhandled">Unhandled</string>
+    <string name="issue_last_seen">%1$s ago</string>
+    <string name="issue_age">%1$s old</string>
+    <string name="span_under_minute">&lt;1m</string>
+    <string name="span_minutes">%1$dm</string>
+    <string name="span_hours">%1$dh</string>
+    <string name="span_days">%1$dd</string>
+    <string name="span_weeks">%1$dw</string>
+    <string name="span_months">%1$dmo</string>
+    <string name="span_years">%1$dy</string>
+
+    <plurals name="issue_events">
+        <item quantity="one">%1$s event</item>
+        <item quantity="other">%1$s events</item>
+    </plurals>
+    <plurals name="issue_users">
+        <item quantity="one">%1$s user</item>
+        <item quantity="other">%1$s users</item>
+    </plurals>
+    <plurals name="issue_events_last_24h">
+        <item quantity="one">%1$d event in the last 24 hours</item>
+        <item quantity="other">%1$d events in the last 24 hours</item>
+    </plurals>
 </resources>
