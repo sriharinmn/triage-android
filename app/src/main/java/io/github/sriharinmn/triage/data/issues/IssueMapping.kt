@@ -6,6 +6,7 @@ import java.time.Instant
 import java.time.OffsetDateTime
 import java.time.format.DateTimeParseException
 
+/** The inbox's view of a Sentry issue; blank culprits and unparseable times become null. */
 fun IssueDto.toIssue(): Issue =
   Issue(
     id = id,
@@ -31,6 +32,7 @@ fun IssueDto.toIssue(): Issue =
     hourlyEvents = stats["24h"].orEmpty().map { bucket -> bucket.getOrNull(1)?.toLong() ?: 0L },
   )
 
+/** A project with its environment names sorted, de-duplicated and non-blank. */
 fun ProjectDto.toProject(): Project =
   Project(
     id = id,

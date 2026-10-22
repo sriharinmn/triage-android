@@ -51,8 +51,8 @@ class InboxFilterTest {
   fun listKey_cannotBeConfusedByOddEnvironmentNames() {
     assertNotEquals(InboxFilter(environment = "*").listKey, InboxFilter(environment = null).listKey)
     assertNotEquals(
-      InboxFilter(projectId = "1", environment = "a|LastSeen").listKey,
-      InboxFilter(projectId = "1|=a", environment = null).listKey,
+      InboxFilter(projectId = "1|=2", environment = "3").listKey,
+      InboxFilter(projectId = "1", environment = "2|=3").listKey,
     )
   }
 }

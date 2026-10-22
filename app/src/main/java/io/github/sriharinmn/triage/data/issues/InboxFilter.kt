@@ -11,6 +11,7 @@ enum class InboxTab(val query: String) {
   Escalating("is:escalating"),
 }
 
+/** The inbox sort orders, with the value Sentry's API expects for each. */
 enum class IssueSort(val apiValue: String) {
   LastSeen("date"),
   FirstSeen("new"),
@@ -34,6 +35,7 @@ data class InboxFilter(
   val listKey: String
     get() = listOf(tab.name, projectId.keyPart(), environment.keyPart(), sort.name).joinToString("|")
 
+  /** The request parameters for this filter's first page. */
   fun toParams(): IssueListParams =
     IssueListParams(query = tab.query, projectId = projectId, environment = environment, sort = sort.apiValue)
 

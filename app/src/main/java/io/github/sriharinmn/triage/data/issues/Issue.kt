@@ -2,6 +2,7 @@ package io.github.sriharinmn.triage.data.issues
 
 import java.time.Instant
 
+/** Sentry's event level for an issue; [Unknown] covers anything Sentry adds later. */
 enum class IssueLevel {
   Fatal,
   Error,
