@@ -80,8 +80,6 @@ dependencies {
   // Local tests: jUnit, coroutines, Android runner
   testImplementation(libs.junit)
   testImplementation(libs.kotlinx.coroutines.test)
-  // Lets a JVM test see a real Android SDK level (DataStore's file writes depend on it; see the DataStore test)
-  testImplementation(libs.robolectric)
 
   // Instrumented tests: jUnit rules and runners
   androidTestImplementation(libs.androidx.test.core)
