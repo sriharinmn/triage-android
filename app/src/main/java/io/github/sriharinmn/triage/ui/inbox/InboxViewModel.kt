@@ -150,6 +150,10 @@ class InboxViewModel(
       } catch (e: Exception) {
         // Stay connected so the user can try again. Nothing from the exception is shown.
         _state.update { it.copy(isDisconnecting = false, disconnectFailed = true) }
+        // The cache may already be cleared and the startup job (the only projects loader) was cancelled; reload so the
+        // inbox isn't left empty.
+        startRefresh()
+        viewModelScope.launch { issues.refreshProjects(account) }
       }
     }
   }
@@ -170,6 +174,8 @@ class InboxViewModel(
 
   /** Switches the screen to [requested] (minus a project that no longer exists) and refreshes it if it is stale. */
   private fun show(requested: InboxFilter, persist: Boolean = true) {
+    // A tap during disconnect could save a filter after the settings were cleared; the next account would open on it.
+    if (_state.value.isDisconnecting) return
     val filter = requested.withKnownProject(_state.value.projects)
     if (filter == shownFilter.value) return
     refreshJob?.cancel()

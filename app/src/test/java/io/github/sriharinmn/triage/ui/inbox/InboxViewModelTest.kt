@@ -24,8 +24,10 @@ import io.github.sriharinmn.triage.testing.projectDto
 import java.io.IOException
 import java.time.Duration
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.withContext
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
@@ -110,12 +112,74 @@ class InboxViewModelTest {
 
   @Test
   fun choosingTheCurrentTabAgain_doesNothing() = runTest {
+    api.issuesHandler = { page("1", "2") }
     val vm = viewModel()
     val calls = api.issueCalls.size
 
     vm.onTabSelected(InboxTab.Unresolved)
 
     assertEquals(calls, api.issueCalls.size)
+    assertEquals(listOf("1", "2"), vm.ids()) // the list must not be blanked
+  }
+
+  @Test
+  fun switchingToAFreshList_showsItWithoutCallingSentry() = runTest {
+    cacheList(InboxFilter(tab = InboxTab.Regressed), listOf("r9"), Duration.ofSeconds(30))
+    api.issuesHandler = { page("1") }
+    val vm = viewModel()
+    assertEquals(1, api.issueCalls.size) // the Unresolved list had no cache, so opening refreshed it
+
+    vm.onTabSelected(InboxTab.Regressed)
+
+    assertEquals(1, api.issueCalls.size)
+    assertEquals(listOf("r9"), vm.ids())
+  }
+
+  @Test
+  fun aRefreshForTheOldTab_doesNotLandOnTheNewTab() = runTest {
+    val gate = CompletableDeferred<Unit>()
+    api.issuesHandler = { call ->
+      if (call.params.query == InboxTab.Regressed.query) {
+        page("r1")
+      } else {
+        // NonCancellable: the response had already arrived when the tab changed, so only the filter check can stop it.
+        withContext(NonCancellable) { gate.await() }
+        ApiResult.Failure(ApiError.Network("offline"))
+      }
+    }
+    val vm = viewModel()
+    assertTrue(vm.state.value.isRefreshing)
+
+    vm.onTabSelected(InboxTab.Regressed)
+    assertEquals(listOf("r1"), vm.ids())
+    gate.complete(Unit)
+
+    assertEquals(InboxTab.Regressed, vm.state.value.filter.tab)
+    assertEquals(listOf("r1"), vm.ids())
+    assertFalse(vm.state.value.isRefreshing)
+    assertNull(vm.state.value.error)
+  }
+
+  @Test
+  fun pullingTwiceWhileRefreshing_makesOneCall() = runTest {
+    cacheList(InboxFilter(), listOf("9"), Duration.ofSeconds(10))
+    val gate = CompletableDeferred<Unit>()
+    api.issuesHandler = {
+      gate.await()
+      page("1")
+    }
+    val vm = viewModel()
+    assertTrue(api.issueCalls.isEmpty())
+
+    vm.onRefresh()
+    vm.onRefresh()
+    assertTrue(vm.state.value.isRefreshing)
+    assertEquals(1, api.issueCalls.size)
+    gate.complete(Unit)
+
+    assertEquals(1, api.issueCalls.size)
+    assertEquals(listOf("1"), vm.ids())
+    assertFalse(vm.state.value.isRefreshing)
   }
 
   @Test
@@ -163,6 +227,31 @@ class InboxViewModelTest {
     assertFalse(vm.state.value.isLoadingMore)
     assertFalse(vm.state.value.hasMore)
     assertEquals(2, api.issueCalls.size)
+  }
+
+  @Test
+  fun refreshing_dropsAnInFlightPageOfTheOldList() = runTest {
+    val gate = CompletableDeferred<Unit>()
+    api.issuesHandler = { call ->
+      if (call.cursor == null) {
+        page("1", next = "c2")
+      } else {
+        gate.await()
+        page("3")
+      }
+    }
+    val vm = viewModel()
+    vm.onLoadMore()
+    assertTrue(vm.state.value.isLoadingMore)
+    api.issuesHandler = { page("9") }
+
+    vm.onRefresh()
+    assertEquals(listOf("9"), vm.ids())
+    gate.complete(Unit)
+
+    assertEquals(listOf("9"), vm.ids())
+    assertFalse(vm.state.value.isLoadingMore)
+    assertFalse(vm.state.value.hasMore)
   }
 
   @Test
@@ -270,6 +359,64 @@ class InboxViewModelTest {
     assertNull(accountStore.current)
     assertTrue(cache.observeIssues(InboxFilter().listKey).first().isEmpty())
     assertEquals(InboxFilter(), settings.current)
+  }
+
+  @Test
+  fun aRefreshInFlightWhenDisconnecting_neverWritesBack() = runTest {
+    val gate = CompletableDeferred<Unit>()
+    api.issuesHandler = {
+      gate.await()
+      page("1")
+    }
+    val vm = viewModel()
+    assertTrue(vm.state.value.isRefreshing)
+
+    vm.onDisconnectConfirmed()
+    gate.complete(Unit)
+
+    assertNull(accountStore.current)
+    assertTrue(cache.observeIssues(InboxFilter().listKey).first().isEmpty())
+    assertNull(cache.listState(InboxFilter().listKey))
+  }
+
+  @Test
+  fun filterChangesDuringDisconnect_areIgnored() = runTest {
+    val vm = viewModel()
+    val calls = api.issueCalls.size
+    val gate = CompletableDeferred<Unit>()
+    cache.clearGate = gate
+    vm.onDisconnectConfirmed()
+    assertTrue(vm.state.value.isDisconnecting)
+
+    vm.onTabSelected(InboxTab.Escalating)
+
+    assertEquals(InboxFilter(), vm.state.value.filter)
+    assertEquals(InboxFilter(), settings.current)
+    assertEquals(calls, api.issueCalls.size)
+    gate.complete(Unit)
+    assertNull(accountStore.current)
+    assertEquals(InboxFilter(), settings.current)
+  }
+
+  @Test
+  fun aDisconnectThatFailsAfterClearingTheCache_reloadsTheInbox() = runTest {
+    api.issuesHandler = { page("1") }
+    val vm = viewModel()
+    assertEquals(listOf("1"), vm.ids())
+    settings.clearError = IOException("disk full")
+    api.issuesHandler = { page("2") }
+    val issueCalls = api.issueCalls.size
+    val projectCalls = api.projectCalls.size
+
+    vm.onDisconnectConfirmed()
+
+    assertTrue(vm.state.value.disconnectFailed)
+    assertFalse(vm.state.value.isDisconnecting)
+    assertNotNull(accountStore.current)
+    assertEquals(issueCalls + 1, api.issueCalls.size)
+    assertEquals(projectCalls + 1, api.projectCalls.size)
+    assertEquals(listOf("2"), vm.ids()) // the cache was cleared first, so this is the reloaded list
+    assertFalse(vm.state.value.isRefreshing)
   }
 
   @Test

@@ -5,6 +5,7 @@ import io.github.sriharinmn.triage.data.issues.Issue
 import io.github.sriharinmn.triage.data.issues.IssueCache
 import io.github.sriharinmn.triage.data.issues.Project
 import java.time.Instant
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -30,6 +31,9 @@ class InMemoryIssueCache : IssueCache {
 
   /** When set, [clear] throws it. */
   var clearError: Exception? = null
+
+  /** When set, [clear] suspends until it is completed. */
+  var clearGate: CompletableDeferred<Unit>? = null
 
   /** Ids of every stored issue row, including ones no list refers to; lets tests check orphan pruning. */
   val storedIssueIds: Set<String>
@@ -90,6 +94,7 @@ class InMemoryIssueCache : IssueCache {
   }
 
   override suspend fun clear() {
+    clearGate?.await()
     clearError?.let { throw it }
     state.value = Snapshot()
   }
