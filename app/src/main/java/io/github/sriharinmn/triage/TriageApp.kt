@@ -1,11 +1,11 @@
 package io.github.sriharinmn.triage
 
-import androidx.activity.compose.LocalActivity
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
+import androidx.compose.runtime.remember
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelStore
 import androidx.lifecycle.ViewModelStoreOwner
@@ -33,50 +33,55 @@ fun TriageApp(container: AppContainer) {
 
 /**
  * The root for an account state: nothing while loading, [signedOut] without an account, [signedIn] with one. A different
- * account gets a fresh composition, and its [signedIn] screens get their own ViewModel store that is cleared when the
- * account goes away (see [SignedInSession]), so a ViewModel never outlives the account it was made for.
+ * account gets a fresh composition, and its [signedIn] screens get their own ViewModel store (see
+ * [SessionViewModelStores]) that is cleared as soon as a settled state no longer has that account, so a ViewModel never
+ * outlives the account it was made for.
  */
 @Composable
 fun AccountGate(state: AccountState, signedOut: @Composable () -> Unit, signedIn: @Composable (Account) -> Unit) {
+  // From the activity's store (before any override below), so the session stores survive rotation.
+  val sessions: SessionViewModelStores = viewModel()
   when (state) {
     AccountState.Loading -> Unit
     is AccountState.Ready -> {
       val account = state.account
+      val sessionKey = account?.sessionKey()
+      // Every settled state drops the other sessions' ViewModels; this also covers an account that disappeared while
+      // the activity was being recreated, when the old composition's disposal could not tell it was gone for good.
+      SideEffect { sessions.retainOnly(sessionKey) }
       if (account == null) signedOut()
-      else key(account.apiBaseUrl, account.orgSlug) { SignedInSession(account) { signedIn(account) } }
+      else
+        key(account.apiBaseUrl, account.orgSlug) {
+          val owner = remember { SessionStoreOwner(sessions.storeFor(account.sessionKey())) }
+          CompositionLocalProvider(LocalViewModelStoreOwner provides owner) { signedIn(account) }
+        }
     }
   }
 }
+
+private fun Account.sessionKey() = "$apiBaseUrl|$orgSlug"
 
 /**
- * Gives [content] a ViewModel store that lasts as long as [account] stays connected.
- *
- * Navigation 3 keeps each entry's ViewModels in the activity's store and does not clear them when NavDisplay leaves
- * composition, so without this a disconnect followed by a reconnect to the same org would get the old ViewModel back,
- * still holding the old token. This store survives rotation (it lives in the activity's store) but is cleared when
- * [content] leaves composition for any reason other than a configuration change, i.e. on disconnect or when switching
- * accounts.
+ * Hands a signed-in session's [viewModelStore] to the composition. Navigation 3 keeps each entry's ViewModels in the
+ * nearest owner's store and does not clear them when NavDisplay leaves composition, so this is what scopes them to the
+ * session. It provides no default factory or SavedStateHandle extras, so ViewModels in the signed-in subtree must be
+ * created through a Navigation entry or with an explicit initializer.
  */
-@Composable
-private fun SignedInSession(account: Account, content: @Composable () -> Unit) {
-  val activityOwner = checkNotNull(LocalViewModelStoreOwner.current) { "No ViewModelStoreOwner in composition" }
-  // Keyed per server and org, so clearing the old account's store can never wipe a newly composed one.
-  val session: SessionViewModelStore =
-    viewModel(viewModelStoreOwner = activityOwner, key = "session|${account.apiBaseUrl}|${account.orgSlug}") {
-      SessionViewModelStore()
-    }
-  val activity = LocalActivity.current
-  DisposableEffect(session) {
-    onDispose {
-      if (activity?.isChangingConfigurations != true) session.viewModelStore.clear()
-    }
+private class SessionStoreOwner(override val viewModelStore: ViewModelStore) : ViewModelStoreOwner
+
+/**
+ * The ViewModelStores of signed-in sessions, kept in the activity's store so they survive rotation.
+ * [retainOnly] clears every session but the current one, so a ViewModel never outlives the account it was made for.
+ */
+internal class SessionViewModelStores : ViewModel() {
+  private val stores = mutableMapOf<String, ViewModelStore>()
+
+  fun storeFor(sessionKey: String): ViewModelStore = stores.getOrPut(sessionKey) { ViewModelStore() }
+
+  /** Clears and forgets every session's ViewModels except [sessionKey]'s; all of them when it is null. */
+  fun retainOnly(sessionKey: String?) {
+    stores.keys.filter { it != sessionKey }.forEach { stores.remove(it)?.clear() }
   }
-  CompositionLocalProvider(LocalViewModelStoreOwner provides session) { content() }
-}
 
-/** A [ViewModelStoreOwner] kept in the activity's store, so the ViewModels placed in it survive rotation. */
-internal class SessionViewModelStore : ViewModel(), ViewModelStoreOwner {
-  override val viewModelStore = ViewModelStore()
-
-  override fun onCleared() = viewModelStore.clear()
+  override fun onCleared() = retainOnly(null)
 }
