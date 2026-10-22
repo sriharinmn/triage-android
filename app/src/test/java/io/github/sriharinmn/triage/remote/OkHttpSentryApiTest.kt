@@ -1,11 +1,18 @@
 package io.github.sriharinmn.triage.remote
 
+import java.util.concurrent.TimeUnit
+import kotlin.system.measureTimeMillis
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runTest
 import okhttp3.OkHttpClient
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -81,6 +88,26 @@ class OkHttpSentryApiTest {
     val result = api.listOrganizations(url, "t")
 
     assertTrue(result is ApiResult.Failure && result.error is ApiError.Network)
+  }
+
+  @Test
+  fun malformedToken_mapsToUnauthorizedWithoutRequest() = runTest {
+    val result = api.listOrganizations(baseUrl(), "sntryu_abc\nInjected: x")
+
+    assertEquals(ApiResult.Failure(ApiError.Unauthorized), result)
+    assertEquals(0, server.requestCount)
+  }
+
+  @Test
+  fun cancellation_cancelsInFlightCall() = runBlocking {
+    server.enqueue(MockResponse().setResponseCode(200).setBody("[]").setHeadersDelay(10, TimeUnit.SECONDS))
+
+    val job = launch(Dispatchers.Default) { api.listOrganizations(baseUrl(), "t") }
+    assertNotNull("request never reached the server", server.takeRequest(5, TimeUnit.SECONDS))
+
+    val elapsedMs = measureTimeMillis { job.cancelAndJoin() }
+
+    assertTrue("cancelAndJoin took ${elapsedMs}ms", elapsedMs < 2_000)
   }
 
   private companion object {
