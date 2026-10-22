@@ -87,4 +87,7 @@ dependencies {
   implementation(libs.kotlinx.serialization.json)
   implementation(libs.okhttp)
   testImplementation(libs.okhttp.mockwebserver)
+
+  // Persistence
+  implementation(libs.androidx.datastore.preferences)
 }
