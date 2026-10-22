@@ -5,6 +5,7 @@ import io.github.sriharinmn.triage.data.account.AccountStore
 import io.github.sriharinmn.triage.remote.ApiResult
 import io.github.sriharinmn.triage.remote.OrganizationDto
 import io.github.sriharinmn.triage.remote.SentryApi
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 
@@ -26,8 +27,20 @@ class InMemoryAccountStore(initial: Account? = null) : AccountStore {
   val current: Account?
     get() = state.value
 
+  /** When set, [save] throws it. */
+  var saveError: Exception? = null
+
+  /** When set, [save] suspends until it is completed. */
+  var saveGate: CompletableDeferred<Unit>? = null
+
+  /** Number of successful saves. */
+  var saveCount = 0
+
   override suspend fun save(account: Account) {
+    saveGate?.await()
+    saveError?.let { throw it }
     state.value = account
+    saveCount++
   }
 
   override suspend fun clear() {

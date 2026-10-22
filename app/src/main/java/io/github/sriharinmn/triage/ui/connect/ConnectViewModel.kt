@@ -8,6 +8,7 @@ import io.github.sriharinmn.triage.data.account.ConnectResult
 import io.github.sriharinmn.triage.data.account.SentryHost
 import io.github.sriharinmn.triage.data.account.normalizeBaseUrl
 import io.github.sriharinmn.triage.remote.OrganizationDto
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -43,22 +44,30 @@ data class ConnectUiState(
       "organizations=${organizations.map { it.slug }}, error=$error, urlError=$urlError)"
 }
 
+/** Host and token captured at submit time. The token is redacted so it can't leak through logging. */
+private data class PendingConnection(val host: SentryHost, val token: String) {
+  override fun toString(): String = "PendingConnection(host=$host, token=<redacted>)"
+}
+
 class ConnectViewModel(private val repository: AccountRepository) : ViewModel() {
   private val _state = MutableStateFlow(ConnectUiState())
   val state: StateFlow<ConnectUiState> = _state.asStateFlow()
 
   /** Host and token captured at submit time, used once the user picks an organization. */
-  private var pending: Pair<SentryHost, String>? = null
+  private var pending: PendingConnection? = null
 
   fun onHostChoiceChange(choice: HostChoice) {
+    if (_state.value.step != Step.EnterToken) return
     _state.update { it.copy(hostChoice = choice, urlError = false, error = null) }
   }
 
   fun onSelfHostedUrlChange(url: String) {
+    if (_state.value.step != Step.EnterToken) return
     _state.update { it.copy(selfHostedUrl = url, urlError = false) }
   }
 
   fun onTokenChange(token: String) {
+    if (_state.value.step != Step.EnterToken) return
     _state.update { it.copy(token = token, error = null) }
   }
 
@@ -86,7 +95,7 @@ class ConnectViewModel(private val repository: AccountRepository) : ViewModel() 
           if (result.organizations.size == 1) {
             finish(host, snapshot.token, result.organizations.single())
           } else {
-            pending = host to snapshot.token
+            pending = PendingConnection(host, snapshot.token)
             _state.update { it.copy(step = Step.ChooseOrganization, organizations = result.organizations) }
           }
       }
@@ -94,17 +103,29 @@ class ConnectViewModel(private val repository: AccountRepository) : ViewModel() 
   }
 
   fun onOrganizationChosen(organization: OrganizationDto) {
-    val (host, token) = pending ?: return
-    viewModelScope.launch { finish(host, token, organization) }
+    val connection = pending ?: return
+    pending = null
+    _state.update { it.copy(step = Step.Validating) }
+    viewModelScope.launch { finish(connection.host, connection.token, organization) }
   }
 
   fun onBackFromOrganizations() {
+    if (_state.value.step != Step.ChooseOrganization) return
     pending = null
     _state.update { it.copy(step = Step.EnterToken, organizations = emptyList()) }
   }
 
   private suspend fun finish(host: SentryHost, token: String, organization: OrganizationDto) {
-    repository.connect(host, token, organization)
+    try {
+      repository.connect(host, token, organization)
+    } catch (e: CancellationException) {
+      throw e
+    } catch (e: Exception) {
+      // Saving can fail (Keystore, disk). Deliberately drop the exception: its message must not reach state or logs.
+      pending = null
+      _state.update { it.copy(step = Step.EnterToken, organizations = emptyList(), error = ConnectError.SaveFailed) }
+      return
+    }
     pending = null
     _state.value = ConnectUiState()
   }

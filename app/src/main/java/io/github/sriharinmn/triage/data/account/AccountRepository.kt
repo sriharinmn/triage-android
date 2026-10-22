@@ -21,6 +21,7 @@ enum class ConnectError {
   RateLimited,
   Network,
   Unknown,
+  SaveFailed,
 }
 
 class AccountRepository(private val api: SentryApi, private val store: AccountStore) {

@@ -9,6 +9,8 @@ import io.github.sriharinmn.triage.testing.FakeSentryApi
 import io.github.sriharinmn.triage.testing.InMemoryAccountStore
 import io.github.sriharinmn.triage.testing.MainDispatcherRule
 import io.github.sriharinmn.triage.testing.US_ORG
+import java.io.IOException
+import kotlinx.coroutines.CompletableDeferred
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -131,6 +133,92 @@ class ConnectViewModelTest {
 
     assertEquals("https://sentry.example.com", api.calls.single().first)
     assertEquals("https://sentry.example.com", store.current?.apiBaseUrl)
+  }
+
+  @Test
+  fun saveFailure_onSingleOrg_returnsToTokenStepWithSaveFailed() {
+    api.organizationsResult = ApiResult.Success(listOf(US_ORG))
+    store.saveError = IOException("disk")
+    viewModel.onTokenChange("sntryu_abc")
+
+    viewModel.onSubmit()
+
+    assertEquals(Step.EnterToken, viewModel.state.value.step)
+    assertEquals(ConnectError.SaveFailed, viewModel.state.value.error)
+    assertEquals("sntryu_abc", viewModel.state.value.token)
+    assertNull(store.current)
+  }
+
+  @Test
+  fun saveFailure_afterChoosingOrg_returnsToTokenStep() {
+    api.organizationsResult = ApiResult.Success(listOf(US_ORG, EU_ORG))
+    viewModel.onTokenChange("sntryu_abc")
+    viewModel.onSubmit()
+    store.saveError = IOException("disk")
+
+    viewModel.onOrganizationChosen(EU_ORG)
+
+    assertEquals(Step.EnterToken, viewModel.state.value.step)
+    assertEquals(ConnectError.SaveFailed, viewModel.state.value.error)
+    assertTrue(viewModel.state.value.organizations.isEmpty())
+  }
+
+  @Test
+  fun edits_areIgnoredWhileChoosingOrganization() {
+    api.organizationsResult = ApiResult.Success(listOf(US_ORG, EU_ORG))
+    viewModel.onTokenChange("sntryu_abc")
+    viewModel.onSubmit()
+
+    viewModel.onTokenChange("sntryu_other")
+    viewModel.onHostChoiceChange(HostChoice.SelfHosted)
+    viewModel.onSelfHostedUrlChange("x")
+
+    assertEquals("sntryu_abc", viewModel.state.value.token)
+    assertEquals(HostChoice.Cloud, viewModel.state.value.hostChoice)
+    assertEquals("", viewModel.state.value.selfHostedUrl)
+
+    viewModel.onOrganizationChosen(EU_ORG)
+
+    assertEquals("sntryu_abc", store.current?.token)
+  }
+
+  @Test
+  fun chooseOrganization_twiceQuickly_connectsOnlyFirst() {
+    api.organizationsResult = ApiResult.Success(listOf(US_ORG, EU_ORG))
+    viewModel.onTokenChange("sntryu_abc")
+    viewModel.onSubmit()
+    val gate = CompletableDeferred<Unit>()
+    store.saveGate = gate
+
+    viewModel.onOrganizationChosen(EU_ORG)
+    viewModel.onOrganizationChosen(US_ORG)
+
+    assertEquals(Step.Validating, viewModel.state.value.step)
+
+    gate.complete(Unit)
+
+    assertEquals("beta-gmbh", store.current?.orgSlug)
+    assertEquals(1, store.saveCount)
+    assertEquals(ConnectUiState(), viewModel.state.value)
+  }
+
+  @Test
+  fun back_duringSave_isIgnored() {
+    api.organizationsResult = ApiResult.Success(listOf(US_ORG, EU_ORG))
+    viewModel.onTokenChange("sntryu_abc")
+    viewModel.onSubmit()
+    val gate = CompletableDeferred<Unit>()
+    store.saveGate = gate
+    viewModel.onOrganizationChosen(EU_ORG)
+
+    viewModel.onBackFromOrganizations()
+
+    assertEquals(Step.Validating, viewModel.state.value.step)
+
+    gate.complete(Unit)
+
+    assertEquals("beta-gmbh", store.current?.orgSlug)
+    assertEquals(ConnectUiState(), viewModel.state.value)
   }
 
   @Test
