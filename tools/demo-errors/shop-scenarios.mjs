@@ -131,4 +131,21 @@ export const shopScenarios = [
     oldestDaysAgo: 2,
     send: (Sentry) => Sentry.captureEvent({ message: "Feature flag new-checkout fell back to its default value" }),
   },
+  {
+    name: "webhook-failures",
+    count: 30,
+    users: 0,
+    userSeed: 0,
+    level: "warning",
+    environments: ["production"],
+    newestHoursAgo: 4,
+    oldestDaysAgo: 3,
+    tags: { component: "webhooks" },
+    // One issue per partner (30 issues: more than one 25-issue inbox page). The fingerprint is needed because Sentry
+    // otherwise treats the partner number as a parameter and groups all 30 messages into one issue.
+    send: (Sentry, _target, i) => {
+      const partner = `partner-${String(i + 1).padStart(2, "0")}`;
+      Sentry.captureEvent({ message: `Webhook delivery to ${partner} failed: HTTP 503`, fingerprint: ["webhook-delivery", partner] });
+    },
+  },
 ];

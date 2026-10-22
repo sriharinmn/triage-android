@@ -2,6 +2,7 @@
 //
 //   node send.mjs shop                   errors from a pretend Node shop backend (project triage-demo)
 //   node send.mjs android                crashes from a pretend Android shop app (project triage-demo-android)
+//   node send.mjs shop --scenario <name> send just one scenario, as in the full batch
 //   node send.mjs shop --only <name>     send one scenario now, from a newer release (use it to regress a resolved issue)
 //   node send.mjs shop --burst <name>    send 60 events of one scenario now (use it to escalate an archived issue)
 //   add --dry-run                        print the events instead of sending them
@@ -82,9 +83,10 @@ function randomBetween(min, max) {
 
 function parseArgs(argv) {
   const [targetName, ...rest] = argv;
-  const options = { targetName, only: null, burst: null, dryRun: false };
+  const options = { targetName, scenario: null, only: null, burst: null, dryRun: false };
   for (let i = 0; i < rest.length; i++) {
     if (rest[i] === "--dry-run") options.dryRun = true;
+    else if (rest[i] === "--scenario") options.scenario = rest[++i];
     else if (rest[i] === "--only") options.only = rest[++i];
     else if (rest[i] === "--burst") options.burst = rest[++i];
     else throw new Error(`Unknown option ${rest[i]}`);
@@ -115,8 +117,8 @@ async function main() {
 
   const now = Date.now() / 1000;
   let scenarios = target.scenarios;
-  if (options.only || options.burst) {
-    const name = options.only ?? options.burst;
+  if (options.scenario || options.only || options.burst) {
+    const name = options.scenario ?? options.only ?? options.burst;
     scenarios = scenarios.filter((scenario) => scenario.name === name);
     if (scenarios.length === 0) throw new Error(`No scenario named ${name}`);
   }
@@ -159,10 +161,13 @@ async function main() {
           }
           return event;
         });
-        scenario.send(Sentry, target);
+        scenario.send(Sentry, target, i);
       });
       sent++;
     }
+    // The SDK holds at most 64 events in flight and silently drops the rest, so drain after every scenario
+    // (each sends at most 60).
+    await Sentry.flush(15000);
   }
 
   const flushed = await Sentry.flush(15000);
