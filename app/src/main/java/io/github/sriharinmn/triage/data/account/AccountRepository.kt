@@ -13,16 +13,25 @@ sealed interface ConnectResult {
   data class Error(val reason: ConnectError) : ConnectResult
 }
 
-enum class ConnectError {
-  EmptyToken,
-  OrgTokenNotSupported,
-  InvalidToken,
-  MissingScopes,
-  NoOrganizations,
-  RateLimited,
-  Network,
-  Unknown,
-  SaveFailed,
+sealed interface ConnectError {
+  data object EmptyToken : ConnectError
+
+  data object OrgTokenNotSupported : ConnectError
+
+  data object InvalidToken : ConnectError
+
+  data object MissingScopes : ConnectError
+
+  data object NoOrganizations : ConnectError
+
+  /** [retryAfterSeconds] is how long Sentry asked us to wait, when it said. */
+  data class RateLimited(val retryAfterSeconds: Long?) : ConnectError
+
+  data object Network : ConnectError
+
+  data object Unknown : ConnectError
+
+  data object SaveFailed : ConnectError
 }
 
 class AccountRepository(private val api: SentryApi, private val store: AccountStore) {
@@ -77,7 +86,7 @@ class AccountRepository(private val api: SentryApi, private val store: AccountSt
     when (this) {
       ApiError.Unauthorized -> ConnectError.InvalidToken
       ApiError.Forbidden -> ConnectError.MissingScopes
-      is ApiError.RateLimited -> ConnectError.RateLimited
+      is ApiError.RateLimited -> ConnectError.RateLimited(retryAfterSeconds)
       is ApiError.Network -> ConnectError.Network
       is ApiError.Http,
       ApiError.Parse -> ConnectError.Unknown

@@ -25,13 +25,11 @@
     <string name="connect_error_missing_scopes">This token is missing permissions. Create a new one with the permissions listed above.</string>
     <string name="connect_error_no_orgs">This account isn\'t a member of any organization.</string>
     <string name="connect_error_rate_limited">Sentry is rate limiting requests. Try again in a minute.</string>
+    <string name="connect_error_rate_limited_seconds">Sentry is rate limiting requests. Try again in %1$d seconds.</string>
+    <string name="connect_cancel">Cancel</string>
     <string name="connect_error_network">Couldn\'t reach the server. Check your connection and the server URL.</string>
     <string name="connect_error_unknown">Something went wrong talking to Sentry. Try again.</string>
     <string name="connect_error_save_failed">Couldn\'t save your connection on this phone. Try again.</string>
-
-    <string name="home_connected_to">Connected to %1$s</string>
-    <string name="home_coming_soon">Your issue inbox arrives in the next update.</string>
-    <string name="home_disconnect">Disconnect</string>
 
     <string name="inbox_tab_for_review">For review</string>
     <string name="inbox_tab_unresolved">Unresolved</string>

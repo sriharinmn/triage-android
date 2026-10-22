@@ -53,6 +53,7 @@ object ConnectTags {
   const val TOKEN = "connect_token"
   const val CONNECT = "connect_button"
   const val OPEN_TOKEN_PAGE = "connect_open_token_page"
+  const val CANCEL = "connect_cancel"
 }
 
 @Composable
@@ -86,6 +87,7 @@ fun ConnectScreen(viewModel: ConnectViewModel, modifier: Modifier = Modifier) {
       }
     },
     onSubmit = viewModel::onSubmit,
+    onCancelValidation = viewModel::onCancelValidation,
     onOrganizationChosen = viewModel::onOrganizationChosen,
     onBackFromOrganizations = viewModel::onBackFromOrganizations,
     modifier = modifier,
@@ -102,6 +104,7 @@ internal fun ConnectContent(
   onOpenTokenPage: () -> Unit,
   onPasteToken: () -> Unit,
   onSubmit: () -> Unit,
+  onCancelValidation: () -> Unit,
   onOrganizationChosen: (OrganizationDto) -> Unit,
   onBackFromOrganizations: () -> Unit,
   modifier: Modifier = Modifier,
@@ -179,7 +182,7 @@ internal fun ConnectContent(
         isError = state.error != null,
         supportingText = {
           state.error?.let {
-            Text(stringResource(it.messageRes()), modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite })
+            Text(it.message(), modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite })
           }
         },
         trailingIcon = {
@@ -204,6 +207,12 @@ internal fun ConnectContent(
         }
       }
 
+      if (state.canCancel) {
+        TextButton(onClick = onCancelValidation, modifier = Modifier.fillMaxWidth().testTag(ConnectTags.CANCEL)) {
+          Text(stringResource(R.string.connect_cancel))
+        }
+      }
+
       Text(stringResource(R.string.connect_disclaimer), style = MaterialTheme.typography.bodySmall)
     }
   }
@@ -216,16 +225,18 @@ private fun HostChoice.labelRes(): Int =
     HostChoice.SelfHosted -> R.string.connect_host_self_hosted
   }
 
-@StringRes
-private fun ConnectError.messageRes(): Int =
+@Composable
+private fun ConnectError.message(): String =
   when (this) {
-    ConnectError.EmptyToken -> R.string.connect_error_empty_token
-    ConnectError.OrgTokenNotSupported -> R.string.connect_error_org_token
-    ConnectError.InvalidToken -> R.string.connect_error_invalid_token
-    ConnectError.MissingScopes -> R.string.connect_error_missing_scopes
-    ConnectError.NoOrganizations -> R.string.connect_error_no_orgs
-    ConnectError.RateLimited -> R.string.connect_error_rate_limited
-    ConnectError.Network -> R.string.connect_error_network
-    ConnectError.Unknown -> R.string.connect_error_unknown
-    ConnectError.SaveFailed -> R.string.connect_error_save_failed
+    ConnectError.EmptyToken -> stringResource(R.string.connect_error_empty_token)
+    ConnectError.OrgTokenNotSupported -> stringResource(R.string.connect_error_org_token)
+    ConnectError.InvalidToken -> stringResource(R.string.connect_error_invalid_token)
+    ConnectError.MissingScopes -> stringResource(R.string.connect_error_missing_scopes)
+    ConnectError.NoOrganizations -> stringResource(R.string.connect_error_no_orgs)
+    is ConnectError.RateLimited ->
+      retryAfterSeconds?.takeIf { it > 0 }?.let { stringResource(R.string.connect_error_rate_limited_seconds, it) }
+        ?: stringResource(R.string.connect_error_rate_limited)
+    ConnectError.Network -> stringResource(R.string.connect_error_network)
+    ConnectError.Unknown -> stringResource(R.string.connect_error_unknown)
+    ConnectError.SaveFailed -> stringResource(R.string.connect_error_save_failed)
   }

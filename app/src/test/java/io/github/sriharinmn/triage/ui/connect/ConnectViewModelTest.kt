@@ -222,6 +222,48 @@ class ConnectViewModelTest {
   }
 
   @Test
+  fun cancelWhileValidating_returnsToTheFormKeepingTheToken() {
+    api.organizationsGate = CompletableDeferred()
+    api.organizationsResult = ApiResult.Success(listOf(US_ORG))
+    viewModel.onTokenChange("sntryu_abc")
+    viewModel.onSubmit()
+    assertTrue(viewModel.state.value.canCancel)
+
+    viewModel.onCancelValidation()
+
+    assertEquals(Step.EnterToken, viewModel.state.value.step)
+    assertEquals("sntryu_abc", viewModel.state.value.token)
+    assertFalse(viewModel.state.value.canCancel)
+    api.organizationsGate?.complete(Unit)
+    assertNull(store.current) // the abandoned check never connects
+  }
+
+  @Test
+  fun cancel_isNotOfferedWhileSaving() {
+    store.saveGate = CompletableDeferred()
+    api.organizationsResult = ApiResult.Success(listOf(US_ORG))
+    viewModel.onTokenChange("sntryu_abc")
+    viewModel.onSubmit()
+    assertFalse(viewModel.state.value.canCancel)
+
+    viewModel.onCancelValidation()
+
+    assertEquals(Step.Validating, viewModel.state.value.step)
+    store.saveGate?.complete(Unit)
+    assertEquals("acme", store.current?.orgSlug)
+  }
+
+  @Test
+  fun rateLimited_keepsSentrysRetryAfter() {
+    api.organizationsResult = ApiResult.Failure(ApiError.RateLimited(42))
+    viewModel.onTokenChange("sntryu_abc")
+
+    viewModel.onSubmit()
+
+    assertEquals(ConnectError.RateLimited(42), viewModel.state.value.error)
+  }
+
+  @Test
   fun requestTokenPageUrl_forCloud() {
     assertEquals("https://sentry.io/settings/account/api/auth-tokens/", viewModel.requestTokenPageUrl())
   }

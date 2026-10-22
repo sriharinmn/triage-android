@@ -68,7 +68,8 @@ class AccountRepositoryTest {
       mapOf(
         ApiError.Unauthorized to ConnectError.InvalidToken,
         ApiError.Forbidden to ConnectError.MissingScopes,
-        ApiError.RateLimited(10) to ConnectError.RateLimited,
+        ApiError.RateLimited(10) to ConnectError.RateLimited(10),
+        ApiError.RateLimited(null) to ConnectError.RateLimited(null),
         ApiError.Network("timeout") to ConnectError.Network,
         ApiError.Http(500) to ConnectError.Unknown,
         ApiError.Parse to ConnectError.Unknown,
@@ -116,6 +117,23 @@ class AccountRepositoryTest {
     repository.connect(SentryHost.Cloud, "sntryu_abc", org)
     assertEquals("https://sentry.io", store.current?.apiBaseUrl)
     assertEquals("https://sentry.io", store.current?.webBaseUrl)
+  }
+
+  @Test
+  fun connect_onCloud_rejectsLookalikeSuffixHosts() = runTest {
+    val org = orgWithLinks(regionUrl = "https://evilsentry.io", organizationUrl = "https://notsentry.io")
+    repository.connect(SentryHost.Cloud, "sntryu_abc", org)
+    assertEquals("https://sentry.io", store.current?.apiBaseUrl)
+    assertEquals("https://sentry.io", store.current?.webBaseUrl)
+  }
+
+  @Test
+  fun connect_onCloud_keepsOnlyTheOriginOfLinks() = runTest {
+    val org =
+      orgWithLinks(regionUrl = "https://DE.Sentry.io:443/api/0/", organizationUrl = " https://beta-gmbh.sentry.io/issues/ ")
+    repository.connect(SentryHost.Cloud, "sntryu_abc", org)
+    assertEquals("https://de.sentry.io", store.current?.apiBaseUrl)
+    assertEquals("https://beta-gmbh.sentry.io", store.current?.webBaseUrl)
   }
 
   @Test

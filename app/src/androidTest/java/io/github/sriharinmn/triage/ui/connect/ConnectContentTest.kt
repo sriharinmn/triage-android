@@ -29,6 +29,7 @@ class ConnectContentTest {
     state: ConnectUiState,
     onOrganizationChosen: (OrganizationDto) -> Unit = {},
     onSubmit: () -> Unit = {},
+    onCancelValidation: () -> Unit = {},
   ) {
     composeTestRule.setContent {
       TriageTheme {
@@ -40,6 +41,7 @@ class ConnectContentTest {
           onOpenTokenPage = {},
           onPasteToken = {},
           onSubmit = onSubmit,
+          onCancelValidation = onCancelValidation,
           onOrganizationChosen = onOrganizationChosen,
           onBackFromOrganizations = {},
         )
@@ -75,6 +77,22 @@ class ConnectContentTest {
   fun errorMessage_isShown() {
     show(ConnectUiState(token = "x", error = ConnectError.InvalidToken))
     composeTestRule.onNodeWithText("Sentry rejected this token", substring = true).assertIsDisplayed()
+  }
+
+  @Test
+  fun validating_offersCancel() {
+    var cancelled = false
+    show(ConnectUiState(token = "sntryu_abc", step = Step.Validating, canCancel = true), onCancelValidation = { cancelled = true })
+
+    composeTestRule.onNodeWithTag(ConnectTags.CANCEL).performClick()
+
+    assertTrue(cancelled)
+  }
+
+  @Test
+  fun rateLimitWithSeconds_saysHowLongToWait() {
+    show(ConnectUiState(token = "x", error = ConnectError.RateLimited(42)))
+    composeTestRule.onNodeWithText("Try again in 42 seconds", substring = true).assertIsDisplayed()
   }
 
   @Test
