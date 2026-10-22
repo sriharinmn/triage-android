@@ -2,6 +2,7 @@ package io.github.sriharinmn.triage.data.account
 
 import android.content.Context
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
+import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.preferencesDataStoreFile
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -64,5 +65,34 @@ class DataStoreAccountStoreTest {
     store.save(account)
     store.clear()
     assertNull(store.account.first())
+  }
+
+  @Test
+  fun undecryptableToken_readsAsDisconnected() = runBlocking {
+    store.save(account)
+    dataStore.edit { it[DataStoreAccountStore.Keys.TOKEN] = "not-valid-base64-ciphertext!!" }
+
+    assertNull(store.account.first())
+  }
+
+  @Test
+  fun corruptFile_readsAsDisconnected() = runBlocking {
+    val corruptName = "account_store_corrupt_${UUID.randomUUID()}"
+    val corruptFile = context.preferencesDataStoreFile(corruptName)
+    corruptFile.writeBytes(byteArrayOf(1, 2, 3, 4, 5))
+    val corruptScope = CoroutineScope(Dispatchers.IO + Job())
+    try {
+      // No corruption handler on purpose: the raw read throws CorruptionException (an IOException).
+      val corruptStore =
+        DataStoreAccountStore(
+          PreferenceDataStoreFactory.create(scope = corruptScope, produceFile = { corruptFile }),
+          KeystoreTokenCipher(alias = "triage_test_key"),
+        )
+
+      assertNull(corruptStore.account.first())
+    } finally {
+      corruptScope.cancel()
+      corruptFile.delete()
+    }
   }
 }

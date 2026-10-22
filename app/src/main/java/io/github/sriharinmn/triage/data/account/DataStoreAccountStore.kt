@@ -2,16 +2,26 @@ package io.github.sriharinmn.triage.data.account
 
 import android.content.Context
 import androidx.datastore.core.DataStore
+import androidx.datastore.core.handlers.ReplaceFileCorruptionHandler
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.emptyPreferences
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import java.io.IOException
+import java.security.GeneralSecurityException
+import java.security.ProviderException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
 
-internal val Context.accountDataStore: DataStore<Preferences> by preferencesDataStore(name = "account")
+internal val Context.accountDataStore: DataStore<Preferences> by preferencesDataStore(
+  name = "account",
+  corruptionHandler = ReplaceFileCorruptionHandler { emptyPreferences() },
+)
 
 class DataStoreAccountStore(
   private val dataStore: DataStore<Preferences>,
@@ -19,18 +29,21 @@ class DataStoreAccountStore(
 ) : AccountStore {
 
   override val account: Flow<Account?> =
-    dataStore.data.map { prefs ->
-      val encryptedToken = prefs[Keys.TOKEN] ?: return@map null
-      // A token we can't decrypt (e.g. Keystore key wiped) is treated as disconnected.
-      val token = runCatching { cipher.decrypt(encryptedToken) }.getOrNull() ?: return@map null
-      Account(
-        apiBaseUrl = prefs[Keys.API_BASE_URL] ?: return@map null,
-        webBaseUrl = prefs[Keys.WEB_BASE_URL] ?: return@map null,
-        token = token,
-        orgSlug = prefs[Keys.ORG_SLUG] ?: return@map null,
-        orgName = prefs[Keys.ORG_NAME] ?: return@map null,
-      )
-    }
+    dataStore.data
+      // An unreadable or corrupt file (CorruptionException is an IOException) reads as disconnected.
+      .catch { if (it is IOException) emit(emptyPreferences()) else throw it }
+      .map { prefs ->
+        val encryptedToken = prefs[Keys.TOKEN] ?: return@map null
+        val token = decryptOrNull(encryptedToken) ?: return@map null
+        Account(
+          apiBaseUrl = prefs[Keys.API_BASE_URL] ?: return@map null,
+          webBaseUrl = prefs[Keys.WEB_BASE_URL] ?: return@map null,
+          token = token,
+          orgSlug = prefs[Keys.ORG_SLUG] ?: return@map null,
+          orgName = prefs[Keys.ORG_NAME] ?: return@map null,
+        )
+      }
+      .flowOn(Dispatchers.IO)
 
   override suspend fun save(account: Account) {
     val encryptedToken = withContext(Dispatchers.IO) { cipher.encrypt(account.token) }
@@ -46,6 +59,18 @@ class DataStoreAccountStore(
   override suspend fun clear() {
     dataStore.edit { it.clear() }
   }
+
+  /** A token we can't decrypt (Keystore key wiped or invalidated, garbled value) is treated as disconnected. */
+  private fun decryptOrNull(encryptedToken: String): String? =
+    try {
+      cipher.decrypt(encryptedToken)
+    } catch (_: GeneralSecurityException) {
+      null
+    } catch (_: IllegalArgumentException) {
+      null // bad base64
+    } catch (_: ProviderException) {
+      null
+    }
 
   internal object Keys {
     val API_BASE_URL = stringPreferencesKey("api_base_url")
