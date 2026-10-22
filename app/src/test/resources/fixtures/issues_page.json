@@ -1,0 +1,127 @@
+[
+  {
+    "id": "7001",
+    "shortId": "TRIAGE-DEMO-1",
+    "title": "TypeError: Cannot read properties of undefined (reading 'price')",
+    "culprit": "?(shop:cart)",
+    "permalink": "https://example-org.sentry.io/issues/7001/",
+    "logger": null,
+    "level": "error",
+    "status": "unresolved",
+    "statusDetails": {},
+    "substatus": "new",
+    "isPublic": false,
+    "platform": "node",
+    "project": {
+      "id": "101",
+      "name": "triage-demo",
+      "slug": "triage-demo",
+      "platform": "node"
+    },
+    "type": "error",
+    "metadata": {
+      "value": "Cannot read properties of undefined (reading 'price')",
+      "type": "TypeError",
+      "filename": "/srv/shop-api/shop/cart.mjs",
+      "function": "?"
+    },
+    "numComments": 0,
+    "assignedTo": null,
+    "isBookmarked": false,
+    "isSubscribed": false,
+    "hasSeen": false,
+    "annotations": [],
+    "issueType": "error",
+    "issueCategory": "error",
+    "priority": "high",
+    "isUnhandled": false,
+    "count": "48",
+    "userCount": 11,
+    "firstSeen": "2026-10-17T09:12:44.123000Z",
+    "lastSeen": "2026-10-22T12:40:03Z",
+    "stats": {
+      "24h": [[1792587600, 0], [1792591200, 1], [1792594800, 0], [1792598400, 2], [1792602000, 1], [1792605600, 0], [1792609200, 0], [1792612800, 3], [1792616400, 2], [1792620000, 1], [1792623600, 0], [1792627200, 0], [1792630800, 1], [1792634400, 4], [1792638000, 2], [1792641600, 0], [1792645200, 1], [1792648800, 3], [1792652400, 5], [1792656000, 2], [1792659600, 1], [1792663200, 0], [1792666800, 6], [1792670400, 9]]
+    }
+  },
+  {
+    "id": "7002",
+    "shortId": "TRIAGE-DEMO-ANDROID-3",
+    "title": "NullPointerException: Attempt to invoke virtual method 'java.lang.String com.example.shop.model.User.getDisplayName()' on a null object reference",
+    "culprit": "com.example.shop.ui.profile.ProfileFragment in bindHeader",
+    "permalink": "https://example-org.sentry.io/issues/7002/",
+    "logger": null,
+    "level": "fatal",
+    "status": "unresolved",
+    "statusDetails": {},
+    "substatus": "regressed",
+    "isPublic": false,
+    "platform": "java",
+    "project": {
+      "id": "102",
+      "name": "triage-demo-android",
+      "slug": "triage-demo-android",
+      "platform": "android"
+    },
+    "type": "error",
+    "metadata": {
+      "value": "Attempt to invoke virtual method ...",
+      "type": "NullPointerException"
+    },
+    "numComments": 0,
+    "assignedTo": null,
+    "isBookmarked": false,
+    "isSubscribed": false,
+    "hasSeen": true,
+    "annotations": [],
+    "issueType": "error",
+    "issueCategory": "error",
+    "priority": "high",
+    "isUnhandled": true,
+    "count": 28,
+    "userCount": 9,
+    "firstSeen": "2026-10-18T07:00:00Z",
+    "lastSeen": "2026-10-22T11:48:00+00:00",
+    "stats": {
+      "24h": [[1792587600, 1], [1792591200, 0], [1792594800, 0], [1792598400, 0], [1792602000, 2], [1792605600, 0], [1792609200, 0], [1792612800, 1], [1792616400, 0], [1792620000, 0], [1792623600, 0], [1792627200, 3], [1792630800, 0], [1792634400, 0], [1792638000, 1], [1792641600, 0], [1792645200, 0], [1792648800, 2], [1792652400, 0], [1792656000, 0], [1792659600, 4], [1792663200, 0], [1792666800, 1], [1792670400, 2]]
+    }
+  },
+  {
+    "id": "7003",
+    "shortId": "TRIAGE-DEMO-8",
+    "title": "Slow checkout: took longer than the 5s budget",
+    "culprit": "",
+    "permalink": "https://example-org.sentry.io/issues/7003/",
+    "logger": null,
+    "level": "warning",
+    "status": "unresolved",
+    "statusDetails": {},
+    "substatus": "ongoing",
+    "isPublic": false,
+    "platform": "node",
+    "project": {
+      "id": "101",
+      "name": "triage-demo",
+      "slug": "triage-demo",
+      "platform": "node"
+    },
+    "type": "default",
+    "metadata": {
+      "title": "Slow checkout: took longer than the 5s budget"
+    },
+    "numComments": 0,
+    "assignedTo": null,
+    "isBookmarked": false,
+    "isSubscribed": false,
+    "hasSeen": false,
+    "annotations": [],
+    "issueType": "error",
+    "issueCategory": "error",
+    "priority": "medium",
+    "isUnhandled": false,
+    "count": "4",
+    "userCount": 2,
+    "firstSeen": "2026-10-21T10:30:00Z",
+    "lastSeen": "2026-10-22T11:00:00Z",
+    "stats": {}
+  }
+]

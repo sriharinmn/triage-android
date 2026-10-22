@@ -1,0 +1,47 @@
+[
+  {
+    "id": "101",
+    "slug": "triage-demo",
+    "name": "triage-demo",
+    "platform": "node",
+    "dateCreated": "2026-10-22T11:55:00Z",
+    "isBookmarked": false,
+    "isMember": true,
+    "hasAccess": true,
+    "environments": [
+      "staging",
+      "production"
+    ],
+    "features": [],
+    "firstEvent": "2026-10-22T12:00:00Z"
+  },
+  {
+    "id": "102",
+    "slug": "triage-demo-android",
+    "name": "triage-demo-android",
+    "platform": "android",
+    "dateCreated": "2026-10-22T11:55:30Z",
+    "isBookmarked": false,
+    "isMember": true,
+    "hasAccess": true,
+    "environments": [
+      "production",
+      "staging"
+    ],
+    "features": [],
+    "firstEvent": "2026-10-22T12:00:00Z"
+  },
+  {
+    "id": "103",
+    "slug": "billing",
+    "name": "Billing",
+    "platform": "python",
+    "dateCreated": "2026-10-01T09:00:00Z",
+    "isBookmarked": false,
+    "isMember": false,
+    "hasAccess": false,
+    "environments": [],
+    "features": [],
+    "firstEvent": null
+  }
+]
