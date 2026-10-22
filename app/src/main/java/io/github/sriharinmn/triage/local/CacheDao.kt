@@ -7,6 +7,7 @@ import androidx.room.Transaction
 import androidx.room.Upsert
 import kotlinx.coroutines.flow.Flow
 
+/** The Room queries behind the issue cache: ordered list entries, shared issue rows, list state and projects. */
 @Dao
 abstract class CacheDao {
   @Query(
@@ -91,7 +92,8 @@ abstract class CacheDao {
   @Transaction
   open suspend fun replaceProjects(projects: List<ProjectEntity>) {
     deleteProjects()
-    insertProjects(projects)
+    // Sentry's pages can repeat a project; keep the first, since a repeated primary key would abort the insert.
+    insertProjects(projects.distinctBy { it.id })
   }
 
   @Query("DELETE FROM issue_list_entries") abstract suspend fun deleteAllEntries()

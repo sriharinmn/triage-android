@@ -84,6 +84,22 @@ class RoomIssueCacheTest {
   }
 
   @Test
+  fun replaceList_withARepeatedIssue_keepsTheFirst() = runBlocking {
+    cache.replaceList("a", listOf(issue("1"), issue("2"), issue("1")), null, t0)
+
+    assertEquals(listOf("1", "2"), ids("a"))
+  }
+
+  @Test
+  fun appendPage_twice_keepsPositionsInOrder() = runBlocking {
+    cache.replaceList("a", listOf(issue("1")), "c1", t0)
+    cache.appendPage("a", listOf(issue("2")), "c2")
+    cache.appendPage("a", listOf(issue("3")), null)
+
+    assertEquals(listOf("1", "2", "3"), ids("a"))
+  }
+
+  @Test
   fun appendPage_toAListNeverLoaded_doesNothing() = runBlocking {
     cache.appendPage("never", listOf(issue("1")), "c")
 
@@ -104,9 +120,11 @@ class RoomIssueCacheTest {
         permalink = null,
         hourlyEvents = emptyList(),
       )
-    cache.replaceList("a", listOf(full), null, t0)
+    // `full` covers empty hourlyEvents; this one covers several values (the comma join/split).
+    val withStats = issue("2").copy(hourlyEvents = listOf(0, 1, 2, 30))
+    cache.replaceList("a", listOf(full, withStats), null, t0)
 
-    assertEquals(listOf(full), cache.observeIssues("a").first())
+    assertEquals(listOf(full, withStats), cache.observeIssues("a").first())
   }
 
   @Test
@@ -136,12 +154,22 @@ class RoomIssueCacheTest {
   fun projects_roundTripInOrder() = runBlocking {
     val projects =
       listOf(
-        Project("102", "android-app", "Android App", "android", listOf("production")),
+        Project("102", "android-app", "Android App", "android", listOf("production", "staging")),
         Project("101", "shop-api", "Shop API", null, emptyList()),
       )
     cache.replaceProjects(projects)
 
     assertEquals(projects, cache.observeProjects().first())
+  }
+
+  @Test
+  fun replaceProjects_withARepeatedProject_keepsTheFirst() = runBlocking {
+    val first = Project("101", "shop-api", "Shop API", null, emptyList())
+    val repeat = Project("101", "shop-api", "Shop API (again)", null, emptyList())
+    val other = Project("102", "android-app", "Android App", "android", emptyList())
+    cache.replaceProjects(listOf(first, other, repeat))
+
+    assertEquals(listOf(first, other), cache.observeProjects().first())
   }
 
   @Test
@@ -154,5 +182,8 @@ class RoomIssueCacheTest {
     assertTrue(ids("a").isEmpty())
     assertNull(cache.listState("a"))
     assertTrue(cache.observeProjects().first().isEmpty())
+    // The JOIN above is empty once entries are gone; a probe entry proves the issue row itself was deleted.
+    database.cacheDao().insertEntries(listOf(IssueListEntryEntity("probe", 0, "1")))
+    assertTrue(ids("probe").isEmpty())
   }
 }

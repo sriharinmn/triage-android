@@ -5,6 +5,7 @@ import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
 
+/** The on-device cache of Sentry data (inbox lists, issues, projects); all of it can be re-fetched. */
 @Database(
   entities = [IssueEntity::class, IssueListEntryEntity::class, IssueListEntity::class, ProjectEntity::class],
   version = 1,

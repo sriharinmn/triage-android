@@ -35,6 +35,7 @@ data class IssueListEntryEntity(val listKey: String, val position: Int, val issu
 @Entity(tableName = "issue_lists")
 data class IssueListEntity(@PrimaryKey val listKey: String, val nextCursor: String?, val refreshedAtMillis: Long)
 
+/** One of the user's Sentry projects, kept in the order Sentry returned them. */
 @Entity(tableName = "projects")
 data class ProjectEntity(
   @PrimaryKey val id: String,

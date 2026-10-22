@@ -10,6 +10,7 @@ import java.time.Instant
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
+/** The Room-backed [IssueCache]: maps domain types to entities and delegates to [CacheDao] transactions. */
 class RoomIssueCache(database: TriageDatabase) : IssueCache {
   private val dao = database.cacheDao()
 
