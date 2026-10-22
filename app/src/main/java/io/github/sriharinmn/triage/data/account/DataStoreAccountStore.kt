@@ -12,10 +12,11 @@ import java.io.IOException
 import java.security.GeneralSecurityException
 import java.security.ProviderException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.retryWhen
 import kotlinx.coroutines.withContext
 
 internal val Context.accountDataStore: DataStore<Preferences> by preferencesDataStore(
@@ -30,8 +31,14 @@ class DataStoreAccountStore(
 
   override val account: Flow<Account?> =
     dataStore.data
-      // An unreadable or corrupt file (CorruptionException is an IOException) reads as disconnected.
-      .catch { if (it is IOException) emit(emptyPreferences()) else throw it }
+      // An unreadable or corrupt file (CorruptionException is an IOException) reads as disconnected. Retrying instead of
+      // catching keeps the flow alive, so a later save still reaches long-lived collectors such as the app-wide state.
+      .retryWhen { cause, attempt ->
+        if (cause !is IOException) return@retryWhen false
+        emit(emptyPreferences())
+        delay(READ_RETRY_DELAY_MS * (attempt + 1).coerceAtMost(MAX_RETRY_STEPS))
+        true
+      }
       .map { prefs ->
         val encryptedToken = prefs[Keys.TOKEN] ?: return@map null
         val token = decryptOrNull(encryptedToken) ?: return@map null
@@ -78,5 +85,12 @@ class DataStoreAccountStore(
     val TOKEN = stringPreferencesKey("token_encrypted")
     val ORG_SLUG = stringPreferencesKey("org_slug")
     val ORG_NAME = stringPreferencesKey("org_name")
+  }
+
+  private companion object {
+    const val READ_RETRY_DELAY_MS = 1_000L
+
+    /** Backoff grows by one second per failed read, up to 30 seconds. */
+    const val MAX_RETRY_STEPS = 30L
   }
 }
