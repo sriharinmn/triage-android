@@ -1,27 +1,20 @@
 package io.github.sriharinmn.triage
 
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
 import androidx.navigation3.runtime.entryProvider
 import androidx.navigation3.runtime.rememberNavBackStack
 import androidx.navigation3.ui.NavDisplay
-import io.github.sriharinmn.triage.ui.main.MainScreen
+import io.github.sriharinmn.triage.data.account.Account
+import io.github.sriharinmn.triage.ui.home.HomeScreen
 
+/** Screens available once an account is connected. */
 @Composable
-fun MainNavigation() {
-  val backStack = rememberNavBackStack(Main)
+fun TriageNavigation(account: Account, onDisconnect: () -> Unit) {
+  val backStack = rememberNavBackStack(Home)
 
   NavDisplay(
     backStack = backStack,
     onBack = { backStack.removeLastOrNull() },
-    entryProvider =
-      entryProvider {
-        entry<Main> {
-          MainScreen(onItemClick = { navKey -> backStack.add(navKey) }, modifier = Modifier.safeDrawingPadding().padding(16.dp))
-        }
-      },
+    entryProvider = entryProvider { entry<Home> { HomeScreen(account = account, onDisconnect = onDisconnect) } },
   )
 }
