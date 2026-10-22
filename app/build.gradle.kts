@@ -84,6 +84,7 @@ dependencies {
   implementation(libs.androidx.lifecycle.viewmodel.navigation3)
 
   // Networking
+  implementation(libs.kotlinx.serialization.json)
   implementation(libs.okhttp)
   testImplementation(libs.okhttp.mockwebserver)
 }
