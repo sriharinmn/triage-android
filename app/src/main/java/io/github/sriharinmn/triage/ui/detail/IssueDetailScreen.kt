@@ -4,7 +4,8 @@ import android.text.format.DateUtils
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -247,11 +248,13 @@ private fun DetailList(
 }
 
 /** The Recommended / Latest / Oldest chips and, once loaded, when the event happened, its release and environment. */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun EventHeader(selected: EventKind, event: IssueEvent?, now: Instant, onSelected: (EventKind) -> Unit) {
   Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
     HorizontalDivider()
-    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 8.dp)) {
+    // Wraps at large font sizes, so the last chip stays on screen.
+    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 8.dp)) {
       for (kind in EventKind.entries) {
         FilterChip(
           selected = kind == selected,

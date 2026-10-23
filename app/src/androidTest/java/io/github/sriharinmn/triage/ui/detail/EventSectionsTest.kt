@@ -3,6 +3,10 @@ package io.github.sriharinmn.triage.ui.detail
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createComposeRule
@@ -136,6 +140,15 @@ class EventSectionsTest {
   }
 
   @Test
+  fun aFrameWithCode_isAnnouncedAsAButton() {
+    show(event())
+
+    composeTestRule
+      .onNodeWithTag(DetailTags.frame(FrameRef(0, 0)))
+      .assert(SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.Button))
+  }
+
+  @Test
   fun aCause_isLabelled() {
     val cause = EventStack(type = "IOException", value = "timeout", threadName = null, frames = emptyList())
     show(event(stacks = listOf(crash, cause)))
@@ -200,6 +213,17 @@ class EventSectionsTest {
 
     scrollTo("Chrome 128")
     composeTestRule.onNodeWithText("78%").assertIsDisplayed()
+  }
+
+  @Test
+  fun aTagKeyRepeatedBySentry_doesNotBreakTheList() {
+    show(
+      event(stacks = emptyList()),
+      tags = listOf(TagSummary("browser", "Chrome 128", 858, 1100), TagSummary("browser", "Firefox 131", 120, 1100)),
+    )
+
+    scrollTo("Firefox 131")
+    composeTestRule.onNodeWithText("Firefox 131").assertIsDisplayed()
   }
 
   @Test

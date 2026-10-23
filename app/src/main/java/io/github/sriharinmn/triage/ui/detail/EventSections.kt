@@ -32,6 +32,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontFamily
@@ -126,7 +127,8 @@ internal fun LazyListScope.tagsSection(tags: List<TagSummary>?, eventTags: List<
   if (distribution.isEmpty() && eventTags.isEmpty()) return
   item(key = "tags_title") { SectionTitle(stringResource(R.string.detail_tags)) }
   if (distribution.isNotEmpty()) {
-    for (tag in distribution) item(key = "tag_${tag.key}") { TagDistributionRow(tag) }
+    // Keyed by position: a key repeated in Sentry's response would crash the list.
+    distribution.forEachIndexed { index, tag -> item(key = "tag_$index") { TagDistributionRow(tag) } }
   } else {
     eventTags.forEachIndexed { index, tag -> item(key = "event_tag_$index") { KeyValueRow(tag.key, tag.value) } }
   }
@@ -179,7 +181,9 @@ private fun FrameRow(frame: StackFrame, expanded: Boolean, onToggle: () -> Unit,
   Column(
     modifier
       .fillMaxWidth()
-      .then(if (hasCode) Modifier.clickable(onClickLabel = toggleLabel, onClick = onToggle) else Modifier)
+      .then(
+        if (hasCode) Modifier.clickable(onClickLabel = toggleLabel, role = Role.Button, onClick = onToggle) else Modifier
+      )
       .padding(start = 8.dp, end = 16.dp, top = 6.dp, bottom = 6.dp)
   ) {
     Row(verticalAlignment = Alignment.CenterVertically) {
