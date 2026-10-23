@@ -151,8 +151,9 @@ class IssueDetailViewModel(
   }
 
   /**
-   * Forgets the connection so the user can connect with a new token. Unlike the inbox, nothing on this screen writes to
-   * disk, so loads in flight don't need to stop first.
+   * Forgets the connection so the user can connect with a new token. Loads in flight don't need to stop first: this
+   * screen writes nothing to disk, and the issue repository discards cache writes from loads that started before the
+   * clear, so the inbox's loads can't write the old account's issues back either.
    */
   fun onReconnectConfirmed() {
     if (_state.value.isDisconnecting) return
