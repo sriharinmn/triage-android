@@ -103,7 +103,8 @@ class IssueDetailViewModel(
 
   fun onEventKindSelected(kind: EventKind) {
     val current = _state.value
-    if (kind == current.selectedKind) return
+    // The account is being forgotten; nothing more should load for it.
+    if (current.isDisconnecting || kind == current.selectedKind) return
     eventJob?.cancel()
     val loaded = current.events[kind]
     _state.update {
@@ -122,8 +123,15 @@ class IssueDetailViewModel(
   /** Retries whatever failed. Inside a 429's hold the repository answers at once, without asking Sentry. */
   fun onRetry() {
     val current = _state.value
+    if (current.isDisconnecting) return
     if (current.summaryError != null && summaryJob?.isActive != true) {
       summaryJob = viewModelScope.launch { loadSummary(current.summary) }
+    }
+    // Tags that failed after the fresh issue loaded (say, inside a 429's hold) would otherwise stay missing for the
+    // whole visit. Only the fresh issue has tag keys; the cached row has none.
+    val tagKeys = current.summary?.tagKeys.orEmpty()
+    if (current.summaryError == null && tagKeys.isNotEmpty() && current.tags == null && tagsJob?.isActive != true) {
+      loadTags(tagKeys)
     }
     if (current.eventError != null && eventJob?.isActive != true) loadEvent(current.selectedKind)
   }

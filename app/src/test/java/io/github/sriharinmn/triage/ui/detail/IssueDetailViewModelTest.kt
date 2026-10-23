@@ -263,6 +263,54 @@ class IssueDetailViewModelTest {
   }
 
   @Test
+  fun tagsThatFailedInsideARateLimit_loadOnRetry() = runTest {
+    api.tagHandler = { ApiResult.Failure(ApiError.RateLimited(30)) }
+    val vm = viewModel()
+    assertNull(vm.state.value.summaryError)
+    assertNull(vm.state.value.tags)
+
+    clock.advance(Duration.ofSeconds(30))
+    api.tagHandler = { key ->
+      ApiResult.Success(TagDetailDto(key = key, totalValues = 10, topValues = listOf(TagValueDto(value = "v-$key", count = 5))))
+    }
+    vm.onRetry()
+
+    assertEquals(listOf("environment", "release", "os", "browser", "level"), vm.state.value.tags?.map { it.key })
+    assertNull(vm.state.value.eventError)
+  }
+
+  @Test
+  fun retry_leavesTagsThatLoadedAlone() = runTest {
+    api.eventHandler = { _, _ -> ApiResult.Failure(ApiError.Network("offline")) }
+    val vm = viewModel()
+    val tagCalls = whats().count { it.startsWith("tag:") }
+
+    vm.onRetry()
+
+    assertEquals(tagCalls, whats().count { it.startsWith("tag:") })
+  }
+
+  @Test
+  fun whileDisconnecting_retryAndTheChipsDoNothing() = runTest {
+    api.eventHandler = { _, _ -> ApiResult.Failure(ApiError.Network("offline")) }
+    val vm = viewModel()
+    val calls = whats().size
+    val clearGate = CompletableDeferred<Unit>()
+    cache.clearGate = clearGate
+    vm.onReconnectConfirmed()
+    assertTrue(vm.state.value.isDisconnecting)
+
+    vm.onRetry()
+    vm.onEventKindSelected(EventKind.Latest)
+
+    assertEquals(calls, whats().size)
+    assertEquals(EventKind.Recommended, vm.state.value.selectedKind)
+    assertEquals(DetailError.Network, vm.state.value.eventError)
+    clearGate.complete(Unit)
+    assertNull(accountStore.current)
+  }
+
+  @Test
   fun toggles_expandFramesRevealLibraryFramesAndShowAllBreadcrumbs() = runTest {
     val vm = viewModel()
 
