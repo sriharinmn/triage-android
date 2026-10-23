@@ -13,19 +13,40 @@ sealed interface ConnectResult {
   data class Error(val reason: ConnectError) : ConnectResult
 }
 
-enum class ConnectError {
-  EmptyToken,
-  OrgTokenNotSupported,
-  InvalidToken,
-  MissingScopes,
-  NoOrganizations,
-  RateLimited,
-  Network,
-  Unknown,
-  SaveFailed,
+/** Why connecting failed, mapped to a message by the Connect screen. */
+sealed interface ConnectError {
+  data object EmptyToken : ConnectError
+
+  data object OrgTokenNotSupported : ConnectError
+
+  data object InvalidToken : ConnectError
+
+  data object MissingScopes : ConnectError
+
+  data object NoOrganizations : ConnectError
+
+  /** [retryAfterSeconds] is how long Sentry asked us to wait, when it said. */
+  data class RateLimited(val retryAfterSeconds: Long?) : ConnectError
+
+  data object Network : ConnectError
+
+  data object Unknown : ConnectError
+
+  data object SaveFailed : ConnectError
 }
 
-class AccountRepository(private val api: SentryApi, private val store: AccountStore) {
+/**
+ * Checks tokens with Sentry and stores the connected account.
+ *
+ * @param forgetPreviousAccountData runs before a new account is saved, so it never sees the previous account's cached
+ *   issues, filters or rate-limit hold. Disconnect clears those too, but an account can vanish without one (a lost
+ *   Keystore key, a device transfer), so connect can't rely on it.
+ */
+class AccountRepository(
+  private val api: SentryApi,
+  private val store: AccountStore,
+  private val forgetPreviousAccountData: suspend () -> Unit = {},
+) {
   val account: Flow<Account?> = store.account
 
   suspend fun fetchOrganizations(host: SentryHost, rawToken: String): ConnectResult {
@@ -44,11 +65,12 @@ class AccountRepository(private val api: SentryApi, private val store: AccountSt
 
   /**
    * Call only after a successful [fetchOrganizations] for the same host and token; it does not re-validate the token.
+   * Throws, saving nothing, if the previous account's data can't be forgotten.
    */
   suspend fun connect(host: SentryHost, rawToken: String, organization: OrganizationDto) {
     // Self-hosted installs often report misconfigured URLs in links, so only trust them on sentry.io.
     val links = if (host is SentryHost.Cloud) organization.links else null
-    store.save(
+    val account =
       Account(
         apiBaseUrl = links?.regionUrl.sentryCloudOrigin() ?: host.baseUrl,
         webBaseUrl = links?.organizationUrl.sentryCloudOrigin() ?: host.baseUrl,
@@ -56,7 +78,8 @@ class AccountRepository(private val api: SentryApi, private val store: AccountSt
         orgSlug = organization.slug,
         orgName = organization.name,
       )
-    )
+    forgetPreviousAccountData()
+    store.save(account)
   }
 
   suspend fun disconnect() {
@@ -77,7 +100,7 @@ class AccountRepository(private val api: SentryApi, private val store: AccountSt
     when (this) {
       ApiError.Unauthorized -> ConnectError.InvalidToken
       ApiError.Forbidden -> ConnectError.MissingScopes
-      is ApiError.RateLimited -> ConnectError.RateLimited
+      is ApiError.RateLimited -> ConnectError.RateLimited(retryAfterSeconds)
       is ApiError.Network -> ConnectError.Network
       is ApiError.Http,
       ApiError.Parse -> ConnectError.Unknown

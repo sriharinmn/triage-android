@@ -6,6 +6,7 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.preferencesDataStoreFile
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import java.security.KeyStore
 import java.util.UUID
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -43,6 +44,8 @@ class DataStoreAccountStoreTest {
   fun tearDown() {
     scope.cancel()
     context.preferencesDataStoreFile(fileName).delete()
+    // Don't leave the test's Keystore key behind on the owner's phone.
+    KeyStore.getInstance("AndroidKeyStore").apply { load(null) }.deleteEntry("triage_test_key")
   }
 
   @Test
@@ -79,6 +82,8 @@ class DataStoreAccountStoreTest {
   fun corruptFile_readsAsDisconnected() = runBlocking {
     val corruptName = "account_store_corrupt_${UUID.randomUUID()}"
     val corruptFile = context.preferencesDataStoreFile(corruptName)
+    // A fresh install may not have created the datastore directory yet.
+    corruptFile.parentFile?.mkdirs()
     corruptFile.writeBytes(byteArrayOf(1, 2, 3, 4, 5))
     val corruptScope = CoroutineScope(Dispatchers.IO + Job())
     try {

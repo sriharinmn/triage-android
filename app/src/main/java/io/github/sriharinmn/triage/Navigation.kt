@@ -1,20 +1,39 @@
 package io.github.sriharinmn.triage
 
 import androidx.compose.runtime.Composable
+import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.lifecycle.viewmodel.navigation3.rememberViewModelStoreNavEntryDecorator
+import androidx.navigation3.runtime.NavKey
 import androidx.navigation3.runtime.entryProvider
 import androidx.navigation3.runtime.rememberNavBackStack
+import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
 import androidx.navigation3.ui.NavDisplay
 import io.github.sriharinmn.triage.data.account.Account
-import io.github.sriharinmn.triage.ui.home.HomeScreen
+import io.github.sriharinmn.triage.ui.inbox.InboxScreen
+import io.github.sriharinmn.triage.ui.inbox.InboxViewModel
 
 /** Screens available once an account is connected. */
 @Composable
-fun TriageNavigation(account: Account, onDisconnect: () -> Unit) {
-  val backStack = rememberNavBackStack(Home)
+fun TriageNavigation(account: Account, container: AppContainer) {
+  val backStack = rememberNavBackStack(Inbox)
 
   NavDisplay(
     backStack = backStack,
     onBack = { backStack.removeLastOrNull() },
-    entryProvider = entryProvider { entry<Home> { HomeScreen(account = account, onDisconnect = onDisconnect) } },
+    // Each entry gets its own saved state and ViewModels; screens get the account from here, never from a NavKey.
+    entryDecorators =
+      listOf(rememberSaveableStateHolderNavEntryDecorator<NavKey>(), rememberViewModelStoreNavEntryDecorator<NavKey>()),
+    entryProvider =
+      entryProvider {
+        entry<Inbox> {
+          // AccountGate gives these screens a per-account ViewModel store, so this ViewModel is dropped on disconnect;
+          // the key also names the account.
+          val inboxViewModel: InboxViewModel =
+            viewModel(key = "inbox|${account.apiBaseUrl}|${account.orgSlug}") {
+              InboxViewModel(account, container.issueRepository, container.inboxSettings, container.disconnector)
+            }
+          InboxScreen(inboxViewModel)
+        }
+      },
   )
 }

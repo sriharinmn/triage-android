@@ -2,6 +2,7 @@ plugins {
   alias(libs.plugins.android.application)
   alias(libs.plugins.compose.compiler)
   alias(libs.plugins.kotlin.serialization)
+  alias(libs.plugins.ksp)
 }
 
 android {
@@ -42,6 +43,11 @@ android {
 
 kotlin {
     jvmToolchain(17)
+}
+
+ksp {
+  // Commit the schema JSON so future migrations can be reviewed and tested.
+  arg("room.schemaLocation", "$projectDir/schemas")
 }
 
 dependencies {
@@ -93,4 +99,6 @@ dependencies {
 
   // Persistence
   implementation(libs.androidx.datastore.preferences)
+  implementation(libs.androidx.room.runtime)
+  ksp(libs.androidx.room.compiler)
 }
