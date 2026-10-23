@@ -65,6 +65,7 @@
     <string name="inbox_error_rate_limited_unknown">Sentry asked us to slow down. Try again in a minute.</string>
     <string name="inbox_error_network">Couldn\'t reach Sentry. Check your connection.</string>
     <string name="inbox_error_server">Sentry sent something unexpected. Try again.</string>
+    <string name="inbox_error_storage">Couldn\'t save issues on this phone. Free up some storage, then try again.</string>
     <string name="inbox_open_failed">Couldn\'t open the browser.</string>
 
     <string name="inbox_menu">More options</string>

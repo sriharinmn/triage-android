@@ -4,6 +4,7 @@ import io.github.sriharinmn.triage.data.account.Account
 import io.github.sriharinmn.triage.remote.ApiError
 import io.github.sriharinmn.triage.remote.ApiResult
 import io.github.sriharinmn.triage.remote.SentryApi
+import java.io.IOException
 import java.time.Duration
 import java.time.Instant
 import java.util.concurrent.atomic.AtomicReference
@@ -25,6 +26,9 @@ sealed interface InboxError {
 
   /** Sentry answered with an error, or with something we couldn't read. */
   data object Server : InboxError
+
+  /** The phone couldn't save or read the cache, for example because its storage is full. */
+  data object Storage : InboxError
 }
 
 /** Whether a load reached Sentry and updated the cache; failures say why in terms the screen explains. */
@@ -39,7 +43,8 @@ data class InboxSnapshot(val issues: List<Issue>, val refreshedAt: Instant?, val
 
 /**
  * Loads inbox lists from Sentry into the cache; the screen only ever reads the cache. After a 429 every call fails fast
- * until Sentry's `Retry-After` has passed.
+ * until Sentry's `Retry-After` has passed. A cache that can't be written or read (a full phone) fails the call with
+ * [InboxError.Storage] instead of throwing.
  */
 class IssueRepository(
   private val api: SentryApi,
@@ -56,7 +61,14 @@ class IssueRepository(
       InboxSnapshot(issues = issues, refreshedAt = state?.refreshedAt, hasMore = state?.nextCursor != null)
     }
 
-  suspend fun lastRefreshed(filter: InboxFilter): Instant? = cache.listState(filter.listKey)?.refreshedAt
+  /** Null if the list was never loaded or the cache can't be read; either way the caller treats the list as stale. */
+  suspend fun lastRefreshed(filter: InboxFilter): Instant? =
+    try {
+      cache.listState(filter.listKey)?.refreshedAt
+    } catch (_: IOException) {
+      // The refresh that a stale list triggers then reports the storage failure itself.
+      null
+    }
 
   /** Reloads the first page of [filter]'s list, replacing what is cached. */
   suspend fun refresh(account: Account, filter: InboxFilter): LoadResult {
@@ -65,9 +77,10 @@ class IssueRepository(
     return when (result) {
       is ApiResult.Success -> {
         val now = clock()
-        cache.replaceList(filter.listKey, result.value.items.map { it.toIssue() }, result.value.nextCursor, now)
-        cache.prune(now - CACHE_MAX_AGE)
-        LoadResult.Success
+        storing {
+          cache.replaceList(filter.listKey, result.value.items.map { it.toIssue() }, result.value.nextCursor, now)
+          cache.prune(now - CACHE_MAX_AGE)
+        }
       }
       is ApiResult.Failure -> failureAndHoldIfRateLimited(result.error)
     }
@@ -75,14 +88,18 @@ class IssueRepository(
 
   /** Appends the next page of [filter]'s list; does nothing on the last page. */
   suspend fun loadMore(account: Account, filter: InboxFilter): LoadResult {
-    val cursor = cache.listState(filter.listKey)?.nextCursor ?: return LoadResult.Success
+    val listState =
+      try {
+        cache.listState(filter.listKey)
+      } catch (_: IOException) {
+        return LoadResult.Failure(InboxError.Storage)
+      }
+    val cursor = listState?.nextCursor ?: return LoadResult.Success
     rateLimitFailure()?.let { return it }
     val result = api.listIssues(account.apiBaseUrl, account.token, account.orgSlug, filter.toParams(), cursor)
     return when (result) {
-      is ApiResult.Success -> {
-        cache.appendPage(filter.listKey, result.value.items.map { it.toIssue() }, result.value.nextCursor)
-        LoadResult.Success
-      }
+      is ApiResult.Success ->
+        storing { cache.appendPage(filter.listKey, result.value.items.map { it.toIssue() }, result.value.nextCursor) }
       is ApiResult.Failure -> failureAndHoldIfRateLimited(result.error)
     }
   }
@@ -91,10 +108,8 @@ class IssueRepository(
   suspend fun refreshProjects(account: Account): LoadResult {
     rateLimitFailure()?.let { return it }
     return when (val result = api.listProjects(account.apiBaseUrl, account.token, account.orgSlug)) {
-      is ApiResult.Success -> {
-        cache.replaceProjects(result.value.filter { it.hasAccess }.map { it.toProject() })
-        LoadResult.Success
-      }
+      is ApiResult.Success ->
+        storing { cache.replaceProjects(result.value.filter { it.hasAccess }.map { it.toProject() }) }
       is ApiResult.Failure -> failureAndHoldIfRateLimited(result.error)
     }
   }
@@ -104,6 +119,18 @@ class IssueRepository(
     cache.clear()
     rateLimitedUntil.set(null)
   }
+
+  /**
+   * Runs cache writes; a storage failure becomes [InboxError.Storage]. It never starts a rate-limit hold: Sentry
+   * answered, so the next call may ask again.
+   */
+  private inline fun storing(writes: () -> Unit): LoadResult =
+    try {
+      writes()
+      LoadResult.Success
+    } catch (_: IOException) {
+      LoadResult.Failure(InboxError.Storage)
+    }
 
   private fun rateLimitFailure(): LoadResult.Failure? {
     val until = rateLimitedUntil.get() ?: return null

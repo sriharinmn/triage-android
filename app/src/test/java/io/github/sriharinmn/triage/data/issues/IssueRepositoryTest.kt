@@ -10,6 +10,7 @@ import io.github.sriharinmn.triage.testing.TEST_ACCOUNT
 import io.github.sriharinmn.triage.testing.TestClock
 import io.github.sriharinmn.triage.testing.issueDto
 import io.github.sriharinmn.triage.testing.projectDto
+import java.io.IOException
 import java.time.Duration
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -261,6 +262,59 @@ class IssueRepositoryTest {
 
     assertEquals(LoadResult.Failure(InboxError.RateLimited(59)), repository.refresh(TEST_ACCOUNT, filter))
     assertEquals(2, api.issueCalls.size)
+  }
+
+  @Test
+  fun refresh_whenTheCacheCannotSave_failsWithStorage() = runTest {
+    api.issuesHandler = { page("1") }
+    cache.writeError = IOException("disk full")
+
+    assertEquals(LoadResult.Failure(InboxError.Storage), repository.refresh(TEST_ACCOUNT, filter))
+  }
+
+  @Test
+  fun loadMore_whenTheCacheCannotReadOrSave_failsWithStorage() = runTest {
+    api.issuesHandler = { page("1", next = "c2") }
+    repository.refresh(TEST_ACCOUNT, filter)
+
+    cache.readError = IOException("disk")
+    assertEquals(LoadResult.Failure(InboxError.Storage), repository.loadMore(TEST_ACCOUNT, filter))
+    assertEquals(1, api.issueCalls.size)
+
+    cache.readError = null
+    cache.writeError = IOException("disk full")
+    assertEquals(LoadResult.Failure(InboxError.Storage), repository.loadMore(TEST_ACCOUNT, filter))
+    assertEquals(2, api.issueCalls.size)
+  }
+
+  @Test
+  fun refreshProjects_whenTheCacheCannotSave_failsWithStorage() = runTest {
+    api.projectsResult = ApiResult.Success(listOf(projectDto("101")))
+    cache.writeError = IOException("disk full")
+
+    assertEquals(LoadResult.Failure(InboxError.Storage), repository.refreshProjects(TEST_ACCOUNT))
+  }
+
+  @Test
+  fun lastRefreshed_whenTheCacheCannotRead_isNull() = runTest {
+    api.issuesHandler = { page("1") }
+    repository.refresh(TEST_ACCOUNT, filter)
+    cache.readError = IOException("disk")
+
+    assertNull(repository.lastRefreshed(filter))
+  }
+
+  @Test
+  fun aStorageFailure_doesNotHoldLaterCalls() = runTest {
+    api.issuesHandler = { page("1") }
+    cache.writeError = IOException("disk full")
+    assertEquals(LoadResult.Failure(InboxError.Storage), repository.refresh(TEST_ACCOUNT, filter))
+
+    cache.writeError = null
+    assertEquals(LoadResult.Success, repository.refresh(TEST_ACCOUNT, filter))
+    assertEquals(LoadResult.Success, repository.refreshProjects(TEST_ACCOUNT))
+    assertEquals(2, api.issueCalls.size)
+    assertEquals(1, api.projectCalls.size)
   }
 
   @Test

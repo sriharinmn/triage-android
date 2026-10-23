@@ -4,6 +4,7 @@ import io.github.sriharinmn.triage.data.issues.CachedListState
 import io.github.sriharinmn.triage.data.issues.Issue
 import io.github.sriharinmn.triage.data.issues.IssueCache
 import io.github.sriharinmn.triage.data.issues.Project
+import java.io.IOException
 import java.time.Instant
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.flow.Flow
@@ -35,6 +36,12 @@ class InMemoryIssueCache : IssueCache {
   /** When set, [clear] suspends until it is completed. */
   var clearGate: CompletableDeferred<Unit>? = null
 
+  /** When set, [replaceList], [appendPage], [replaceProjects] and [prune] throw it, as a full disk would. */
+  var writeError: IOException? = null
+
+  /** When set, [listState] throws it. */
+  var readError: IOException? = null
+
   /** Ids of every stored issue row, including ones no list refers to; lets tests check orphan pruning. */
   val storedIssueIds: Set<String>
     get() = state.value.issues.keys
@@ -45,9 +52,13 @@ class InMemoryIssueCache : IssueCache {
   override fun observeListState(listKey: String): Flow<CachedListState?> =
     state.map { it.states[listKey] }.distinctUntilChanged()
 
-  override suspend fun listState(listKey: String): CachedListState? = state.value.states[listKey]
+  override suspend fun listState(listKey: String): CachedListState? {
+    readError?.let { throw it }
+    return state.value.states[listKey]
+  }
 
   override suspend fun replaceList(listKey: String, issues: List<Issue>, nextCursor: String?, refreshedAt: Instant) {
+    writeError?.let { throw it }
     // Sentry can repeat an issue when the order shifts mid-request; keep the first.
     val unique = issues.distinctBy { it.id }
     state.update { s ->
@@ -60,6 +71,7 @@ class InMemoryIssueCache : IssueCache {
   }
 
   override suspend fun appendPage(listKey: String, issues: List<Issue>, nextCursor: String?) {
+    writeError?.let { throw it }
     state.update { s ->
       val list = s.states[listKey] ?: return@update s
       val present = s.entries[listKey].orEmpty().toHashSet()
@@ -76,11 +88,13 @@ class InMemoryIssueCache : IssueCache {
   override fun observeProjects(): Flow<List<Project>> = state.map { it.projects }.distinctUntilChanged()
 
   override suspend fun replaceProjects(projects: List<Project>) {
+    writeError?.let { throw it }
     // Sentry's pages can repeat a project; keep the first.
     state.update { it.copy(projects = projects.distinctBy { project -> project.id }) }
   }
 
   override suspend fun prune(cutoff: Instant) {
+    writeError?.let { throw it }
     state.update { s ->
       val stale = s.states.filterValues { it.refreshedAt < cutoff }.keys
       val entries = s.entries - stale

@@ -382,4 +382,5 @@ private fun errorMessage(error: InboxError): String =
         ?: stringResource(R.string.inbox_error_rate_limited_unknown)
     InboxError.Network -> stringResource(R.string.inbox_error_network)
     InboxError.Server -> stringResource(R.string.inbox_error_server)
+    InboxError.Storage -> stringResource(R.string.inbox_error_storage)
   }

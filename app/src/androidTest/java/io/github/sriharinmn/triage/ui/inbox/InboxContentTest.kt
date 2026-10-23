@@ -118,6 +118,19 @@ class InboxContentTest {
   }
 
   @Test
+  fun aFullPhone_offersRetryNotReconnect() {
+    show(InboxUiState(orgName = "Example Org", error = InboxError.Storage))
+
+    composeTestRule
+      .onNodeWithText("Couldn't save issues on this phone. Free up some storage, then try again.")
+      .assertIsDisplayed()
+    composeTestRule.onNodeWithText("Reconnect").assertDoesNotExist()
+    composeTestRule.onNodeWithTag(InboxTags.ERROR_ACTION).performClick()
+
+    assertEquals(listOf("refresh"), calls)
+  }
+
+  @Test
   fun aRejectedToken_offersReconnect() {
     show(InboxUiState(orgName = "Example Org", error = InboxError.Unauthorized))
 

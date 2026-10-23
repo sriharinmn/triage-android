@@ -291,6 +291,18 @@ class InboxViewModelTest {
   }
 
   @Test
+  fun aRefreshThatCannotSave_endsWithAStorageError() = runTest {
+    api.issuesHandler = { page("1") }
+    cache.writeError = IOException("disk full")
+
+    val vm = viewModel()
+
+    assertFalse(vm.state.value.isRefreshing)
+    assertEquals(InboxError.Storage, vm.state.value.error)
+    assertTrue(vm.ids().isEmpty())
+  }
+
+  @Test
   fun aRejectedToken_isReported() = runTest {
     api.issuesHandler = { ApiResult.Failure(ApiError.Unauthorized) }
 
