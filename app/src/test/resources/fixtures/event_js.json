@@ -1,0 +1,191 @@
+{
+  "id": "a1b2c3d4e5f60718293a4b5c6d7e8f90",
+  "eventID": "a1b2c3d4e5f60718293a4b5c6d7e8f90",
+  "groupID": "4201",
+  "projectID": "101",
+  "title": "TypeError: Cannot read properties of undefined (reading 'price')",
+  "message": "",
+  "culprit": "cartTotal(shop:cart)",
+  "location": "shop/cart.js",
+  "platform": "node",
+  "type": "error",
+  "size": 4120,
+  "dist": null,
+  "userReport": null,
+  "previousEventID": "90f8e7d6c5b4a3928170f6e5d4c3b2a1",
+  "nextEventID": null,
+  "dateCreated": "2026-10-22T11:58:00.512000Z",
+  "dateReceived": "2026-10-22T11:58:01.000000Z",
+  "release": { "version": "shop@1.4.2", "shortVersion": "1.4.2" },
+  "tags": [
+    { "key": "environment", "value": "production" },
+    { "key": "release", "value": "shop@1.4.2" },
+    { "key": "route", "value": "POST /api/checkout" },
+    { "key": "level", "value": "error" }
+  ],
+  "user": {
+    "id": "4821",
+    "email": "user@example.com",
+    "username": null,
+    "ip_address": "203.0.113.7",
+    "name": null,
+    "data": { "plan": "pro" }
+  },
+  "contexts": {
+    "runtime": { "name": "node", "version": "v20.11.0", "type": "runtime" },
+    "os": { "name": "Linux", "version": "6.1", "type": "os" },
+    "trace": { "trace_id": "00000000000000000000000000000000", "span_id": "0000000000000000", "type": "trace" }
+  },
+  "sdk": { "name": "sentry.javascript.node", "version": "9.0.0" },
+  "entries": [
+    {
+      "type": "exception",
+      "data": {
+        "values": [
+          {
+            "type": "TypeError",
+            "value": "Cannot read properties of undefined (reading 'price')",
+            "module": null,
+            "mechanism": { "type": "onunhandledrejection", "handled": false },
+            "threadId": null,
+            "rawStacktrace": null,
+            "stacktrace": {
+              "framesOmitted": null,
+              "registers": null,
+              "hasSystemFrames": true,
+              "frames": [
+                {
+                  "filename": "node:internal/process/task_queues",
+                  "absPath": "node:internal/process/task_queues",
+                  "module": "task_queues",
+                  "function": "process.processTicksAndRejections",
+                  "lineNo": 95,
+                  "colNo": 5,
+                  "inApp": false,
+                  "context": [],
+                  "vars": null
+                },
+                {
+                  "filename": "/app/node_modules/express/lib/router/layer.js",
+                  "absPath": "/app/node_modules/express/lib/router/layer.js",
+                  "module": "express.lib.router:layer",
+                  "function": "Layer.handle [as handle_request]",
+                  "lineNo": 95,
+                  "colNo": 5,
+                  "inApp": false,
+                  "context": [[94, "  try {"], [95, "    fn(req, res, next);"], [96, "  } catch (err) {"]],
+                  "vars": null
+                },
+                {
+                  "filename": "shop/api.js",
+                  "absPath": "/app/shop/api.js",
+                  "module": "shop:api",
+                  "function": "handleCheckout",
+                  "lineNo": 118,
+                  "colNo": 20,
+                  "inApp": true,
+                  "context": [
+                    [116, "  const cart = await loadCart(req.user)"],
+                    [117, "  // Totals are computed server-side"],
+                    [118, "  const total = cartTotal(cart.items)"],
+                    [119, "  res.json({ total })"],
+                    [120, "}"]
+                  ],
+                  "vars": null
+                },
+                {
+                  "filename": "shop/cart.js",
+                  "absPath": "/app/shop/cart.js",
+                  "module": "shop:cart",
+                  "function": "cartTotal",
+                  "lineNo": 42,
+                  "colNo": 23,
+                  "inApp": true,
+                  "context": [
+                    [40, "  for (let i = 0; i <= items.length; i++) {"],
+                    [41, "    const item = items[i]"],
+                    [42, "    total += item.price * item.quantity"],
+                    [43, "  }"],
+                    [44, "  return total"]
+                  ],
+                  "vars": null
+                }
+              ]
+            }
+          }
+        ],
+        "excOmitted": null,
+        "hasSystemFrames": true
+      }
+    },
+    {
+      "type": "breadcrumbs",
+      "data": {
+        "values": [
+          {
+            "type": "default",
+            "category": "console",
+            "level": "info",
+            "message": "Loading cart for user 4821",
+            "timestamp": "2026-10-22T11:57:58.100000Z",
+            "data": null,
+            "event_id": null
+          },
+          {
+            "type": "navigation",
+            "category": "navigation",
+            "level": "info",
+            "message": null,
+            "timestamp": "2026-10-22T11:57:59.000000Z",
+            "data": { "from": "/products", "to": "/cart" },
+            "event_id": null
+          },
+          {
+            "type": "http",
+            "category": "http",
+            "level": "info",
+            "message": null,
+            "timestamp": "2026-10-22T11:57:59.900000Z",
+            "data": { "method": "GET", "url": "https://api.example-shop.test/v1/cart", "status_code": 200 },
+            "event_id": null
+          },
+          {
+            "type": "default",
+            "category": "ui.click",
+            "level": "info",
+            "message": "button#checkout",
+            "timestamp": "2026-10-22T11:58:00.300000Z",
+            "data": null,
+            "event_id": null
+          },
+          {
+            "type": "error",
+            "category": "exception",
+            "level": "error",
+            "message": "TypeError: Cannot read properties of undefined (reading 'price')",
+            "timestamp": "2026-10-22T11:58:00.500000Z",
+            "data": null,
+            "event_id": null
+          }
+        ]
+      }
+    },
+    {
+      "type": "request",
+      "data": {
+        "url": "https://shop.example.test/api/checkout",
+        "method": "POST",
+        "query": [["step", "2"]],
+        "fragment": null,
+        "cookies": [["session", "[Filtered]"]],
+        "headers": [["Cookie", "[Filtered]"], ["User-Agent", "Mozilla/5.0"]],
+        "env": null,
+        "data": { "items": 3 },
+        "inferredContentType": "application/json"
+      }
+    }
+  ],
+  "packages": {},
+  "errors": [],
+  "_meta": {}
+}

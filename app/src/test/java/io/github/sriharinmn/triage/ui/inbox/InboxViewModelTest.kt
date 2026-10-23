@@ -466,15 +466,4 @@ class InboxViewModelTest {
     vm.onDisconnectFailureShown()
     assertFalse(vm.state.value.disconnectFailed)
   }
-
-  @Test
-  fun issueUrl_usesSentrysHttpsPermalinkOrBuildsOne() = runTest {
-    val vm = viewModel()
-    val fallback = "https://example-org.sentry.io/organizations/example-org/issues/6/"
-
-    assertEquals("https://example-org.sentry.io/issues/5/", vm.issueUrl(issueDto("5").toIssue()))
-    assertEquals(fallback, vm.issueUrl(issueDto("6", permalink = "http://example-org.sentry.io/issues/6/").toIssue()))
-    assertEquals(fallback, vm.issueUrl(issueDto("6", permalink = "javascript:alert(1)").toIssue()))
-    assertEquals(fallback, vm.issueUrl(issueDto("6", permalink = null).toIssue()))
-  }
 }

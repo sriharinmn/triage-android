@@ -183,4 +183,12 @@ class InMemoryIssueCacheTest {
     assertSame(failure, thrown)
     assertEquals(listOf("1"), ids("a"))
   }
+
+  @Test
+  fun issue_findsACachedIssueById() = runTest {
+    cache.replaceList("a", listOf(issue("1", title = "First")), null, t0)
+
+    assertEquals("First", cache.issue("1")?.title)
+    assertNull(cache.issue("2"))
+  }
 }

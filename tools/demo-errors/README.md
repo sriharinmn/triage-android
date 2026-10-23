@@ -5,7 +5,7 @@ Sends realistic test errors to the owner's demo Sentry org (`demo-org`, EU), so 
 | Target | Sentry project | What it sends |
 |---|---|---|
 | `shop` | `triage-demo` | real errors thrown by the pretend Node shop backend in `shop/` (9 scenarios in `shop-scenarios.mjs`, including 30 one-event webhook issues so the inbox has more than one 25-issue page) |
-| `android` | `triage-demo-android` | hand-built Java crash events in the shape the Sentry Android SDK sends (6 scenarios in `android-events.mjs`) |
+| `android` | `triage-demo-android` | hand-built Java crash events in the shape the Sentry Android SDK sends (7 scenarios in `android-events.mjs`) |
 
 Each scenario becomes one Sentry issue. Events are spread over the past days, with varied users, environments (production/staging), levels, tags and breadcrumbs.
 

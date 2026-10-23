@@ -1,0 +1,31 @@
+{
+  "id": "d4e5f60718293a4b5c6d7e8f90a1b2c3",
+  "platform": "node",
+  "message": "Slow checkout: took longer than the 5s budget",
+  "dateCreated": "2026-10-22T10:00:00Z",
+  "release": { "version": "shop@1.4.2", "shortVersion": "1.4.2" },
+  "tags": [
+    { "key": "environment", "value": "staging" },
+    { "key": "route", "value": "POST /api/checkout" }
+  ],
+  "user": { "id": "600", "email": null, "username": "demo-user", "ip_address": null },
+  "contexts": { "runtime": { "name": "node", "version": "v20.11.0" } },
+  "entries": [
+    {
+      "type": "message",
+      "data": {
+        "formatted": "Slow checkout: took longer than the 5s budget",
+        "message": "Slow checkout: took longer than the %ss budget",
+        "params": ["5"]
+      }
+    },
+    {
+      "type": "breadcrumbs",
+      "data": {
+        "values": [
+          { "type": "default", "category": "checkout", "level": "warning", "message": "Payment provider slow", "timestamp": "2026-10-22T09:59:55Z", "data": null }
+        ]
+      }
+    }
+  ]
+}

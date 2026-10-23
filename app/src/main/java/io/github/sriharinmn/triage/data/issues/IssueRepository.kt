@@ -1,16 +1,18 @@
 package io.github.sriharinmn.triage.data.issues
 
+import io.github.sriharinmn.triage.data.RateLimitGate
 import io.github.sriharinmn.triage.data.account.Account
 import io.github.sriharinmn.triage.remote.ApiError
 import io.github.sriharinmn.triage.remote.ApiResult
 import io.github.sriharinmn.triage.remote.SentryApi
-import io.github.sriharinmn.triage.remote.rateLimitHoldSeconds
 import java.io.IOException
 import java.time.Duration
 import java.time.Instant
-import java.util.concurrent.atomic.AtomicReference
+import java.util.concurrent.atomic.AtomicLong
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 /** Why loading the inbox failed, in the terms the screen explains to the user. */
 sealed interface InboxError {
@@ -45,17 +47,25 @@ data class InboxSnapshot(val issues: List<Issue>, val refreshedAt: Instant?, val
 /**
  * Loads inbox lists from Sentry into the cache; the screen only ever reads the cache. After a 429 every call fails fast
  * until Sentry's `Retry-After` has passed. A cache that can't be written or read (a full phone) fails the call with
- * [InboxError.Storage] instead of throwing.
+ * [InboxError.Storage] instead of throwing. A load that started before a [clear] writes nothing, whoever started it.
  */
 class IssueRepository(
   private val api: SentryApi,
   private val cache: IssueCache,
   private val clock: () -> Instant = Instant::now,
+  /** Shared app-wide in production, so a 429 here also holds the issue detail's calls. */
+  private val gate: RateLimitGate = RateLimitGate(clock),
 ) {
-  /** Until when calls are held after a 429; updated atomically because loads run concurrently. */
-  private val rateLimitedUntil = AtomicReference<Instant?>(null)
-
   val projects: Flow<List<Project>> = cache.observeProjects()
+
+  /**
+   * Bumped by [clear]. Loads note it when they start and skip their writes if it has changed, because their data belongs
+   * to a forgotten account: a reconnect from the issue detail doesn't stop the inbox's loads.
+   */
+  private val generation = AtomicLong()
+
+  /** Makes a load's generation check and its writes one step, so a [clear] can't land between them. */
+  private val writeLock = Mutex()
 
   fun observeInbox(filter: InboxFilter): Flow<InboxSnapshot> =
     combine(cache.observeIssues(filter.listKey), cache.observeListState(filter.listKey)) { issues, state ->
@@ -73,12 +83,13 @@ class IssueRepository(
 
   /** Reloads the first page of [filter]'s list, replacing what is cached. */
   suspend fun refresh(account: Account, filter: InboxFilter): LoadResult {
+    val startedIn = generation.get()
     rateLimitFailure()?.let { return it }
     val result = api.listIssues(account.apiBaseUrl, account.token, account.orgSlug, filter.toParams(), cursor = null)
     return when (result) {
       is ApiResult.Success -> {
         val now = clock()
-        storing {
+        storing(startedIn) {
           cache.replaceList(filter.listKey, result.value.items.map { it.toIssue() }, result.value.nextCursor, now)
           cache.prune(now - CACHE_MAX_AGE)
         }
@@ -89,6 +100,7 @@ class IssueRepository(
 
   /** Appends the next page of [filter]'s list; does nothing on the last page. */
   suspend fun loadMore(account: Account, filter: InboxFilter): LoadResult {
+    val startedIn = generation.get()
     val listState =
       try {
         cache.listState(filter.listKey)
@@ -100,49 +112,53 @@ class IssueRepository(
     val result = api.listIssues(account.apiBaseUrl, account.token, account.orgSlug, filter.toParams(), cursor)
     return when (result) {
       is ApiResult.Success ->
-        storing { cache.appendPage(filter.listKey, result.value.items.map { it.toIssue() }, result.value.nextCursor) }
+        storing(startedIn) {
+          cache.appendPage(filter.listKey, result.value.items.map { it.toIssue() }, result.value.nextCursor)
+        }
       is ApiResult.Failure -> failureAndHoldIfRateLimited(result.error)
     }
   }
 
   /** Reloads the projects (and their environments) offered by the filters. */
   suspend fun refreshProjects(account: Account): LoadResult {
+    val startedIn = generation.get()
     rateLimitFailure()?.let { return it }
     return when (val result = api.listProjects(account.apiBaseUrl, account.token, account.orgSlug)) {
       is ApiResult.Success ->
-        storing { cache.replaceProjects(result.value.filter { it.hasAccess }.map { it.toProject() }) }
+        storing(startedIn) { cache.replaceProjects(result.value.filter { it.hasAccess }.map { it.toProject() }) }
       is ApiResult.Failure -> failureAndHoldIfRateLimited(result.error)
     }
   }
 
-  /** Forgets every cached list and project; used on disconnect. */
+  /** Forgets every cached list and project and lifts the shared rate-limit hold; used when the account's data is forgotten. */
   suspend fun clear() {
-    cache.clear()
-    rateLimitedUntil.set(null)
+    writeLock.withLock {
+      cache.clear()
+      // Bumped after the clear: if the clear fails, the account stays connected and its loads may still save. The lock
+      // keeps any write from landing in between.
+      generation.incrementAndGet()
+    }
+    gate.clear()
   }
 
   /**
-   * Runs cache writes; a storage failure becomes [InboxError.Storage]. It never starts a rate-limit hold: Sentry
-   * answered, so the next call may ask again.
+   * Runs the cache writes of a load that started in generation [startedIn]; a storage failure becomes
+   * [InboxError.Storage]. If the account's data was forgotten since, nothing is written and there is nothing to report.
+   * It never starts a rate-limit hold: Sentry answered, so the next call may ask again.
    */
-  private inline fun storing(writes: () -> Unit): LoadResult =
-    try {
-      writes()
-      LoadResult.Success
-    } catch (_: IOException) {
-      LoadResult.Failure(InboxError.Storage)
+  private suspend inline fun storing(startedIn: Long, writes: () -> Unit): LoadResult =
+    writeLock.withLock {
+      if (generation.get() != startedIn) return LoadResult.Success
+      try {
+        writes()
+        LoadResult.Success
+      } catch (_: IOException) {
+        LoadResult.Failure(InboxError.Storage)
+      }
     }
 
-  private fun rateLimitFailure(): LoadResult.Failure? {
-    val until = rateLimitedUntil.get() ?: return null
-    val remainingMillis = Duration.between(clock(), until).toMillis()
-    if (remainingMillis <= 0) {
-      // Clear only the hold we read, so a newer 429 that landed meanwhile isn't erased.
-      rateLimitedUntil.compareAndSet(until, null)
-      return null
-    }
-    return LoadResult.Failure(InboxError.RateLimited((remainingMillis + 999) / 1000))
-  }
+  private fun rateLimitFailure(): LoadResult.Failure? =
+    gate.remainingSeconds()?.let { LoadResult.Failure(InboxError.RateLimited(it)) }
 
   /** Maps [error] for the screen and, for a 429, also starts holding every call until Sentry's Retry-After passes. */
   private fun failureAndHoldIfRateLimited(error: ApiError): LoadResult.Failure =
@@ -150,21 +166,13 @@ class IssueRepository(
       when (error) {
         ApiError.Unauthorized -> InboxError.Unauthorized
         ApiError.Forbidden -> InboxError.Forbidden
-        is ApiError.RateLimited -> {
-          val seconds = rateLimitHoldSeconds(error.retryAfterSeconds)
-          holdUntilAtLeast(clock().plusSeconds(seconds))
-          InboxError.RateLimited(seconds)
-        }
+        is ApiError.RateLimited -> InboxError.RateLimited(gate.hold(error.retryAfterSeconds))
         is ApiError.Network -> InboxError.Network
         is ApiError.Http,
-        ApiError.Parse -> InboxError.Server
+        ApiError.Parse,
+        ApiError.TooLarge -> InboxError.Server
       }
     )
-
-  /** Concurrent 429s never shorten an existing hold: the later instant wins. */
-  private fun holdUntilAtLeast(candidate: Instant) {
-    rateLimitedUntil.updateAndGet { current -> if (current == null || candidate > current) candidate else current }
-  }
 
   private companion object {
     val CACHE_MAX_AGE: Duration = Duration.ofDays(7)

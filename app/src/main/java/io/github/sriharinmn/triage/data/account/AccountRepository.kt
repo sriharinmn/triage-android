@@ -103,7 +103,8 @@ class AccountRepository(
       is ApiError.RateLimited -> ConnectError.RateLimited(retryAfterSeconds)
       is ApiError.Network -> ConnectError.Network
       is ApiError.Http,
-      ApiError.Parse -> ConnectError.Unknown
+      ApiError.Parse,
+      ApiError.TooLarge -> ConnectError.Unknown
     }
 
   private companion object {

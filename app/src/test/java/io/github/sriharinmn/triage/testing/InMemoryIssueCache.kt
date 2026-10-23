@@ -39,7 +39,7 @@ class InMemoryIssueCache : IssueCache {
   /** When set, [replaceList], [appendPage], [replaceProjects] and [prune] throw it, as a full disk would. */
   var writeError: IOException? = null
 
-  /** When set, [listState] throws it. */
+  /** When set, [listState] and [issue] throw it. */
   var readError: IOException? = null
 
   /** Ids of every stored issue row, including ones no list refers to; lets tests check orphan pruning. */
@@ -55,6 +55,11 @@ class InMemoryIssueCache : IssueCache {
   override suspend fun listState(listKey: String): CachedListState? {
     readError?.let { throw it }
     return state.value.states[listKey]
+  }
+
+  override suspend fun issue(id: String): Issue? {
+    readError?.let { throw it }
+    return state.value.issues[id]
   }
 
   override suspend fun replaceList(listKey: String, issues: List<Issue>, nextCursor: String?, refreshedAt: Instant) {

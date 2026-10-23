@@ -1,0 +1,78 @@
+{
+  "id": "4201",
+  "shareId": null,
+  "shortId": "TRIAGE-DEMO-1A",
+  "title": "TypeError: Cannot read properties of undefined (reading 'price')",
+  "culprit": "cartTotal(shop:cart)",
+  "permalink": "https://example-org.sentry.io/issues/4201/",
+  "logger": null,
+  "level": "error",
+  "status": "unresolved",
+  "substatus": "regressed",
+  "statusDetails": {},
+  "isPublic": false,
+  "platform": "node",
+  "priority": "high",
+  "project": { "id": "101", "name": "triage-demo", "slug": "triage-demo", "platform": "node" },
+  "type": "error",
+  "issueType": "error",
+  "issueCategory": "error",
+  "metadata": { "title": "TypeError: Cannot read properties of undefined (reading 'price')" },
+  "numComments": 0,
+  "assignedTo": null,
+  "isBookmarked": false,
+  "isSubscribed": false,
+  "subscriptionDetails": null,
+  "hasSeen": true,
+  "annotations": [],
+  "count": "1204",
+  "userCount": 340,
+  "firstSeen": "2026-10-20T08:00:00.123456Z",
+  "lastSeen": "2026-10-22T11:58:00Z",
+  "firstRelease": {
+    "version": "shop@1.4.0",
+    "shortVersion": "1.4.0",
+    "dateCreated": "2026-10-19T10:00:00Z",
+    "dateReleased": null,
+    "ref": null,
+    "url": null
+  },
+  "lastRelease": {
+    "version": "shop@1.4.2",
+    "shortVersion": "1.4.2",
+    "dateCreated": "2026-10-22T09:00:00Z",
+    "dateReleased": null,
+    "ref": null,
+    "url": null
+  },
+  "activity": [],
+  "seenBy": [],
+  "participants": [],
+  "userReportCount": 0,
+  "tags": [
+    { "key": "level", "name": "Level", "totalValues": 1204 },
+    { "key": "browser.name", "name": "Browser.Name", "totalValues": 1100 },
+    { "key": "browser", "name": "Browser", "totalValues": 1100 },
+    { "key": "environment", "name": "Environment", "totalValues": 1204 },
+    { "key": "os.name", "name": "Os.Name", "totalValues": 1204 },
+    { "key": "os", "name": "OS", "totalValues": 1204 },
+    { "key": "release", "name": "Release", "totalValues": 1204 },
+    { "key": "route", "name": "Route", "totalValues": 1204 },
+    { "key": "url", "name": "URL", "totalValues": 1204 }
+  ],
+  "stats": {
+    "24h": [
+      [1761051600, 0], [1761055200, 0], [1761058800, 1], [1761062400, 0], [1761066000, 2], [1761069600, 3],
+      [1761073200, 1], [1761076800, 0], [1761080400, 0], [1761084000, 4], [1761087600, 6], [1761091200, 9],
+      [1761094800, 12], [1761098400, 8], [1761102000, 5], [1761105600, 3], [1761109200, 2], [1761112800, 1],
+      [1761116400, 0], [1761120000, 0], [1761123600, 2], [1761127200, 5], [1761130800, 7], [1761134400, 11]
+    ],
+    "30d": [
+      [1758585600, 10], [1758672000, 12], [1758758400, 8], [1758844800, 0], [1758931200, 0], [1759017600, 15],
+      [1759104000, 20], [1759190400, 22], [1759276800, 18], [1759363200, 25], [1759449600, 30], [1759536000, 28],
+      [1759622400, 35], [1759708800, 40], [1759795200, 38], [1759881600, 42], [1759968000, 45], [1760054400, 50],
+      [1760140800, 48], [1760227200, 55], [1760313600, 60], [1760400000, 52], [1760486400, 47], [1760572800, 44],
+      [1760659200, 39], [1760745600, 41], [1760832000, 58], [1760918400, 62], [1761004800, 70], [1761091200, 90]
+    ]
+  }
+}

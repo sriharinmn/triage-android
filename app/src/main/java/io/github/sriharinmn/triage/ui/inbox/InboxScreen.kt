@@ -12,7 +12,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -28,7 +27,6 @@ import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -42,13 +40,11 @@ import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -63,10 +59,11 @@ import io.github.sriharinmn.triage.data.issues.InboxError
 import io.github.sriharinmn.triage.data.issues.InboxTab
 import io.github.sriharinmn.triage.data.issues.Issue
 import io.github.sriharinmn.triage.data.issues.IssueSort
+import io.github.sriharinmn.triage.ui.common.DisconnectDialog
+import io.github.sriharinmn.triage.ui.common.ReconnectBanner
 import java.time.Instant
 import java.util.Date
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
 
 /** Test tags for the inbox's interactive and scrollable parts. */
 object InboxTags {
@@ -84,14 +81,11 @@ object InboxTags {
 /** Ask for the next page once the last visible row is this close to the end of the list. */
 private const val LOAD_MORE_THRESHOLD = 5
 
-/** The inbox: tabs, filters and the issue list, wired to [viewModel]. */
+/** The inbox: tabs, filters and the issue list, wired to [viewModel]; tapping an issue calls [onOpenIssue]. */
 @Composable
-fun InboxScreen(viewModel: InboxViewModel, modifier: Modifier = Modifier) {
+fun InboxScreen(viewModel: InboxViewModel, onOpenIssue: (issueId: String) -> Unit, modifier: Modifier = Modifier) {
   val state by viewModel.state.collectAsStateWithLifecycle()
-  val uriHandler = LocalUriHandler.current
   val snackbarHostState = remember { SnackbarHostState() }
-  val scope = rememberCoroutineScope()
-  val openFailed = stringResource(R.string.inbox_open_failed)
   // "3m ago" labels tick every minute and catch up whenever fresh data arrives.
   val now by
     produceState(initialValue = Instant.now(), state.refreshedAt) {
@@ -111,14 +105,7 @@ fun InboxScreen(viewModel: InboxViewModel, modifier: Modifier = Modifier) {
     onRefresh = viewModel::onRefresh,
     onLoadMore = viewModel::onLoadMore,
     onRetryLoadMore = viewModel::onRetryLoadMore,
-    onIssueClick = { issue ->
-      try {
-        uriHandler.openUri(viewModel.issueUrl(issue))
-      } catch (e: IllegalArgumentException) {
-        // AndroidUriHandler wraps ActivityNotFoundException (no browser installed) in this.
-        scope.launch { snackbarHostState.showSnackbar(openFailed) }
-      }
-    },
+    onIssueClick = { issue -> onOpenIssue(issue.id) },
     onDisconnectConfirmed = viewModel::onDisconnectConfirmed,
     onDisconnectFailureShown = viewModel::onDisconnectFailureShown,
     snackbarHostState = snackbarHostState,
@@ -195,7 +182,7 @@ internal fun InboxContent(
       val refreshedAt = state.refreshedAt
       if (hasIssues && errorText != null) {
         if (error.needsReconnect()) {
-          ReconnectBanner(message = errorText, onReconnect = onReconnect)
+          ReconnectBanner(message = errorText, onReconnect = onReconnect, buttonTag = InboxTags.ERROR_ACTION)
         } else if (refreshedAt != null) {
           Text(
             stringResource(R.string.inbox_updated_stale, DateFormat.getTimeFormat(context).format(Date(refreshedAt.toEpochMilli()))),
@@ -229,23 +216,12 @@ internal fun InboxContent(
   }
 
   if (confirmingDisconnect) {
-    AlertDialog(
-      onDismissRequest = { confirmingDisconnect = false },
-      title = { Text(stringResource(R.string.inbox_disconnect_title)) },
-      text = { Text(stringResource(R.string.inbox_disconnect_body)) },
-      confirmButton = {
-        TextButton(
-          onClick = {
-            confirmingDisconnect = false
-            onDisconnectConfirmed()
-          }
-        ) {
-          Text(stringResource(R.string.inbox_disconnect_confirm))
-        }
+    DisconnectDialog(
+      onConfirm = {
+        confirmingDisconnect = false
+        onDisconnectConfirmed()
       },
-      dismissButton = {
-        TextButton(onClick = { confirmingDisconnect = false }) { Text(stringResource(R.string.inbox_disconnect_cancel)) }
-      },
+      onDismiss = { confirmingDisconnect = false },
     )
   }
 }
@@ -320,26 +296,6 @@ private fun LoadMoreFooter(failed: Boolean, onRetry: () -> Unit) {
       }
     } else {
       CircularProgressIndicator(Modifier.size(24.dp))
-    }
-  }
-}
-
-@Composable
-private fun ReconnectBanner(message: String, onReconnect: () -> Unit) {
-  Surface(
-    color = MaterialTheme.colorScheme.errorContainer,
-    contentColor = MaterialTheme.colorScheme.onErrorContainer,
-    modifier = Modifier.fillMaxWidth(),
-  ) {
-    Row(
-      modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-      verticalAlignment = Alignment.CenterVertically,
-      horizontalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-      Text(message, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
-      TextButton(onClick = onReconnect, modifier = Modifier.testTag(InboxTags.ERROR_ACTION)) {
-        Text(stringResource(R.string.inbox_reconnect))
-      }
     }
   }
 }

@@ -23,4 +23,7 @@ sealed interface ApiError {
 
   /** 2xx response whose body didn't match the expected JSON. */
   data object Parse : ApiError
+
+  /** 2xx response bigger than [MAX_RESPONSE_BYTES]; it is not read, so a huge event can't exhaust memory. */
+  data object TooLarge : ApiError
 }

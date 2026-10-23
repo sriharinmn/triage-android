@@ -2,13 +2,17 @@ package io.github.sriharinmn.triage.testing
 
 import io.github.sriharinmn.triage.data.account.Account
 import io.github.sriharinmn.triage.data.account.AccountStore
+import io.github.sriharinmn.triage.remote.ApiError
 import io.github.sriharinmn.triage.remote.ApiResult
+import io.github.sriharinmn.triage.remote.EventDto
+import io.github.sriharinmn.triage.remote.IssueDetailDto
 import io.github.sriharinmn.triage.remote.IssueDto
 import io.github.sriharinmn.triage.remote.IssueListParams
 import io.github.sriharinmn.triage.remote.OrganizationDto
 import io.github.sriharinmn.triage.remote.Page
 import io.github.sriharinmn.triage.remote.ProjectDto
 import io.github.sriharinmn.triage.remote.SentryApi
+import io.github.sriharinmn.triage.remote.TagDetailDto
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -20,6 +24,15 @@ data class IssueCall(
   val orgSlug: String,
   val params: IssueListParams,
   val cursor: String?,
+)
+
+/** One recorded issue-detail call; [what] is "issue", "event:<eventId>" or "tag:<key>". */
+data class DetailCall(
+  val baseUrl: String,
+  val token: String,
+  val orgSlug: String,
+  val issueId: String,
+  val what: String,
 )
 
 class FakeSentryApi(
@@ -43,6 +56,20 @@ class FakeSentryApi(
   /** Answers listIssues; by default an empty last page. */
   var issuesHandler: suspend (IssueCall) -> ApiResult<Page<IssueDto>> = { ApiResult.Success(Page(emptyList(), null)) }
 
+  /** Every getIssue, getIssueEvent and getIssueTag call, in call order. */
+  val detailCalls = mutableListOf<DetailCall>()
+
+  /** Answers getIssue; by default the issue doesn't exist. */
+  var issueDetailHandler: suspend (issueId: String) -> ApiResult<IssueDetailDto> = { ApiResult.Failure(ApiError.Http(404)) }
+
+  /** Answers getIssueEvent; by default the event doesn't exist. */
+  var eventHandler: suspend (issueId: String, eventId: String) -> ApiResult<EventDto> = { _, _ ->
+    ApiResult.Failure(ApiError.Http(404))
+  }
+
+  /** Answers getIssueTag; by default the tag doesn't exist. */
+  var tagHandler: suspend (key: String) -> ApiResult<TagDetailDto> = { ApiResult.Failure(ApiError.Http(404)) }
+
   override suspend fun listOrganizations(baseUrl: String, token: String): ApiResult<List<OrganizationDto>> {
     calls += baseUrl to token
     organizationsGate?.await()
@@ -65,6 +92,38 @@ class FakeSentryApi(
     val call = IssueCall(baseUrl, token, orgSlug, params, cursor)
     issueCalls += call
     return issuesHandler(call)
+  }
+
+  override suspend fun getIssue(
+    baseUrl: String,
+    token: String,
+    orgSlug: String,
+    issueId: String,
+  ): ApiResult<IssueDetailDto> {
+    detailCalls += DetailCall(baseUrl, token, orgSlug, issueId, "issue")
+    return issueDetailHandler(issueId)
+  }
+
+  override suspend fun getIssueEvent(
+    baseUrl: String,
+    token: String,
+    orgSlug: String,
+    issueId: String,
+    eventId: String,
+  ): ApiResult<EventDto> {
+    detailCalls += DetailCall(baseUrl, token, orgSlug, issueId, "event:$eventId")
+    return eventHandler(issueId, eventId)
+  }
+
+  override suspend fun getIssueTag(
+    baseUrl: String,
+    token: String,
+    orgSlug: String,
+    issueId: String,
+    key: String,
+  ): ApiResult<TagDetailDto> {
+    detailCalls += DetailCall(baseUrl, token, orgSlug, issueId, "tag:$key")
+    return tagHandler(key)
   }
 }
 

@@ -1,5 +1,6 @@
 package io.github.sriharinmn.triage.data.issues
 
+import io.github.sriharinmn.triage.data.RateLimitGate
 import io.github.sriharinmn.triage.remote.ApiError
 import io.github.sriharinmn.triage.remote.ApiResult
 import io.github.sriharinmn.triage.remote.IssueDto
@@ -329,5 +330,54 @@ class IssueRepositoryTest {
     assertTrue(shownIds().isEmpty())
     api.issuesHandler = { page("2") }
     assertEquals(LoadResult.Success, repository.refresh(TEST_ACCOUNT, filter))
+    assertEquals(listOf("2"), shownIds())
+  }
+
+  @OptIn(ExperimentalCoroutinesApi::class)
+  @Test
+  fun loadsThatStartedBeforeAClear_writeNothing() = runTest {
+    api.issuesHandler = { page("1", next = "c2") }
+    repository.refresh(TEST_ACCOUNT, filter)
+    // Each load is now waiting for Sentry, as the inbox's can be when a reconnect starts from the issue detail.
+    val issuesGate = CompletableDeferred<Unit>()
+    api.issuesHandler = { call ->
+      issuesGate.await()
+      if (call.cursor == null) page("2") else page("3")
+    }
+    api.projectsGate = CompletableDeferred()
+    api.projectsResult = ApiResult.Success(listOf(projectDto("101")))
+    val escalating = filter.copy(tab = InboxTab.Escalating)
+    val results = mutableListOf<LoadResult>()
+    launch { results += repository.refresh(TEST_ACCOUNT, escalating) }
+    launch { results += repository.loadMore(TEST_ACCOUNT, filter) }
+    launch { results += repository.refreshProjects(TEST_ACCOUNT) }
+    runCurrent()
+    assertEquals(3, api.issueCalls.size)
+    assertEquals(1, api.projectCalls.size)
+
+    repository.clear()
+    issuesGate.complete(Unit)
+    api.projectsGate?.complete(Unit)
+    runCurrent()
+
+    // The data belongs to a forgotten account, so there is nothing to report.
+    assertEquals(List(3) { LoadResult.Success }, results)
+    assertTrue(cache.storedIssueIds.isEmpty())
+    assertNull(repository.lastRefreshed(escalating))
+    assertNull(repository.lastRefreshed(filter))
+    assertTrue(repository.projects.first().isEmpty())
+  }
+
+  @Test
+  fun aSharedGate_holdsEveryRepositoryThatUsesIt() = runTest {
+    val gate = RateLimitGate(clock::now)
+    val inbox = IssueRepository(api, cache, clock::now, gate)
+    val other = IssueRepository(api, InMemoryIssueCache(), clock::now, gate)
+    api.issuesHandler = { ApiResult.Failure(ApiError.RateLimited(30)) }
+    inbox.refresh(TEST_ACCOUNT, filter)
+    val calls = api.issueCalls.size
+
+    assertEquals(LoadResult.Failure(InboxError.RateLimited(30)), other.refresh(TEST_ACCOUNT, filter))
+    assertEquals(calls, api.issueCalls.size)
   }
 }

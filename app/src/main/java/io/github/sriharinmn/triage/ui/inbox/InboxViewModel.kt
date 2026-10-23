@@ -28,7 +28,6 @@ import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 
 /** Everything the inbox screen shows: the list for [filter], the filter choices, and load and disconnect progress. */
 data class InboxUiState(
@@ -163,11 +162,6 @@ class InboxViewModel(
   fun onDisconnectFailureShown() {
     _state.update { it.copy(disconnectFailed = false) }
   }
-
-  /** Where "open in browser" goes: Sentry's permalink if it is https, otherwise one built from the account. */
-  fun issueUrl(issue: Issue): String =
-    issue.permalink?.takeIf { it.toHttpUrlOrNull()?.isHttps == true }
-      ?: "${account.webBaseUrl}/organizations/${account.orgSlug}/issues/${issue.id}/"
 
   private fun onProjectsLoaded(projects: List<Project>) {
     _state.update { it.copy(projects = projects) }
