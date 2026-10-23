@@ -10,6 +10,7 @@ import io.github.sriharinmn.triage.data.account.DataStoreAccountStore
 import io.github.sriharinmn.triage.data.account.KeystoreTokenCipher
 import io.github.sriharinmn.triage.data.account.accountDataStore
 import io.github.sriharinmn.triage.data.account.asAccountState
+import io.github.sriharinmn.triage.data.detail.IssueDetailRepository
 import io.github.sriharinmn.triage.data.issues.IssueCache
 import io.github.sriharinmn.triage.data.issues.IssueRepository
 import io.github.sriharinmn.triage.data.settings.DataStoreInboxSettingsStore
@@ -54,6 +55,8 @@ class AppContainer(context: Context) {
   private val issueCache: IssueCache = RoomIssueCache(database)
 
   val issueRepository = IssueRepository(sentryApi, issueCache, gate = rateLimitGate)
+
+  val issueDetailRepository = IssueDetailRepository(sentryApi, issueCache, rateLimitGate)
 
   val inboxSettings: InboxSettingsStore = DataStoreInboxSettingsStore(appContext.inboxSettingsDataStore)
 
