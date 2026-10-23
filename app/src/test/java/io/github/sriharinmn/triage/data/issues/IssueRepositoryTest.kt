@@ -1,5 +1,6 @@
 package io.github.sriharinmn.triage.data.issues
 
+import io.github.sriharinmn.triage.data.RateLimitGate
 import io.github.sriharinmn.triage.remote.ApiError
 import io.github.sriharinmn.triage.remote.ApiResult
 import io.github.sriharinmn.triage.remote.IssueDto
@@ -329,5 +330,18 @@ class IssueRepositoryTest {
     assertTrue(shownIds().isEmpty())
     api.issuesHandler = { page("2") }
     assertEquals(LoadResult.Success, repository.refresh(TEST_ACCOUNT, filter))
+  }
+
+  @Test
+  fun aSharedGate_holdsEveryRepositoryThatUsesIt() = runTest {
+    val gate = RateLimitGate(clock::now)
+    val inbox = IssueRepository(api, cache, clock::now, gate)
+    val other = IssueRepository(api, InMemoryIssueCache(), clock::now, gate)
+    api.issuesHandler = { ApiResult.Failure(ApiError.RateLimited(30)) }
+    inbox.refresh(TEST_ACCOUNT, filter)
+    val calls = api.issueCalls.size
+
+    assertEquals(LoadResult.Failure(InboxError.RateLimited(30)), other.refresh(TEST_ACCOUNT, filter))
+    assertEquals(calls, api.issueCalls.size)
   }
 }

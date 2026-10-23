@@ -1,14 +1,13 @@
 package io.github.sriharinmn.triage.data.issues
 
+import io.github.sriharinmn.triage.data.RateLimitGate
 import io.github.sriharinmn.triage.data.account.Account
 import io.github.sriharinmn.triage.remote.ApiError
 import io.github.sriharinmn.triage.remote.ApiResult
 import io.github.sriharinmn.triage.remote.SentryApi
-import io.github.sriharinmn.triage.remote.rateLimitHoldSeconds
 import java.io.IOException
 import java.time.Duration
 import java.time.Instant
-import java.util.concurrent.atomic.AtomicReference
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 
@@ -51,10 +50,9 @@ class IssueRepository(
   private val api: SentryApi,
   private val cache: IssueCache,
   private val clock: () -> Instant = Instant::now,
+  /** Shared app-wide in production, so a 429 here also holds the issue detail's calls. */
+  private val gate: RateLimitGate = RateLimitGate(clock),
 ) {
-  /** Until when calls are held after a 429; updated atomically because loads run concurrently. */
-  private val rateLimitedUntil = AtomicReference<Instant?>(null)
-
   val projects: Flow<List<Project>> = cache.observeProjects()
 
   fun observeInbox(filter: InboxFilter): Flow<InboxSnapshot> =
@@ -115,10 +113,10 @@ class IssueRepository(
     }
   }
 
-  /** Forgets every cached list and project; used on disconnect. */
+  /** Forgets every cached list and project and lifts the shared rate-limit hold; used when the account's data is forgotten. */
   suspend fun clear() {
     cache.clear()
-    rateLimitedUntil.set(null)
+    gate.clear()
   }
 
   /**
@@ -133,16 +131,8 @@ class IssueRepository(
       LoadResult.Failure(InboxError.Storage)
     }
 
-  private fun rateLimitFailure(): LoadResult.Failure? {
-    val until = rateLimitedUntil.get() ?: return null
-    val remainingMillis = Duration.between(clock(), until).toMillis()
-    if (remainingMillis <= 0) {
-      // Clear only the hold we read, so a newer 429 that landed meanwhile isn't erased.
-      rateLimitedUntil.compareAndSet(until, null)
-      return null
-    }
-    return LoadResult.Failure(InboxError.RateLimited((remainingMillis + 999) / 1000))
-  }
+  private fun rateLimitFailure(): LoadResult.Failure? =
+    gate.remainingSeconds()?.let { LoadResult.Failure(InboxError.RateLimited(it)) }
 
   /** Maps [error] for the screen and, for a 429, also starts holding every call until Sentry's Retry-After passes. */
   private fun failureAndHoldIfRateLimited(error: ApiError): LoadResult.Failure =
@@ -150,22 +140,13 @@ class IssueRepository(
       when (error) {
         ApiError.Unauthorized -> InboxError.Unauthorized
         ApiError.Forbidden -> InboxError.Forbidden
-        is ApiError.RateLimited -> {
-          val seconds = rateLimitHoldSeconds(error.retryAfterSeconds)
-          holdUntilAtLeast(clock().plusSeconds(seconds))
-          InboxError.RateLimited(seconds)
-        }
+        is ApiError.RateLimited -> InboxError.RateLimited(gate.hold(error.retryAfterSeconds))
         is ApiError.Network -> InboxError.Network
         is ApiError.Http,
         ApiError.Parse,
         ApiError.TooLarge -> InboxError.Server
       }
     )
-
-  /** Concurrent 429s never shorten an existing hold: the later instant wins. */
-  private fun holdUntilAtLeast(candidate: Instant) {
-    rateLimitedUntil.updateAndGet { current -> if (current == null || candidate > current) candidate else current }
-  }
 
   private companion object {
     val CACHE_MAX_AGE: Duration = Duration.ofDays(7)

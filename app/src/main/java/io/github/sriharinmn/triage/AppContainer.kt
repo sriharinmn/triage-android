@@ -3,12 +3,14 @@ package io.github.sriharinmn.triage
 import android.content.Context
 import io.github.sriharinmn.triage.data.AccountDataCleaner
 import io.github.sriharinmn.triage.data.Disconnector
+import io.github.sriharinmn.triage.data.RateLimitGate
 import io.github.sriharinmn.triage.data.account.AccountRepository
 import io.github.sriharinmn.triage.data.account.AccountState
 import io.github.sriharinmn.triage.data.account.DataStoreAccountStore
 import io.github.sriharinmn.triage.data.account.KeystoreTokenCipher
 import io.github.sriharinmn.triage.data.account.accountDataStore
 import io.github.sriharinmn.triage.data.account.asAccountState
+import io.github.sriharinmn.triage.data.issues.IssueCache
 import io.github.sriharinmn.triage.data.issues.IssueRepository
 import io.github.sriharinmn.triage.data.settings.DataStoreInboxSettingsStore
 import io.github.sriharinmn.triage.data.settings.InboxSettingsStore
@@ -46,7 +48,12 @@ class AppContainer(context: Context) {
   // Room opens the database lazily, on the first query.
   private val database = TriageDatabase.create(appContext)
 
-  val issueRepository = IssueRepository(sentryApi, RoomIssueCache(database))
+  /** One hold for every Sentry call: Sentry rate-limits the token, not one screen. */
+  val rateLimitGate = RateLimitGate()
+
+  private val issueCache: IssueCache = RoomIssueCache(database)
+
+  val issueRepository = IssueRepository(sentryApi, issueCache, gate = rateLimitGate)
 
   val inboxSettings: InboxSettingsStore = DataStoreInboxSettingsStore(appContext.inboxSettingsDataStore)
 
