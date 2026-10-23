@@ -74,6 +74,21 @@ function javaEvent({ type, value, frames, mechanism, threadName = "main" }) {
 
 const CRASH = { type: "UncaughtExceptionHandler", handled: false };
 
+/** An event with only threads and no exception, as some watchdog and native crashes arrive. */
+function threadsOnlyEvent({ threadName, frames }) {
+  const { exception, threads, ...rest } = javaEvent({ type: "x", value: "", frames: [] });
+  return {
+    ...rest,
+    threads: {
+      values: [
+        { id: 1, name: "main", crashed: false, current: false },
+        // Sentry lists frames oldest call first.
+        { id: 7, name: threadName, crashed: true, current: false, stacktrace: { frames: [...frames].reverse() } },
+      ],
+    },
+  };
+}
+
 const navigation = (from, to) => ({ category: "navigation", data: { from, to } });
 const click = (view) => ({ category: "ui.click", message: view });
 const http = (method, url, status) => ({ type: "http", category: "http", data: { method, url, status_code: status } });
@@ -243,5 +258,27 @@ export const androidScenarios = [
           ],
         }),
       ),
+  },
+  {
+    name: "watchdog-timeout",
+    count: 1,
+    users: 1,
+    userSeed: 1600,
+    level: "fatal",
+    environments: ["production"],
+    newestHoursAgo: 0.5,
+    oldestDaysAgo: 1,
+    breadcrumbs: [navigation("HomeFragment", "GalleryFragment")],
+    send: (Sentry) =>
+      Sentry.captureEvent({
+        ...threadsOnlyEvent({
+          threadName: "FinalizerWatchdogDaemon",
+          frames: [
+            at("com.example.shop.cache.ImageCache.finalize", "ImageCache.kt", 52, true),
+            at("java.lang.Daemons$FinalizerWatchdogDaemon.run", "Daemons.java", 289),
+          ],
+        }),
+        message: "FinalizerWatchdogDaemon timed out",
+      }),
   },
 ];
