@@ -139,6 +139,47 @@ class EventMappingTest {
   }
 
   @Test
+  fun withoutACrashedOrCurrentThread_theOnlyThreadWithFramesShows() {
+    val event =
+      eventFromJson(
+        """
+        {"entries":[{"type":"threads","data":{"values":[
+          {"id":1,"name":"main","crashed":false,"current":false,"stacktrace":{"frames":[]}},
+          {"id":2,"name":"worker","stacktrace":{"frames":[{"function":"poll"},{"function":"work"}]}},
+          {"id":3,"name":"idle"}
+        ]}}]}
+        """
+      )
+
+    val stack = event.stacks.single()
+    assertEquals("worker", stack.threadName)
+    assertEquals(listOf("work", "poll"), stack.frames.map { it.function })
+  }
+
+  @Test
+  fun withSeveralThreadsWithFramesAndNoneCrashedOrCurrent_noStackShows() {
+    val event =
+      eventFromJson(
+        """
+        {"entries":[{"type":"threads","data":{"values":[
+          {"id":1,"name":"main","stacktrace":{"frames":[{"function":"loop"}]}},
+          {"id":2,"name":"worker","stacktrace":{"frames":[{"function":"work"}]}}
+        ]}}]}
+        """
+      )
+
+    assertTrue(event.stacks.isEmpty())
+  }
+
+  @Test
+  fun aBlankFormattedMessage_fallsBackToTheRawMessage() {
+    val event =
+      eventFromJson("""{"entries":[{"type":"message","data":{"formatted":"  ","message":"Payment provider slow"}}]}""")
+
+    assertEquals("Payment provider slow", event.message)
+  }
+
+  @Test
   fun messageEvent_hasAMessageAndNoStack() {
     val event = event("event_message.json")
 

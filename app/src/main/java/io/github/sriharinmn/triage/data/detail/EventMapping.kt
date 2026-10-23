@@ -67,13 +67,22 @@ private fun JsonObject.toExceptions(): List<EventStack> =
 private fun JsonObject.toExceptionStack() =
   EventStack(type = string("type"), value = string("value")?.clip(), threadName = null, frames = this["stacktrace"].toFrames())
 
-/** The crashed thread's stack, else the current thread's; threads without frames don't count. */
+/**
+ * The crashed thread's stack, else the current thread's, else the only thread's that has frames; threads without
+ * frames don't count. Only the chosen thread's frames are mapped, since a thread dump can list hundreds of threads.
+ */
 private fun JsonObject.toThreadStack(): EventStack? {
-  val threads = this["values"].asArray().mapNotNull { it.asObject() }.filter { it["stacktrace"].toFrames().isNotEmpty() }
+  val threads = this["values"].asArray().mapNotNull { it.asObject() }.filter { it.hasFrames() }
   val thread =
-    threads.firstOrNull { it.bool("crashed") == true } ?: threads.firstOrNull { it.bool("current") == true } ?: return null
+    threads.firstOrNull { it.bool("crashed") == true }
+      ?: threads.firstOrNull { it.bool("current") == true }
+      ?: threads.singleOrNull()
+      ?: return null
   return EventStack(type = null, value = null, threadName = thread.string("name"), frames = thread["stacktrace"].toFrames())
 }
+
+/** Whether [toFrames] would find a frame: it maps every frame object, so one object is enough. */
+private fun JsonObject.hasFrames(): Boolean = this["stacktrace"].asObject()?.get("frames").asArray().any { it is JsonObject }
 
 private fun JsonElement?.toFrames(): List<StackFrame> =
   asObject()
@@ -101,7 +110,7 @@ private fun JsonElement.toContextLine(): ContextLine? {
   return ContextLine(lineNo, (pair[1] as? JsonPrimitive)?.contentOrNull.orEmpty().clip())
 }
 
-private fun JsonObject.toMessage(): String? = string("formatted") ?: string("message")
+private fun JsonObject.toMessage(): String? = string("formatted")?.takeIf { it.isNotBlank() } ?: string("message")
 
 private fun JsonObject.toBreadcrumbs(): List<Breadcrumb> =
   this["values"]
