@@ -156,6 +156,8 @@ async function main() {
           });
           // The Node SDK defaults server_name to this laptop's hostname; a phone app has none.
           if (!target.serverName) delete event.server_name;
+          // It also adds its own runtime (node) to every event, which the hand-built Java crashes never ran on.
+          if (target === TARGETS.android) delete event.contexts?.runtime;
           for (const exception of event.exception?.values ?? []) {
             if (exception.stacktrace?.frames) exception.stacktrace.frames = cleanFrames(exception.stacktrace.frames);
           }
