@@ -12,7 +12,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -28,7 +27,6 @@ import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -63,6 +61,8 @@ import io.github.sriharinmn.triage.data.issues.InboxError
 import io.github.sriharinmn.triage.data.issues.InboxTab
 import io.github.sriharinmn.triage.data.issues.Issue
 import io.github.sriharinmn.triage.data.issues.IssueSort
+import io.github.sriharinmn.triage.ui.common.DisconnectDialog
+import io.github.sriharinmn.triage.ui.common.ReconnectBanner
 import java.time.Instant
 import java.util.Date
 import kotlinx.coroutines.delay
@@ -195,7 +195,7 @@ internal fun InboxContent(
       val refreshedAt = state.refreshedAt
       if (hasIssues && errorText != null) {
         if (error.needsReconnect()) {
-          ReconnectBanner(message = errorText, onReconnect = onReconnect)
+          ReconnectBanner(message = errorText, onReconnect = onReconnect, buttonTag = InboxTags.ERROR_ACTION)
         } else if (refreshedAt != null) {
           Text(
             stringResource(R.string.inbox_updated_stale, DateFormat.getTimeFormat(context).format(Date(refreshedAt.toEpochMilli()))),
@@ -229,23 +229,12 @@ internal fun InboxContent(
   }
 
   if (confirmingDisconnect) {
-    AlertDialog(
-      onDismissRequest = { confirmingDisconnect = false },
-      title = { Text(stringResource(R.string.inbox_disconnect_title)) },
-      text = { Text(stringResource(R.string.inbox_disconnect_body)) },
-      confirmButton = {
-        TextButton(
-          onClick = {
-            confirmingDisconnect = false
-            onDisconnectConfirmed()
-          }
-        ) {
-          Text(stringResource(R.string.inbox_disconnect_confirm))
-        }
+    DisconnectDialog(
+      onConfirm = {
+        confirmingDisconnect = false
+        onDisconnectConfirmed()
       },
-      dismissButton = {
-        TextButton(onClick = { confirmingDisconnect = false }) { Text(stringResource(R.string.inbox_disconnect_cancel)) }
-      },
+      onDismiss = { confirmingDisconnect = false },
     )
   }
 }
@@ -320,26 +309,6 @@ private fun LoadMoreFooter(failed: Boolean, onRetry: () -> Unit) {
       }
     } else {
       CircularProgressIndicator(Modifier.size(24.dp))
-    }
-  }
-}
-
-@Composable
-private fun ReconnectBanner(message: String, onReconnect: () -> Unit) {
-  Surface(
-    color = MaterialTheme.colorScheme.errorContainer,
-    contentColor = MaterialTheme.colorScheme.onErrorContainer,
-    modifier = Modifier.fillMaxWidth(),
-  ) {
-    Row(
-      modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-      verticalAlignment = Alignment.CenterVertically,
-      horizontalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-      Text(message, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
-      TextButton(onClick = onReconnect, modifier = Modifier.testTag(InboxTags.ERROR_ACTION)) {
-        Text(stringResource(R.string.inbox_reconnect))
-      }
     }
   }
 }
