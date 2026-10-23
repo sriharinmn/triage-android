@@ -8,8 +8,10 @@ import io.github.sriharinmn.triage.testing.EU_ORG
 import io.github.sriharinmn.triage.testing.FakeSentryApi
 import io.github.sriharinmn.triage.testing.InMemoryAccountStore
 import io.github.sriharinmn.triage.testing.MainDispatcherRule
+import io.github.sriharinmn.triage.testing.TestClock
 import io.github.sriharinmn.triage.testing.US_ORG
 import java.io.IOException
+import java.time.Duration
 import kotlinx.coroutines.CompletableDeferred
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -23,7 +25,8 @@ class ConnectViewModelTest {
 
   private val api = FakeSentryApi()
   private val store = InMemoryAccountStore()
-  private val viewModel = ConnectViewModel(AccountRepository(api, store))
+  private val clock = TestClock()
+  private val viewModel = ConnectViewModel(AccountRepository(api, store), clock::now)
 
   @Test
   fun initialState_isCloudWithNothingEntered() {
@@ -261,6 +264,52 @@ class ConnectViewModelTest {
     viewModel.onSubmit()
 
     assertEquals(ConnectError.RateLimited(42), viewModel.state.value.error)
+  }
+
+  @Test
+  fun aTapWhileRateLimited_waitsWithoutAskingSentry() {
+    api.organizationsResult = ApiResult.Failure(ApiError.RateLimited(30))
+    viewModel.onTokenChange("sntryu_abc")
+    viewModel.onSubmit()
+    api.organizationsResult = ApiResult.Success(listOf(US_ORG))
+
+    clock.advance(Duration.ofMillis(10_500))
+    viewModel.onSubmit()
+
+    assertEquals(1, api.calls.size)
+    assertEquals(Step.EnterToken, viewModel.state.value.step)
+    assertEquals(ConnectError.RateLimited(20), viewModel.state.value.error)
+    assertNull(store.current)
+  }
+
+  @Test
+  fun aTapAfterTheRateLimit_asksSentryAgain() {
+    api.organizationsResult = ApiResult.Failure(ApiError.RateLimited(30))
+    viewModel.onTokenChange("sntryu_abc")
+    viewModel.onSubmit()
+    api.organizationsResult = ApiResult.Success(listOf(US_ORG))
+
+    clock.advance(Duration.ofSeconds(30))
+    viewModel.onSubmit()
+
+    assertEquals(2, api.calls.size)
+    assertEquals("acme", store.current?.orgSlug)
+  }
+
+  @Test
+  fun aRateLimitWithoutRetryAfter_holdsForSixtySeconds() {
+    api.organizationsResult = ApiResult.Failure(ApiError.RateLimited(null))
+    viewModel.onTokenChange("sntryu_abc")
+    viewModel.onSubmit()
+
+    clock.advance(Duration.ofSeconds(59))
+    viewModel.onSubmit()
+    assertEquals(1, api.calls.size)
+    assertEquals(ConnectError.RateLimited(1), viewModel.state.value.error)
+
+    clock.advance(Duration.ofSeconds(1))
+    viewModel.onSubmit()
+    assertEquals(2, api.calls.size)
   }
 
   @Test

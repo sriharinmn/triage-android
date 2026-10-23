@@ -43,4 +43,12 @@ class RetryAfterTest {
     assertNull(parseRetryAfter("soon", now))
     assertNull(parseRetryAfter("1.5", now))
   }
+
+  @Test
+  fun rateLimitHold_isSentrysWaitWithinOneSecondAndAnHour_orAMinuteWhenUnknown() {
+    assertEquals(42L, rateLimitHoldSeconds(42))
+    assertEquals(60L, rateLimitHoldSeconds(null))
+    assertEquals(1L, rateLimitHoldSeconds(0))
+    assertEquals(3600L, rateLimitHoldSeconds(Long.MAX_VALUE))
+  }
 }

@@ -23,3 +23,14 @@ fun parseRetryAfter(value: String?, now: Instant = Instant.now()): Long? {
     null
   }
 }
+
+/**
+ * How long to hold every call after a 429 that said [retryAfterSeconds]: 60 seconds when Sentry gave no usable value.
+ * A server can't lock the app for longer than an hour, and 0 would mean no back-off at all.
+ */
+fun rateLimitHoldSeconds(retryAfterSeconds: Long?): Long =
+  (retryAfterSeconds ?: DEFAULT_RETRY_AFTER_SECONDS).coerceIn(MIN_RETRY_AFTER_SECONDS, MAX_RETRY_AFTER_SECONDS)
+
+private const val DEFAULT_RETRY_AFTER_SECONDS = 60L
+private const val MIN_RETRY_AFTER_SECONDS = 1L
+private const val MAX_RETRY_AFTER_SECONDS = 3600L

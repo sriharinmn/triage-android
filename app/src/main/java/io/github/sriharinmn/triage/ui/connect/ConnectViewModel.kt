@@ -8,6 +8,9 @@ import io.github.sriharinmn.triage.data.account.ConnectResult
 import io.github.sriharinmn.triage.data.account.SentryHost
 import io.github.sriharinmn.triage.data.account.normalizeBaseUrl
 import io.github.sriharinmn.triage.remote.OrganizationDto
+import io.github.sriharinmn.triage.remote.rateLimitHoldSeconds
+import java.time.Duration
+import java.time.Instant
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -52,7 +55,10 @@ private data class PendingConnection(val host: SentryHost, val token: String) {
   override fun toString(): String = "PendingConnection(host=$host, token=<redacted>)"
 }
 
-class ConnectViewModel(private val repository: AccountRepository) : ViewModel() {
+class ConnectViewModel(
+  private val repository: AccountRepository,
+  private val clock: () -> Instant = Instant::now,
+) : ViewModel() {
   private val _state = MutableStateFlow(ConnectUiState())
   val state: StateFlow<ConnectUiState> = _state.asStateFlow()
 
@@ -61,6 +67,9 @@ class ConnectViewModel(private val repository: AccountRepository) : ViewModel() 
 
   /** The in-flight token check, so Cancel can stop it. */
   private var validation: Job? = null
+
+  /** Until when Sentry asked us to wait after a 429; a tap before then doesn't call Sentry. */
+  private var rateLimitedUntil: Instant? = null
 
   fun onHostChoiceChange(choice: HostChoice) {
     if (_state.value.step != Step.EnterToken) return
@@ -93,13 +102,23 @@ class ConnectViewModel(private val repository: AccountRepository) : ViewModel() 
           _state.update { it.copy(urlError = true) }
           return
         }
+    remainingRateLimitSeconds()?.let { seconds ->
+      _state.update { it.copy(error = ConnectError.RateLimited(seconds)) }
+      return
+    }
     _state.update { it.copy(step = Step.Validating, error = null, canCancel = true) }
     validation =
       viewModelScope.launch {
         val result = repository.fetchOrganizations(host, snapshot.token)
         _state.update { it.copy(canCancel = false) }
         when (result) {
-          is ConnectResult.Error -> _state.update { it.copy(step = Step.EnterToken, error = result.reason) }
+          is ConnectResult.Error -> {
+            val reason = result.reason
+            if (reason is ConnectError.RateLimited) {
+              rateLimitedUntil = clock().plusSeconds(rateLimitHoldSeconds(reason.retryAfterSeconds))
+            }
+            _state.update { it.copy(step = Step.EnterToken, error = reason) }
+          }
           is ConnectResult.Organizations ->
             if (result.organizations.size == 1) {
               finish(host, snapshot.token, result.organizations.single())
@@ -145,6 +164,17 @@ class ConnectViewModel(private val repository: AccountRepository) : ViewModel() 
     }
     pending = null
     _state.value = ConnectUiState()
+  }
+
+  /** Whole seconds (rounded up) until Sentry's Retry-After passes, or null if we may ask again. */
+  private fun remainingRateLimitSeconds(): Long? {
+    val until = rateLimitedUntil ?: return null
+    val remainingMillis = Duration.between(clock(), until).toMillis()
+    if (remainingMillis <= 0) {
+      rateLimitedUntil = null
+      return null
+    }
+    return (remainingMillis + 999) / 1000
   }
 
   private fun currentHost(): SentryHost? {

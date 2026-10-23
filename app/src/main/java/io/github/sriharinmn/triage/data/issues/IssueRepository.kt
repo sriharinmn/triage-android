@@ -4,6 +4,7 @@ import io.github.sriharinmn.triage.data.account.Account
 import io.github.sriharinmn.triage.remote.ApiError
 import io.github.sriharinmn.triage.remote.ApiResult
 import io.github.sriharinmn.triage.remote.SentryApi
+import io.github.sriharinmn.triage.remote.rateLimitHoldSeconds
 import java.io.IOException
 import java.time.Duration
 import java.time.Instant
@@ -150,9 +151,7 @@ class IssueRepository(
         ApiError.Unauthorized -> InboxError.Unauthorized
         ApiError.Forbidden -> InboxError.Forbidden
         is ApiError.RateLimited -> {
-          val seconds =
-            (error.retryAfterSeconds ?: DEFAULT_RETRY_AFTER_SECONDS)
-              .coerceIn(MIN_RETRY_AFTER_SECONDS, MAX_RETRY_AFTER_SECONDS)
+          val seconds = rateLimitHoldSeconds(error.retryAfterSeconds)
           holdUntilAtLeast(clock().plusSeconds(seconds))
           InboxError.RateLimited(seconds)
         }
@@ -169,13 +168,5 @@ class IssueRepository(
 
   private companion object {
     val CACHE_MAX_AGE: Duration = Duration.ofDays(7)
-
-    /** Used when Sentry sends 429 without a usable Retry-After. */
-    const val DEFAULT_RETRY_AFTER_SECONDS = 60L
-
-    // Bounds on any Retry-After we obey: a server can't lock the app for longer than an hour, and 0 would mean no
-    // back-off at all.
-    const val MIN_RETRY_AFTER_SECONDS = 1L
-    const val MAX_RETRY_AFTER_SECONDS = 3600L
   }
 }
