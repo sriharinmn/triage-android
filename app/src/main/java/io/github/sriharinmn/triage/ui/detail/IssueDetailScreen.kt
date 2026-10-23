@@ -157,11 +157,21 @@ internal fun IssueDetailContent(
         else -> {
           val error = state.summaryError ?: DetailError.Server
           val reconnect = error.needsReconnect()
-          MessagePanel(
-            message = detailErrorMessage(error),
-            actionLabel = stringResource(if (reconnect) R.string.inbox_reconnect else R.string.inbox_retry),
-            onAction = { if (reconnect) confirmingReconnect = true else onRetry() },
-          )
+          when {
+            // Retrying can't make the issue smaller, but Sentry's own page can still show it.
+            error == DetailError.TooLarge ->
+              MessagePanel(
+                message = stringResource(R.string.detail_issue_too_large),
+                actionLabel = stringResource(R.string.detail_open_in_browser),
+                onAction = onOpenInBrowser,
+              )
+            else ->
+              MessagePanel(
+                message = detailErrorMessage(error),
+                actionLabel = stringResource(if (reconnect) R.string.inbox_reconnect else R.string.inbox_retry),
+                onAction = { if (reconnect) confirmingReconnect = true else onRetry() },
+              )
+          }
         }
       }
     }

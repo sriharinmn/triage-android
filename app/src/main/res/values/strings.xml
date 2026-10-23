@@ -142,6 +142,7 @@
     <string name="detail_error_event_not_found">Sentry has no event of this kind any more.</string>
     <string name="detail_error_forbidden">Your token can\'t read this issue. Create a new Personal Token with Organization Read, Project Read, Issue &amp; Event Read &amp; Write, and Member Read, then reconnect.</string>
     <string name="detail_error_too_large">This event is too large to show here.</string>
+    <string name="detail_issue_too_large">This issue is too large to show here.</string>
     <string name="detail_event_recommended">Recommended</string>
     <string name="detail_event_latest">Latest</string>
     <string name="detail_event_oldest">Oldest</string>

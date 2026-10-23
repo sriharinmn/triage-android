@@ -25,7 +25,10 @@ internal fun IssueStatus.labelRes(): Int? =
     IssueStatus.Archived -> R.string.detail_status_archived
   }
 
-/** What went wrong, in a sentence. A 404 shown with this is about an event; a missing issue has its own panel. */
+/**
+ * What went wrong, in a sentence. A 404 or a too-large error shown with this is about an event; a missing or too-large
+ * issue has its own panel.
+ */
 @Composable
 internal fun detailErrorMessage(error: DetailError): String =
   when (error) {

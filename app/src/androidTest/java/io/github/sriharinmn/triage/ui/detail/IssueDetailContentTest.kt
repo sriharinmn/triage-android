@@ -172,6 +172,16 @@ class IssueDetailContentTest {
   }
 
   @Test
+  fun aTooLargeIssue_offersTheBrowserInsteadOfRetry() {
+    show(IssueDetailUiState(issueId = "4201", isLoadingSummary = false, summaryError = DetailError.TooLarge))
+
+    composeTestRule.onNodeWithText("This issue is too large to show here.").assertIsDisplayed()
+    composeTestRule.onNodeWithText("Retry").assertDoesNotExist()
+    composeTestRule.onNodeWithText("Open in browser").performClick()
+    assertEquals(listOf("open"), calls)
+  }
+
+  @Test
   fun aMissingEvent_hasNoRetry() {
     show(loaded.copy(events = emptyMap(), eventError = DetailError.NotFound))
 
