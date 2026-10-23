@@ -24,6 +24,8 @@ class RoomIssueCache(database: TriageDatabase) : IssueCache {
 
   override suspend fun listState(listKey: String): CachedListState? = storage { dao.getList(listKey)?.toState() }
 
+  override suspend fun issue(id: String): Issue? = storage { dao.getIssue(id)?.toIssue() }
+
   override suspend fun replaceList(listKey: String, issues: List<Issue>, nextCursor: String?, refreshedAt: Instant) =
     storage { dao.replaceList(listKey, issues.map { it.toEntity() }, nextCursor, refreshedAt.toEpochMilli()) }
 

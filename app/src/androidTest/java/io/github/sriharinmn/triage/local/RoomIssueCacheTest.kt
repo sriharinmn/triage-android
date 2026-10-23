@@ -186,4 +186,12 @@ class RoomIssueCacheTest {
     database.cacheDao().insertEntries(listOf(IssueListEntryEntity("probe", 0, "1")))
     assertTrue(ids("probe").isEmpty())
   }
+
+  @Test
+  fun issue_findsACachedIssueById() = runBlocking {
+    cache.replaceList("a", listOf(issue("1", title = "First")), null, t0)
+
+    assertEquals("First", cache.issue("1")?.title)
+    assertNull(cache.issue("2"))
+  }
 }

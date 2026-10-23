@@ -26,6 +26,9 @@ abstract class CacheDao {
   @Query("SELECT * FROM issue_lists WHERE listKey = :listKey")
   abstract suspend fun getList(listKey: String): IssueListEntity?
 
+  @Query("SELECT * FROM issues WHERE id = :id")
+  abstract suspend fun getIssue(id: String): IssueEntity?
+
   @Query("SELECT issueId FROM issue_list_entries WHERE listKey = :listKey")
   abstract suspend fun issueIdsIn(listKey: String): List<String>
 

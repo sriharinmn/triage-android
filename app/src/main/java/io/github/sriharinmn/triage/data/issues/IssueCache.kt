@@ -19,6 +19,9 @@ interface IssueCache {
 
   suspend fun listState(listKey: String): CachedListState?
 
+  /** Any cached copy of issue [id] (rows are shared by every list), or null if no list holds it. */
+  suspend fun issue(id: String): Issue?
+
   /** Replaces the list with a freshly loaded first page. */
   suspend fun replaceList(listKey: String, issues: List<Issue>, nextCursor: String?, refreshedAt: Instant)
 
