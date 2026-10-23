@@ -134,4 +134,27 @@
     <string name="detail_user">User</string>
     <string name="detail_user_id">id %1$s</string>
     <string name="detail_request">Request</string>
+    <string name="detail_back">Back</string>
+    <string name="detail_open_in_browser">Open in browser</string>
+    <string name="detail_loading">Loading issue…</string>
+    <string name="detail_gone">This issue no longer exists. It may have been merged or deleted.</string>
+    <string name="detail_back_to_inbox">Back to inbox</string>
+    <string name="detail_error_event_not_found">Sentry has no event of this kind any more.</string>
+    <string name="detail_error_forbidden">Your token can\'t read this issue. Create a new Personal Token with Organization Read, Project Read, Issue &amp; Event Read &amp; Write, and Member Read, then reconnect.</string>
+    <string name="detail_error_too_large">This event is too large to show here.</string>
+    <string name="detail_event_recommended">Recommended</string>
+    <string name="detail_event_latest">Latest</string>
+    <string name="detail_event_oldest">Oldest</string>
+    <string name="detail_event_loading">Loading event…</string>
+    <string name="detail_release">release %1$s</string>
+    <string name="detail_first_seen">First seen %1$s ago</string>
+    <string name="detail_last_seen">Last seen %1$s ago</string>
+    <string name="detail_trend_24h">24h</string>
+    <string name="detail_trend_30d">30d</string>
+    <plurals name="detail_events_last_30d">
+        <item quantity="one">%1$d event in the last 30 days</item>
+        <item quantity="other">%1$d events in the last 30 days</item>
+    </plurals>
+    <string name="detail_status_resolved">Resolved</string>
+    <string name="detail_status_archived">Archived</string>
 </resources>
