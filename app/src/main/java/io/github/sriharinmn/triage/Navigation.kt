@@ -64,7 +64,13 @@ internal fun TriageNavDisplay(
             if (backStack.lastOrNull() == Inbox) backStack.add(IssueDetail(issueId))
           }
         }
-        entry<IssueDetail> { key -> issueDetail(key.issueId) { backStack.removeLastOrNull() } }
+        entry<IssueDetail> { key ->
+          issueDetail(key.issueId) {
+            // A second back (a keyboard Enter or a TalkBack double-tap) during the exit animation must not pop the inbox
+            // too: an empty back stack crashes NavDisplay.
+            if (backStack.lastOrNull() == key) backStack.removeLastOrNull()
+          }
+        }
       },
   )
 }
