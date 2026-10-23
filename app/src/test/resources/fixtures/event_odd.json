@@ -1,0 +1,43 @@
+{
+  "id": "e5f60718293a4b5c6d7e8f90a1b2c3d4",
+  "dateCreated": "not a date",
+  "release": "shop@0.9.0",
+  "tags": [
+    { "key": "environment", "value": null },
+    { "key": "custom", "value": "x" }
+  ],
+  "user": null,
+  "contexts": { "device": "oops", "os": { "name": null, "version": null } },
+  "entries": [
+    { "type": "spans", "data": { "anything": 1 } },
+    { "type": "exception", "data": "oops" },
+    {
+      "type": "exception",
+      "data": {
+        "values": [
+          {
+            "type": null,
+            "value": null,
+            "stacktrace": {
+              "frames": [
+                { "function": null, "lineNo": "12", "inApp": null, "context": [[1], "x", [2, null], [3, "ok"]] }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "type": "breadcrumbs",
+      "data": {
+        "values": [
+          { "timestamp": 1761134400.5, "category": null, "message": null, "data": { "method": "GET" }, "type": "http" },
+          "bad"
+        ]
+      }
+    },
+    { "type": "request", "data": { "method": null, "url": null } },
+    "not an object",
+    { "no_type": true }
+  ]
+}
