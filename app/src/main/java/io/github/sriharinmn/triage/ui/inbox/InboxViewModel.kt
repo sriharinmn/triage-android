@@ -75,6 +75,7 @@ class InboxViewModel(
   private var refreshJob: Job? = null
   private var loadMoreJob: Job? = null
   private var startupJob: Job? = null
+  private var projectsJob: Job? = null
 
   init {
     viewModelScope.launch {
@@ -140,6 +141,7 @@ class InboxViewModel(
     refreshJob?.cancel()
     loadMoreJob?.cancel()
     startupJob?.cancel()
+    projectsJob?.cancel()
     _state.update { it.copy(isDisconnecting = true, isRefreshing = false, isLoadingMore = false, disconnectFailed = false) }
     viewModelScope.launch {
       try {
@@ -153,7 +155,7 @@ class InboxViewModel(
         // The cache may already be cleared and the startup job (the only projects loader) was cancelled; reload so the
         // inbox isn't left empty.
         startRefresh()
-        viewModelScope.launch { issues.refreshProjects(account) }
+        projectsJob = viewModelScope.launch { issues.refreshProjects(account) }
       }
     }
   }

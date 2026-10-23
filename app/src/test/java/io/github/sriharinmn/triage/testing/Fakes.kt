@@ -35,6 +35,9 @@ class FakeSentryApi(
   /** orgSlug of every listProjects call. */
   val projectCalls = mutableListOf<String>()
 
+  /** When set, listProjects suspends until it is completed. */
+  var projectsGate: CompletableDeferred<Unit>? = null
+
   val issueCalls = mutableListOf<IssueCall>()
 
   /** Answers listIssues; by default an empty last page. */
@@ -48,6 +51,7 @@ class FakeSentryApi(
 
   override suspend fun listProjects(baseUrl: String, token: String, orgSlug: String): ApiResult<List<ProjectDto>> {
     projectCalls += orgSlug
+    projectsGate?.await()
     return projectsResult
   }
 

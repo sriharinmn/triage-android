@@ -434,6 +434,26 @@ class InboxViewModelTest {
   }
 
   @Test
+  fun retryingDisconnect_stopsTheProjectsReloadOfTheFailedAttempt() = runTest {
+    api.projectsResult = ApiResult.Success(listOf(projectDto("101")))
+    val vm = viewModel()
+    settings.clearError = IOException("disk full")
+    val gate = CompletableDeferred<Unit>()
+    api.projectsGate = gate
+    val projectCalls = api.projectCalls.size
+    vm.onDisconnectConfirmed()
+    assertTrue(vm.state.value.disconnectFailed)
+    assertEquals(projectCalls + 1, api.projectCalls.size) // the reload is held at the gate
+
+    settings.clearError = null
+    vm.onDisconnectConfirmed()
+    assertNull(accountStore.current)
+    gate.complete(Unit)
+
+    assertTrue(cache.observeProjects().first().isEmpty())
+  }
+
+  @Test
   fun aDisconnectFailure_isReportedAndTheAccountKept() = runTest {
     cache.clearError = IOException("disk full")
     val vm = viewModel()
