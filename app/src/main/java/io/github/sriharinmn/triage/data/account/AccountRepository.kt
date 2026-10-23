@@ -35,7 +35,18 @@ sealed interface ConnectError {
   data object SaveFailed : ConnectError
 }
 
-class AccountRepository(private val api: SentryApi, private val store: AccountStore) {
+/**
+ * Checks tokens with Sentry and stores the connected account.
+ *
+ * @param forgetPreviousAccountData runs before a new account is saved, so it never sees the previous account's cached
+ *   issues, filters or rate-limit hold. Disconnect clears those too, but an account can vanish without one (a lost
+ *   Keystore key, a device transfer), so connect can't rely on it.
+ */
+class AccountRepository(
+  private val api: SentryApi,
+  private val store: AccountStore,
+  private val forgetPreviousAccountData: suspend () -> Unit = {},
+) {
   val account: Flow<Account?> = store.account
 
   suspend fun fetchOrganizations(host: SentryHost, rawToken: String): ConnectResult {
@@ -54,11 +65,12 @@ class AccountRepository(private val api: SentryApi, private val store: AccountSt
 
   /**
    * Call only after a successful [fetchOrganizations] for the same host and token; it does not re-validate the token.
+   * Throws, saving nothing, if the previous account's data can't be forgotten.
    */
   suspend fun connect(host: SentryHost, rawToken: String, organization: OrganizationDto) {
     // Self-hosted installs often report misconfigured URLs in links, so only trust them on sentry.io.
     val links = if (host is SentryHost.Cloud) organization.links else null
-    store.save(
+    val account =
       Account(
         apiBaseUrl = links?.regionUrl.sentryCloudOrigin() ?: host.baseUrl,
         webBaseUrl = links?.organizationUrl.sentryCloudOrigin() ?: host.baseUrl,
@@ -66,7 +78,8 @@ class AccountRepository(private val api: SentryApi, private val store: AccountSt
         orgSlug = organization.slug,
         orgName = organization.name,
       )
-    )
+    forgetPreviousAccountData()
+    store.save(account)
   }
 
   suspend fun disconnect() {

@@ -1,6 +1,7 @@
 package io.github.sriharinmn.triage
 
 import android.content.Context
+import io.github.sriharinmn.triage.data.AccountDataCleaner
 import io.github.sriharinmn.triage.data.Disconnector
 import io.github.sriharinmn.triage.data.account.AccountRepository
 import io.github.sriharinmn.triage.data.account.AccountState
@@ -42,14 +43,6 @@ class AppContainer(context: Context) {
 
   val sentryApi: SentryApi = OkHttpSentryApi(okHttpClient, userAgent = "Triage-Android/${BuildConfig.VERSION_NAME}")
 
-  val accountRepository =
-    AccountRepository(
-      api = sentryApi,
-      store = DataStoreAccountStore(appContext.accountDataStore, KeystoreTokenCipher()),
-    )
-
-  val accountState: StateFlow<AccountState> = accountRepository.account.asAccountState(applicationScope)
-
   // Room opens the database lazily, on the first query.
   private val database = TriageDatabase.create(appContext)
 
@@ -57,5 +50,16 @@ class AppContainer(context: Context) {
 
   val inboxSettings: InboxSettingsStore = DataStoreInboxSettingsStore(appContext.inboxSettingsDataStore)
 
-  val disconnector = Disconnector(accountRepository, issueRepository, inboxSettings)
+  private val accountDataCleaner = AccountDataCleaner(issueRepository, inboxSettings)
+
+  val accountRepository =
+    AccountRepository(
+      api = sentryApi,
+      store = DataStoreAccountStore(appContext.accountDataStore, KeystoreTokenCipher()),
+      forgetPreviousAccountData = accountDataCleaner::forgetAccountData,
+    )
+
+  val accountState: StateFlow<AccountState> = accountRepository.account.asAccountState(applicationScope)
+
+  val disconnector = Disconnector(accountRepository, accountDataCleaner)
 }

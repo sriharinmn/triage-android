@@ -1,5 +1,6 @@
 package io.github.sriharinmn.triage.ui.inbox
 
+import io.github.sriharinmn.triage.data.AccountDataCleaner
 import io.github.sriharinmn.triage.data.Disconnector
 import io.github.sriharinmn.triage.data.account.AccountRepository
 import io.github.sriharinmn.triage.data.issues.InboxError
@@ -46,7 +47,8 @@ class InboxViewModelTest {
   private val repository = IssueRepository(api, cache, clock::now)
   private val settings = InMemoryInboxSettingsStore()
   private val accountStore = InMemoryAccountStore(TEST_ACCOUNT)
-  private val disconnector = Disconnector(AccountRepository(api, accountStore), repository, settings)
+  private val disconnector =
+    Disconnector(AccountRepository(api, accountStore), AccountDataCleaner(repository, settings))
 
   private fun viewModel() = InboxViewModel(TEST_ACCOUNT, repository, settings, disconnector, clock::now)
 

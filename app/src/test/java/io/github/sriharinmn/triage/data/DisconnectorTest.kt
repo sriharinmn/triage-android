@@ -26,7 +26,8 @@ class DisconnectorTest {
   private val accountStore = InMemoryAccountStore(TEST_ACCOUNT)
   private val cache = InMemoryIssueCache()
   private val settings = InMemoryInboxSettingsStore(InboxFilter(tab = InboxTab.Regressed))
-  private val disconnector = Disconnector(AccountRepository(api, accountStore), IssueRepository(api, cache), settings)
+  private val disconnector =
+    Disconnector(AccountRepository(api, accountStore), AccountDataCleaner(IssueRepository(api, cache), settings))
 
   @Test
   fun disconnect_forgetsTheCacheTheSettingsAndTheAccount() = runTest {
