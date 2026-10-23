@@ -7,9 +7,12 @@ import io.github.sriharinmn.triage.remote.ApiError
 import io.github.sriharinmn.triage.remote.ApiResult
 import io.github.sriharinmn.triage.remote.SentryApi
 import java.io.IOException
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.withContext
 
 /** Why part of the detail screen couldn't load, in the terms the screen explains to the user. */
 sealed interface DetailError {
@@ -44,11 +47,14 @@ sealed interface DetailResult<out T> {
 /**
  * Loads the detail screen's parts straight from Sentry. Nothing is written to disk, because events can carry end users'
  * personal data; only the summary's first draft comes from the inbox cache. Every call honours the app-wide [gate].
+ * Responses are turned into the screen's models on [mappingDispatcher], off the caller's (main) thread, because a big
+ * event takes a while to map.
  */
 class IssueDetailRepository(
   private val api: SentryApi,
   private val cache: IssueCache,
   private val gate: RateLimitGate,
+  private val mappingDispatcher: CoroutineDispatcher = Dispatchers.Default,
 ) {
   /** The cached inbox row as a summary, for an instant (and offline) header; null if it isn't cached or can't be read. */
   suspend fun cachedSummary(issueId: String): IssueSummary? =
@@ -60,11 +66,11 @@ class IssueDetailRepository(
 
   /** The fresh issue; [cached] fills in what Sentry's response leaves out. */
   suspend fun summary(account: Account, issueId: String, cached: IssueSummary?): DetailResult<IssueSummary> =
-    call { api.getIssue(account.apiBaseUrl, account.token, account.orgSlug, issueId) }.map { it.toSummary(cached) }
+    call { api.getIssue(account.apiBaseUrl, account.token, account.orgSlug, issueId) }.mapped { it.toSummary(cached) }
 
   suspend fun event(account: Account, issueId: String, kind: EventKind): DetailResult<IssueEvent> =
     call { api.getIssueEvent(account.apiBaseUrl, account.token, account.orgSlug, issueId, kind.apiId) }
-      .map { it.toIssueEvent() }
+      .mapped { it.toIssueEvent() }
 
   /**
    * The top value of each tag that [chooseTagKeys] picks from [keys], loaded in parallel and kept in that order. Tags
@@ -81,14 +87,23 @@ class IssueDetailRepository(
     val failures = results.filterIsInstance<DetailResult.Failure>()
     if (failures.size == results.size) return failures.first()
     return DetailResult.Success(
-      results.mapNotNull { result ->
-        when (result) {
-          is DetailResult.Success -> result.value.toTagSummary()
-          is DetailResult.Failure -> null
+      withContext(mappingDispatcher) {
+        results.mapNotNull { result ->
+          when (result) {
+            is DetailResult.Success -> result.value.toTagSummary()
+            is DetailResult.Failure -> null
+          }
         }
       }
     )
   }
+
+  /** A loaded value as the screen's model, mapped on [mappingDispatcher]; a failure passes through without a switch. */
+  private suspend fun <T, R> DetailResult<T>.mapped(transform: (T) -> R): DetailResult<R> =
+    when (this) {
+      is DetailResult.Success -> DetailResult.Success(withContext(mappingDispatcher) { transform(value) })
+      is DetailResult.Failure -> this
+    }
 
   /** Fails fast inside a 429's hold, so Sentry isn't asked again before its `Retry-After` has passed. */
   private suspend fun <T> call(request: suspend () -> ApiResult<T>): DetailResult<T> {
@@ -111,9 +126,3 @@ class IssueDetailRepository(
       ApiError.TooLarge -> DetailError.TooLarge
     }
 }
-
-private inline fun <T, R> DetailResult<T>.map(transform: (T) -> R): DetailResult<R> =
-  when (this) {
-    is DetailResult.Success -> DetailResult.Success(transform(value))
-    is DetailResult.Failure -> this
-  }

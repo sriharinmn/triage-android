@@ -33,6 +33,7 @@ import io.github.sriharinmn.triage.testing.readFixture
 import java.io.IOException
 import java.time.Duration
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withContext
@@ -53,7 +54,7 @@ class IssueDetailViewModelTest {
   private val api = FakeSentryApi()
   private val cache = InMemoryIssueCache()
   private val rateLimitGate = RateLimitGate(clock::now)
-  private val repository = IssueDetailRepository(api, cache, rateLimitGate)
+  private val repository = IssueDetailRepository(api, cache, rateLimitGate, Dispatchers.Unconfined)
   private val accountStore = InMemoryAccountStore(TEST_ACCOUNT)
   private val disconnector =
     Disconnector(

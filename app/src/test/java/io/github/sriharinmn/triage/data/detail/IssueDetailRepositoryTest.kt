@@ -20,6 +20,12 @@ import io.github.sriharinmn.triage.testing.issueDto
 import io.github.sriharinmn.triage.testing.readFixture
 import java.io.IOException
 import java.time.Duration
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.decodeFromString
 import org.junit.Assert.assertEquals
@@ -32,7 +38,8 @@ class IssueDetailRepositoryTest {
   private val cache = InMemoryIssueCache()
   private val clock = TestClock()
   private val gate = RateLimitGate(clock::now)
-  private val repository = IssueDetailRepository(api, cache, gate)
+  // Unconfined mapping: each call finishes before the test's next line.
+  private val repository = IssueDetailRepository(api, cache, gate, Dispatchers.Unconfined)
   private val detailDto = SentryJson.decodeFromString<IssueDetailDto>(readFixture("issue_detail.json"))
   private val jsEvent = SentryJson.decodeFromString<EventDto>(readFixture("event_js.json"))
 
@@ -170,6 +177,41 @@ class IssueDetailRepositoryTest {
   @Test
   fun tags_withoutKeys_askNothing() = runTest {
     assertEquals(DetailResult.Success(emptyList<TagSummary>()), repository.tags(TEST_ACCOUNT, "4201", emptyList()))
+    assertTrue(api.detailCalls.isEmpty())
+  }
+
+  @OptIn(ExperimentalCoroutinesApi::class)
+  @Test
+  fun responses_areMappedOnTheMappingDispatcher() = runTest {
+    // Work sent to this dispatcher waits for runCurrent(), so the test can see where the mapping runs.
+    val queued = IssueDetailRepository(api, cache, gate, StandardTestDispatcher(testScheduler))
+    api.issueDetailHandler = { ApiResult.Success(detailDto) }
+    api.eventHandler = { _, _ -> ApiResult.Success(jsEvent) }
+    api.tagHandler = { key -> ApiResult.Success(tagOf(key)) }
+    val results = mutableListOf<DetailResult<*>>()
+
+    val eager = UnconfinedTestDispatcher(testScheduler)
+    launch(eager) { results += queued.summary(TEST_ACCOUNT, "4201", cached = null) }
+    launch(eager) { results += queued.event(TEST_ACCOUNT, "4201", EventKind.Latest) }
+    launch(eager) { results += queued.tags(TEST_ACCOUNT, "4201", listOf("environment")) }
+
+    assertEquals(listOf("issue", "event:latest", "tag:environment"), whats())
+    assertTrue("Sentry has answered, but nothing is mapped until the mapping dispatcher runs", results.isEmpty())
+    runCurrent()
+    assertEquals(3, results.size)
+    assertTrue(results.all { it is DetailResult.Success })
+  }
+
+  @OptIn(ExperimentalCoroutinesApi::class)
+  @Test
+  fun insideARateLimit_callsFailWithoutWaitingForTheMappingDispatcher() = runTest {
+    val queued = IssueDetailRepository(api, cache, gate, StandardTestDispatcher(testScheduler))
+    gate.hold(30)
+    val results = mutableListOf<DetailResult<*>>()
+
+    launch(UnconfinedTestDispatcher(testScheduler)) { results += queued.event(TEST_ACCOUNT, "4201", EventKind.Latest) }
+
+    assertEquals(listOf(DetailResult.Failure(DetailError.RateLimited(30))), results)
     assertTrue(api.detailCalls.isEmpty())
   }
 }
