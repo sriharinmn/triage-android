@@ -18,4 +18,28 @@ interface SentryApi {
     params: IssueListParams,
     cursor: String?,
   ): ApiResult<Page<IssueDto>>
+
+  /** `GET {baseUrl}/api/0/organizations/{org}/issues/{issueId}/`. */
+  suspend fun getIssue(baseUrl: String, token: String, orgSlug: String, issueId: String): ApiResult<IssueDetailDto>
+
+  /**
+   * `GET {baseUrl}/api/0/organizations/{org}/issues/{issueId}/events/{eventId}/`, where [eventId] is an event id or one
+   * of `recommended`, `latest` and `oldest`.
+   */
+  suspend fun getIssueEvent(
+    baseUrl: String,
+    token: String,
+    orgSlug: String,
+    issueId: String,
+    eventId: String,
+  ): ApiResult<EventDto>
+
+  /** `GET {baseUrl}/api/0/organizations/{org}/issues/{issueId}/tags/{key}/`. */
+  suspend fun getIssueTag(
+    baseUrl: String,
+    token: String,
+    orgSlug: String,
+    issueId: String,
+    key: String,
+  ): ApiResult<TagDetailDto>
 }

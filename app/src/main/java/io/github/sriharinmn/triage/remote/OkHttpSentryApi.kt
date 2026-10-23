@@ -13,6 +13,7 @@ import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.Response
+import okhttp3.ResponseBody
 
 class OkHttpSentryApi(
   private val client: OkHttpClient,
@@ -56,9 +57,46 @@ class OkHttpSentryApi(
     return getPage(url?.withCursor(cursor), token) { body -> json.decodeFromString<List<IssueDto>>(body) }
   }
 
-  /** `{baseUrl}/api/0/{segments}/`, each segment percent-encoded, or null if [baseUrl] isn't a URL. */
-  private fun apiUrl(baseUrl: String, vararg segments: String): HttpUrl? =
-    baseUrl
+  override suspend fun getIssue(
+    baseUrl: String,
+    token: String,
+    orgSlug: String,
+    issueId: String,
+  ): ApiResult<IssueDetailDto> =
+    get(apiUrl(baseUrl, "organizations", orgSlug, "issues", issueId), token) { body, _ ->
+      json.decodeFromString<IssueDetailDto>(body)
+    }
+
+  override suspend fun getIssueEvent(
+    baseUrl: String,
+    token: String,
+    orgSlug: String,
+    issueId: String,
+    eventId: String,
+  ): ApiResult<EventDto> =
+    get(apiUrl(baseUrl, "organizations", orgSlug, "issues", issueId, "events", eventId), token) { body, _ ->
+      json.decodeFromString<EventDto>(body)
+    }
+
+  override suspend fun getIssueTag(
+    baseUrl: String,
+    token: String,
+    orgSlug: String,
+    issueId: String,
+    key: String,
+  ): ApiResult<TagDetailDto> =
+    get(apiUrl(baseUrl, "organizations", orgSlug, "issues", issueId, "tags", key), token) { body, _ ->
+      json.decodeFromString<TagDetailDto>(body)
+    }
+
+  /**
+   * `{baseUrl}/api/0/{segments}/`, each segment percent-encoded. Null if [baseUrl] isn't a URL, or if a segment is empty,
+   * `.` or `..`: OkHttp resolves those, so a value taken from a response (a tag key) could point the token at another
+   * endpoint.
+   */
+  private fun apiUrl(baseUrl: String, vararg segments: String): HttpUrl? {
+    if (segments.any { it.isEmpty() || it == "." || it == ".." }) return null
+    return baseUrl
       .trim()
       .toHttpUrlOrNull()
       ?.newBuilder()
@@ -68,6 +106,7 @@ class OkHttpSentryApi(
         addPathSegment("") // Sentry's endpoints end with a slash.
       }
       ?.build()
+  }
 
   /**
    * Follows next-page cursors until the last page, at most [MAX_PAGES] pages. Each page request is rebuilt from
@@ -140,13 +179,19 @@ class OkHttpSentryApi(
 
   private fun <T> Response.toApiResult(decode: (body: String, link: String?) -> T): ApiResult<T> =
     when (code) {
-      in 200..299 ->
-        try {
-          ApiResult.Success(decode(body.string(), header("Link")))
-        } catch (e: IllegalArgumentException) {
-          // kotlinx SerializationException extends IllegalArgumentException; an empty body lands here too.
-          ApiResult.Failure(ApiError.Parse)
+      in 200..299 -> {
+        val text = body.readAtMost(MAX_RESPONSE_BYTES)
+        if (text == null) {
+          ApiResult.Failure(ApiError.TooLarge)
+        } else {
+          try {
+            ApiResult.Success(decode(text, header("Link")))
+          } catch (e: IllegalArgumentException) {
+            // kotlinx SerializationException extends IllegalArgumentException; an empty body lands here too.
+            ApiResult.Failure(ApiError.Parse)
+          }
         }
+      }
       401 -> ApiResult.Failure(ApiError.Unauthorized)
       403 -> ApiResult.Failure(ApiError.Forbidden)
       429 -> ApiResult.Failure(ApiError.RateLimited(parseRetryAfter(header("Retry-After"))))
@@ -163,4 +208,16 @@ class OkHttpSentryApi(
     /** Sentry's `project` value for "every project this token can access". */
     const val ALL_PROJECTS = "-1"
   }
+}
+
+/** Responses bigger than this aren't read. Real issue events are far smaller; this only stops a pathological one. */
+internal const val MAX_RESPONSE_BYTES: Long = 8L * 1024 * 1024
+
+/** The body as UTF-8 text, or null if it is longer than [limit] bytes; never buffers more than [limit] + 1 bytes. */
+private fun ResponseBody.readAtMost(limit: Long): String? {
+  if (contentLength() > limit) return null
+  val source = source()
+  // request() is true once the buffer holds limit + 1 bytes; false means the body ended within the limit.
+  if (source.request(limit + 1)) return null
+  return source.buffer.readUtf8()
 }

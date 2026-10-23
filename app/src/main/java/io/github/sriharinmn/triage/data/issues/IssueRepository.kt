@@ -157,7 +157,8 @@ class IssueRepository(
         }
         is ApiError.Network -> InboxError.Network
         is ApiError.Http,
-        ApiError.Parse -> InboxError.Server
+        ApiError.Parse,
+        ApiError.TooLarge -> InboxError.Server
       }
     )
 
