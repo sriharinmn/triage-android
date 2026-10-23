@@ -108,4 +108,30 @@
         <item quantity="one">%1$d event in the last 24 hours</item>
         <item quantity="other">%1$d events in the last 24 hours</item>
     </plurals>
+    <string name="detail_stack_trace">Stack trace</string>
+    <string name="detail_message">Message</string>
+    <string name="detail_no_stack_trace">This event has no stack trace.</string>
+    <string name="detail_caused_by">Caused by</string>
+    <string name="detail_thread">Thread %1$s</string>
+    <string name="detail_unknown_error">Unknown error</string>
+    <plurals name="detail_show_library_frames">
+        <item quantity="one">Show %1$d library frame</item>
+        <item quantity="other">Show %1$d library frames</item>
+    </plurals>
+    <string name="detail_show_code">Show code</string>
+    <string name="detail_hide_code">Hide code</string>
+    <string name="detail_error_line">Line %1$d, where the error happened: %2$s</string>
+    <string name="detail_breadcrumbs">Breadcrumbs</string>
+    <string name="detail_show_all_breadcrumbs">Show all %1$d</string>
+    <string name="detail_tags">Tags</string>
+    <string name="detail_tag_percent">%1$d%%</string>
+    <string name="detail_details">Details</string>
+    <string name="detail_device">Device</string>
+    <string name="detail_os">OS</string>
+    <string name="detail_runtime">Runtime</string>
+    <string name="detail_browser">Browser</string>
+    <string name="detail_app">App</string>
+    <string name="detail_user">User</string>
+    <string name="detail_user_id">id %1$s</string>
+    <string name="detail_request">Request</string>
 </resources>
