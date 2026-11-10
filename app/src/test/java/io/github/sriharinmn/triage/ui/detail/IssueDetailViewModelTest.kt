@@ -4,6 +4,10 @@ import io.github.sriharinmn.triage.data.AccountDataCleaner
 import io.github.sriharinmn.triage.data.Disconnector
 import io.github.sriharinmn.triage.data.RateLimitGate
 import io.github.sriharinmn.triage.data.account.AccountRepository
+import io.github.sriharinmn.triage.data.actions.ActionNotice
+import io.github.sriharinmn.triage.data.actions.IssueAction
+import io.github.sriharinmn.triage.data.actions.IssueActionRepository
+import io.github.sriharinmn.triage.data.actions.PendingActions
 import io.github.sriharinmn.triage.data.detail.ContextLine
 import io.github.sriharinmn.triage.data.detail.DetailError
 import io.github.sriharinmn.triage.data.detail.EventContext
@@ -15,13 +19,19 @@ import io.github.sriharinmn.triage.data.detail.StackFrame
 import io.github.sriharinmn.triage.data.issues.IssueRepository
 import io.github.sriharinmn.triage.data.issues.toIssue
 import io.github.sriharinmn.triage.remote.ApiError
+import io.github.sriharinmn.triage.data.members.Member
+import io.github.sriharinmn.triage.data.members.MembersRepository
 import io.github.sriharinmn.triage.remote.ApiResult
+import io.github.sriharinmn.triage.remote.AssigneeDto
 import io.github.sriharinmn.triage.remote.EventDto
 import io.github.sriharinmn.triage.remote.IssueDetailDto
+import io.github.sriharinmn.triage.remote.MemberDto
+import io.github.sriharinmn.triage.remote.MemberUserDto
 import io.github.sriharinmn.triage.remote.SentryJson
 import io.github.sriharinmn.triage.remote.TagDetailDto
 import io.github.sriharinmn.triage.remote.TagValueDto
 import io.github.sriharinmn.triage.testing.FakeSentryApi
+import io.github.sriharinmn.triage.testing.InMemoryAccountPrefsStore
 import io.github.sriharinmn.triage.testing.InMemoryAccountStore
 import io.github.sriharinmn.triage.testing.InMemoryInboxSettingsStore
 import io.github.sriharinmn.triage.testing.InMemoryIssueCache
@@ -34,10 +44,16 @@ import java.io.IOException
 import java.time.Duration
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.test.advanceTimeBy
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.decodeFromString
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
@@ -56,11 +72,14 @@ class IssueDetailViewModelTest {
   private val rateLimitGate = RateLimitGate(clock::now)
   private val repository = IssueDetailRepository(api, cache, rateLimitGate, Dispatchers.Unconfined)
   private val accountStore = InMemoryAccountStore(TEST_ACCOUNT)
+  private val issueRepository = IssueRepository(api, cache, clock::now, rateLimitGate)
   private val disconnector =
-    Disconnector(
-      AccountRepository(api, accountStore),
-      AccountDataCleaner(IssueRepository(api, cache, clock::now, rateLimitGate), InMemoryInboxSettingsStore()),
-    )
+    Disconnector(AccountRepository(api, accountStore), AccountDataCleaner(issueRepository, InMemoryInboxSettingsStore()))
+  private val accountPrefs = InMemoryAccountPrefsStore()
+  private val members = MembersRepository(api, rateLimitGate, accountPrefs)
+  private lateinit var pendingActions: PendingActions
+  private val ana = Member(userId = "41", name = "Ana Silva", email = "ana@example.com")
+  private val ben = Member(userId = "42", name = "Ben Okafor", email = "ben@example.com")
   private val detailDto = SentryJson.decodeFromString<IssueDetailDto>(readFixture("issue_detail.json"))
   private val jsEvent = SentryJson.decodeFromString<EventDto>(readFixture("event_js.json"))
   private val javaEvent = SentryJson.decodeFromString<EventDto>(readFixture("event_java_chained.json"))
@@ -74,7 +93,15 @@ class IssueDetailViewModelTest {
     }
   }
 
-  private fun viewModel() = IssueDetailViewModel(TEST_ACCOUNT, "4201", repository, disconnector)
+  private fun TestScope.viewModel(): IssueDetailViewModel {
+    pendingActions = PendingActions(IssueActionRepository(api, rateLimitGate), issueRepository, backgroundScope)
+    return IssueDetailViewModel(TEST_ACCOUNT, "4201", repository, disconnector, pendingActions, members)
+  }
+
+  private fun membersAre(vararg people: Member) {
+    api.membersResult =
+      ApiResult.Success(people.map { MemberDto(id = "m${it.userId}", user = MemberUserDto(id = it.userId, name = it.name, email = it.email)) })
+  }
 
   private fun whats() = api.detailCalls.map { it.what }
 
@@ -366,5 +393,168 @@ class IssueDetailViewModelTest {
     assertEquals(setOf(FrameRef(0, 1)), defaultExpandedFrames(event(frame(false, false), frame(false, true))))
     assertTrue(defaultExpandedFrames(event(frame(true, false))).isEmpty())
     assertTrue(defaultExpandedFrames(null).isEmpty())
+  }
+
+  @Test
+  fun resolve_isHeldForUndo_andClosesTheScreen() = runTest {
+    val vm = viewModel()
+
+    vm.onResolve()
+
+    val notice = pendingActions.notice.value as ActionNotice.Pending
+    assertEquals(IssueAction.Resolve, notice.action.action)
+    assertEquals("TRIAGE-DEMO-1A", notice.action.shortId)
+    assertTrue(vm.state.value.closeRequested)
+    vm.onCloseHandled()
+    assertFalse(vm.state.value.closeRequested)
+  }
+
+  @Test
+  fun archive_isHeldForUndo_andClosesTheScreen() = runTest {
+    val vm = viewModel()
+
+    vm.onArchive()
+
+    assertEquals(IssueAction.Archive, (pendingActions.notice.value as ActionNotice.Pending).action.action)
+    assertTrue(vm.state.value.closeRequested)
+  }
+
+  @Test
+  fun actions_waitForASummary() = runTest {
+    val issueGate = CompletableDeferred<Unit>()
+    api.issueDetailHandler = {
+      issueGate.await()
+      ApiResult.Success(detailDto)
+    }
+    val vm = viewModel()
+
+    vm.onResolve()
+    vm.onAssignClicked()
+
+    assertNull(pendingActions.notice.value)
+    assertNull(vm.state.value.assignSheet)
+    assertFalse(vm.state.value.closeRequested)
+  }
+
+  @Test
+  fun markReviewed_isOfferedOnlyWhileUpForReview_andGoesAwayOnceUsed() = runTest {
+    assertFalse(viewModel().state.value.canMarkReviewed)
+
+    api.issueDetailHandler = { ApiResult.Success(detailDto.copy(inbox = buildJsonObject { put("reason", 0) })) }
+    val vm = viewModel()
+    assertTrue(vm.state.value.canMarkReviewed)
+
+    vm.onMarkReviewed()
+
+    assertFalse(vm.state.value.canMarkReviewed)
+    assertFalse(vm.state.value.closeRequested)
+    assertEquals(IssueAction.MarkReviewed, (vm.state.value.notice as ActionNotice.Pending).action.action)
+  }
+
+  @Test
+  fun theAssignee_isUnknownFromTheCache_thenSentrys() = runTest {
+    cache.replaceList("k", listOf(issueDto("4201").toIssue()), null, clock.now())
+    val issueGate = CompletableDeferred<Unit>()
+    api.issueDetailHandler = {
+      issueGate.await()
+      ApiResult.Success(detailDto.copy(assignedTo = AssigneeDto(type = "user", id = "41", name = "Ana Silva")))
+    }
+    val vm = viewModel()
+    assertEquals(ShownAssignee.Unknown, vm.state.value.shownAssignee)
+
+    issueGate.complete(Unit)
+
+    assertEquals(ShownAssignee.Named("Ana Silva"), vm.state.value.shownAssignee)
+  }
+
+  @Test
+  fun theSheet_asksWhoIsMeFirst_thenAssigns() = runTest {
+    membersAre(ana, ben)
+    val vm = viewModel()
+
+    vm.onAssignClicked()
+    assertTrue(vm.state.value.assignSheet!!.askingWhoIsMe)
+    vm.onMemberChosen(ana)
+
+    assertEquals(ana, vm.state.value.assignSheet!!.me)
+    assertEquals("41", accountPrefs.current)
+    vm.onMemberChosen(ben)
+
+    assertNull(vm.state.value.assignSheet)
+    assertEquals(IssueAction.Assign(ben), (pendingActions.notice.value as ActionNotice.Pending).action.action)
+    assertEquals(ShownAssignee.Named("Ben Okafor"), vm.state.value.shownAssignee)
+  }
+
+  @Test
+  fun aRememberedMe_skipsTheQuestion_andAStaleOneAsksAgain() = runTest {
+    membersAre(ana, ben)
+    accountPrefs.saveMyUserId("41")
+    val vm = viewModel()
+    vm.onAssignClicked()
+    assertEquals(ana, vm.state.value.assignSheet!!.me)
+    assertFalse(vm.state.value.assignSheet!!.askingWhoIsMe)
+
+    accountPrefs.saveMyUserId("99")
+    vm.onAssignSheetDismissed()
+    vm.onAssignClicked()
+
+    assertTrue(vm.state.value.assignSheet!!.askingWhoIsMe)
+  }
+
+  @Test
+  fun notMe_forgetsTheAnswer() = runTest {
+    membersAre(ana)
+    accountPrefs.saveMyUserId("41")
+    val vm = viewModel()
+    vm.onAssignClicked()
+
+    vm.onNotMe()
+
+    assertTrue(vm.state.value.assignSheet!!.askingWhoIsMe)
+    assertNull(accountPrefs.current)
+  }
+
+  @Test
+  fun unassign_showsUnassigned_andUndoRestoresSentrysAssignee() = runTest {
+    api.issueDetailHandler = { ApiResult.Success(detailDto.copy(assignedTo = AssigneeDto(type = "user", id = "41", name = "Ana Silva"))) }
+    membersAre(ana)
+    val vm = viewModel()
+    vm.onAssignClicked()
+
+    vm.onUnassign()
+    assertEquals(ShownAssignee.Unassigned, vm.state.value.shownAssignee)
+    vm.onUndo(vm.state.value.notice as ActionNotice.Pending)
+
+    assertEquals(ShownAssignee.Named("Ana Silva"), vm.state.value.shownAssignee)
+  }
+
+  @Test
+  fun membersThatFailToLoad_showTheError_andRetryReloads() = runTest {
+    api.membersResult = ApiResult.Failure(ApiError.Network("offline"))
+    val vm = viewModel()
+    vm.onAssignClicked()
+    assertEquals(DetailError.Network, vm.state.value.assignSheet!!.error)
+
+    membersAre(ana)
+    vm.onRetryMembers()
+
+    assertEquals(listOf(ana), vm.state.value.assignSheet!!.members)
+    assertNull(vm.state.value.assignSheet!!.error)
+  }
+
+  @OptIn(ExperimentalCoroutinesApi::class)
+  @Test
+  fun aFailedAction_canBeRetried()= runTest {
+    api.updateHandler = { _, _ -> ApiResult.Failure(ApiError.Network("offline")) }
+    val vm = viewModel()
+    vm.onMarkReviewed()
+    advanceTimeBy(PendingActions.UNDO_WINDOW.inWholeMilliseconds + 1)
+    runCurrent()
+    val failed = vm.state.value.notice as ActionNotice.Failed
+
+    api.updateHandler = { _, _ -> ApiResult.Success(Unit) }
+    vm.onRetryAction(failed)
+
+    assertEquals(IssueAction.MarkReviewed, (vm.state.value.notice as ActionNotice.Pending).action.action)
   }
 }

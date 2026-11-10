@@ -51,6 +51,12 @@ data class IssueSummary(
   val lastRelease: String?,
   /** The issue's tag keys in Sentry's order; empty until fresh data arrives. */
   val tagKeys: List<String>,
+  /** Who it is assigned to: a person's name, or "#team"; null while unassigned or not yet known. */
+  val assignedTo: String? = null,
+  /** Sentry has it up for review (For review); false until the fresh issue arrives. */
+  val isUpForReview: Boolean = false,
+  /** True once this came from Sentry's fresh issue rather than the cached inbox row. */
+  val isFresh: Boolean = false,
 )
 
 /** One event of an issue, reduced to what the screen shows. Lives in memory only: it can hold end users' data. */

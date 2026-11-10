@@ -32,7 +32,14 @@ fun TriageNavigation(account: Account, container: AppContainer) {
       // event data it holds.
       val detailViewModel: IssueDetailViewModel =
         viewModel(key = "issue|${account.apiBaseUrl}|${account.orgSlug}|$issueId") {
-          IssueDetailViewModel(account, issueId, container.issueDetailRepository, container.disconnector)
+          IssueDetailViewModel(
+            account,
+            issueId,
+            container.issueDetailRepository,
+            container.disconnector,
+            container.pendingActions,
+            container.members,
+          )
         }
       IssueDetailScreen(detailViewModel, onBack = onBack)
     },
