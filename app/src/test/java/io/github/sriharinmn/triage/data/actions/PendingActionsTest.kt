@@ -177,6 +177,73 @@ class PendingActionsTest {
   }
 
   @Test
+  fun resolvingTwice_thenUndoingTheLatest_sendsNothing() = runTest {
+    val pending = pending()
+    pending.submit(TEST_ACCOUNT, "1", "DEMO-1", IssueAction.Resolve)
+    val second = pending.submit(TEST_ACCOUNT, "1", "DEMO-1", IssueAction.Resolve)
+
+    pending.undo(second.id)
+    waitOutTheUndoWindow()
+
+    assertTrue(api.updateCalls.isEmpty())
+    assertTrue(pending.overlays.value.isEmpty())
+  }
+
+  @Test
+  fun resolveThenArchive_insideTheWindow_sendsOnlyTheArchive() = runTest {
+    val pending = pending()
+    pending.submit(TEST_ACCOUNT, "1", "DEMO-1", IssueAction.Resolve)
+    advanceTimeBy(2_000)
+    pending.submit(TEST_ACCOUNT, "1", "DEMO-1", IssueAction.Archive)
+
+    waitOutTheUndoWindow()
+
+    assertEquals(listOf("1" to IssueAction.Archive.toChanges()), api.updateCalls)
+  }
+
+  @Test
+  fun assigningTwice_insideTheWindow_sendsOnlyTheLatest() = runTest {
+    val pending = pending()
+    pending.submit(TEST_ACCOUNT, "1", "DEMO-1", IssueAction.Assign(ana))
+    pending.submit(TEST_ACCOUNT, "1", "DEMO-1", IssueAction.Assign(ben))
+
+    waitOutTheUndoWindow()
+
+    assertEquals(listOf("1" to IssueAction.Assign(ben).toChanges()), api.updateCalls)
+  }
+
+  @Test
+  fun assigningTwice_thenUndoingTheLatest_leavesSentrysAssignee() = runTest {
+    val pending = pending()
+    pending.submit(TEST_ACCOUNT, "1", "DEMO-1", IssueAction.Assign(ana))
+    val second = pending.submit(TEST_ACCOUNT, "1", "DEMO-1", IssueAction.Assign(ben))
+
+    pending.undo(second.id)
+    waitOutTheUndoWindow()
+
+    assertNull(pending.overlays.value["1"]?.assignment)
+    assertTrue(api.updateCalls.isEmpty())
+  }
+
+  @Test
+  fun anOlderAssignmentFailing_keepsTheNewerOne_untilThatFailsToo() = runTest {
+    api.updateGate = CompletableDeferred()
+    api.updateHandler = { _, _ -> ApiResult.Failure(ApiError.Network("offline")) }
+    val pending = pending()
+    pending.submit(TEST_ACCOUNT, "1", "DEMO-1", IssueAction.Assign(ana))
+    waitOutTheUndoWindow()
+    pending.submit(TEST_ACCOUNT, "1", "DEMO-1", IssueAction.Assign(ben))
+
+    api.updateGate!!.complete(Unit)
+    runCurrent()
+    assertEquals(Assignment(ben), pending.overlays.value.getValue("1").assignment)
+    waitOutTheUndoWindow()
+
+    assertEquals(2, api.updateCalls.size)
+    assertNull(pending.overlays.value["1"]?.assignment)
+  }
+
+  @Test
   fun aFailure_bringsTheIssueBack_andSaysWhy() = runTest {
     api.updateHandler = { _, _ -> ApiResult.Failure(ApiError.Network("offline")) }
     val pending = pending()

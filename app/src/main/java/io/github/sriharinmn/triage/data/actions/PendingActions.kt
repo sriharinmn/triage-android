@@ -61,15 +61,22 @@ class PendingActions(
   private val scope: CoroutineScope,
   private val undoWindow: Duration = UNDO_WINDOW,
 ) {
-  private class Entry(val submitted: SubmittedAction, val account: Account, val previousAssignment: Assignment?) {
+  private class Entry(val submitted: SubmittedAction, val account: Account, var previousAssignment: Assignment?) {
     var job: Job? = null
     /** Set once sending began; from then on Undo is too late. */
     var sending = false
   }
 
+  /** What an action changes. A newer action replaces a waiting one that changes the same thing. */
+  private enum class Change { Status, Assignee, Review }
+
+  // Guards the entries and every write to the overlays and the notice, so what the screens see always matches the
+  // entries: submit and undo run on the main thread while sends finish on [scope].
   private val lock = Any()
   private val entries = LinkedHashMap<Long, Entry>()
   private var nextId = 1L
+  /** Counts clear() calls, so the tail of a send that clear() overlapped changes nothing on screen. */
+  private var clears = 0L
 
   private val _overlays = MutableStateFlow<Map<String, IssueOverlay>>(emptyMap())
   val overlays: StateFlow<Map<String, IssueOverlay>> = _overlays.asStateFlow()
@@ -77,32 +84,47 @@ class PendingActions(
   private val _notice = MutableStateFlow<ActionNotice?>(null)
   val notice: StateFlow<ActionNotice?> = _notice.asStateFlow()
 
-  /** Shows [action] on [issueId] at once and sends it when the Undo window ends. */
+  /**
+   * Shows [action] on [issueId] at once and sends it when the Undo window ends. It replaces an action on the issue that
+   * changes the same thing and is still waiting (a second tap, or Resolve then Archive), so Undo always covers what will
+   * be sent.
+   */
   fun submit(account: Account, issueId: String, shortId: String, action: IssueAction): SubmittedAction {
     val entry =
       synchronized(lock) {
+        val replaced = entries.values.filter { !it.sending && it.changes(issueId, action.change) }
+        replaced.forEach {
+          entries.remove(it.submitted.id)
+          it.job?.cancel()
+        }
+        // Undoing the new assignment goes back to what was there before the one it replaced.
+        val previous = if (replaced.isEmpty()) _overlays.value[issueId]?.assignment else replaced.first().previousAssignment
         val submitted = SubmittedAction(nextId++, issueId, shortId, action)
-        Entry(submitted, account, _overlays.value[issueId]?.assignment).also { entries[submitted.id] = it }
+        val entry = Entry(submitted, account, previous).also { entries[submitted.id] = it }
+        updateOverlay(issueId) { it.with(action) }
+        _notice.value = ActionNotice.Pending(submitted)
+        entry
       }
-    updateOverlay(issueId) { it.with(action) }
-    _notice.value = ActionNotice.Pending(entry.submitted)
     schedule(entry, afterUndoWindow = true)
     return entry.submitted
   }
 
   /** Drops action [id] if it hasn't started sending; nothing reaches Sentry. */
   fun undo(id: Long) {
-    val entry = synchronized(lock) { entries[id]?.takeIf { !it.sending }?.also { entries.remove(id) } } ?: return
-    entry.job?.cancel()
-    revert(entry)
-    _notice.update { if (it?.action?.id == id) null else it }
+    synchronized(lock) {
+      val entry = entries[id]?.takeIf { !it.sending } ?: return
+      entries.remove(id)
+      entry.job?.cancel()
+      revert(entry)
+      _notice.update { if (it?.action?.id == id) null else it }
+    }
   }
 
   /** A pending notice swiped away sends its action at once (as Gmail does); a failure notice is just cleared. */
   fun onNoticeDismissed(notice: ActionNotice) {
     when (notice) {
       is ActionNotice.Pending -> synchronized(lock) { entries[notice.action.id] }?.let { schedule(it, afterUndoWindow = false) }
-      is ActionNotice.Failed -> _notice.update { if (it == notice) null else it }
+      is ActionNotice.Failed -> synchronized(lock) { _notice.update { if (it == notice) null else it } }
     }
   }
 
@@ -114,10 +136,13 @@ class PendingActions(
 
   /** Drops every action, sent or not, and everything shown for them: the account is being forgotten. */
   fun clear() {
-    val all = synchronized(lock) { entries.values.toList().also { entries.clear() } }
-    all.forEach { it.job?.cancel() }
-    _overlays.value = emptyMap()
-    _notice.value = null
+    synchronized(lock) {
+      entries.values.forEach { it.job?.cancel() }
+      entries.clear()
+      clears++
+      _overlays.value = emptyMap()
+      _notice.value = null
+    }
   }
 
   private fun schedule(entry: Entry, afterUndoWindow: Boolean) {
@@ -142,48 +167,72 @@ class PendingActions(
       // A job that schedule() superseded may already be running; it must not become the in-flight send.
       if (entries[entry.submitted.id] !== entry || entry.sending || entry.job !== self) return
       entry.sending = true
+      // Undo is no longer possible, so stop offering it.
+      _notice.update { if (it is ActionNotice.Pending && it.action.id == entry.submitted.id) null else it }
     }
-    // Undo is no longer possible, so stop offering it.
-    _notice.update { if (it is ActionNotice.Pending && it.action.id == entry.submitted.id) null else it }
     val (issueId, action) = entry.submitted.issueId to entry.submitted.action
-    val result = actions.apply(entry.account, issueId, action)
-    // clear() cancels this job, but a result can still slip past the cancel. This only skips the tail if clear()
-    // emptied the entries before this point; clear() running after this line can still overlap the tail.
-    synchronized(lock) { if (entries.remove(entry.submitted.id) == null) return }
+    val error = (actions.apply(entry.account, issueId, action) as? DetailResult.Failure)?.error
+    val clearsBefore =
+      synchronized(lock) {
+        // clear() cancels this job, but a result can still slip past the cancel: the account is gone, so stop here.
+        if (entries.remove(entry.submitted.id) == null) return
+        if (error != null && error != DetailError.NotFound) {
+          revert(entry)
+          _notice.value = ActionNotice.Failed(entry.submitted, error)
+          return
+        }
+        clears
+      }
+    // The cache writes suspend, so they run outside the lock; if clear() ran meanwhile, nothing more is shown.
     when {
-      result is DetailResult.Success -> {
+      error == null ->
         // Leave the cache first, then stop hiding, so the row never flashes back.
         when (action) {
           IssueAction.Resolve,
-          IssueAction.Archive -> issues.forget(issueId)
+          IssueAction.Archive -> {
+            issues.forget(issueId)
+            synchronized(lock) { if (clears == clearsBefore) showAgain(issueId) }
+          }
           IssueAction.MarkReviewed -> issues.forget(issueId, InboxTab.ForReview)
           is IssueAction.Assign -> Unit
         }
-        updateOverlay(issueId) { if (action is IssueAction.Resolve || action is IssueAction.Archive) it.copy(hidden = false) else it }
-      }
-      result is DetailResult.Failure && result.error == DetailError.NotFound -> {
+      else -> {
         // Merged or deleted in Sentry: it won't come back on a refresh, so stop showing it now.
         issues.forget(issueId)
-        revert(entry)
-        _notice.value = ActionNotice.Failed(entry.submitted, DetailError.NotFound)
-      }
-      result is DetailResult.Failure -> {
-        revert(entry)
-        _notice.value = ActionNotice.Failed(entry.submitted, result.error)
+        synchronized(lock) {
+          if (clears != clearsBefore) return
+          revert(entry)
+          _notice.value = ActionNotice.Failed(entry.submitted, DetailError.NotFound)
+        }
       }
     }
   }
 
+  /** Takes [entry]'s change off the issue, unless another action on it still shows that change. Call under [lock]. */
   private fun revert(entry: Entry) {
-    updateOverlay(entry.submitted.issueId) {
-      when (entry.submitted.action) {
-        IssueAction.Resolve,
-        IssueAction.Archive -> it.copy(hidden = false)
-        IssueAction.MarkReviewed -> it.copy(reviewed = false)
-        is IssueAction.Assign -> it.copy(assignment = entry.previousAssignment)
+    val issueId = entry.submitted.issueId
+    when (entry.submitted.action.change) {
+      Change.Status -> showAgain(issueId)
+      Change.Review -> if (!isChanging(issueId, Change.Review)) updateOverlay(issueId) { it.copy(reviewed = false) }
+      Change.Assignee -> {
+        val newer = entries.values.firstOrNull { it.submitted.id > entry.submitted.id && it.changes(issueId, Change.Assignee) }
+        // A newer assignment stays on screen; undoing it (or its failing) now goes back to what was there before this one.
+        if (newer != null) newer.previousAssignment = entry.previousAssignment
+        else updateOverlay(issueId) { it.copy(assignment = entry.previousAssignment) }
       }
     }
   }
+
+  /** Stops hiding [issueId], unless another resolve or archive of it is still waiting or being sent. Call under [lock]. */
+  private fun showAgain(issueId: String) {
+    if (!isChanging(issueId, Change.Status)) updateOverlay(issueId) { it.copy(hidden = false) }
+  }
+
+  /** Whether an action that makes [change] to [issueId] is still waiting or being sent. Call under [lock]. */
+  private fun isChanging(issueId: String, change: Change): Boolean = entries.values.any { it.changes(issueId, change) }
+
+  private fun Entry.changes(issueId: String, change: Change): Boolean =
+    submitted.issueId == issueId && submitted.action.change == change
 
   private fun updateOverlay(issueId: String, change: (IssueOverlay) -> IssueOverlay) {
     _overlays.update { all ->
@@ -191,6 +240,15 @@ class PendingActions(
       if (next == IssueOverlay()) all - issueId else all + (issueId to next)
     }
   }
+
+  private val IssueAction.change: Change
+    get() =
+      when (this) {
+        IssueAction.Resolve,
+        IssueAction.Archive -> Change.Status
+        is IssueAction.Assign -> Change.Assignee
+        IssueAction.MarkReviewed -> Change.Review
+      }
 
   private fun IssueOverlay.with(action: IssueAction): IssueOverlay =
     when (action) {

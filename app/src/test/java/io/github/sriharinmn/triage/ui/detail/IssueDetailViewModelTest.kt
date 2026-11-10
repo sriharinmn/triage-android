@@ -409,6 +409,32 @@ class IssueDetailViewModelTest {
     assertFalse(vm.state.value.closeRequested)
   }
 
+  @OptIn(ExperimentalCoroutinesApi::class)
+  @Test
+  fun resolveTappedTwice_thenUndo_sendsNothing() = runTest {
+    val vm = viewModel()
+
+    vm.onResolve()
+    vm.onResolve()
+    vm.onUndo(vm.state.value.notice as ActionNotice.Pending)
+    advanceTimeBy(PendingActions.UNDO_WINDOW.inWholeMilliseconds + 1)
+    runCurrent()
+
+    assertTrue(api.updateCalls.isEmpty())
+  }
+
+  @Test
+  fun markReviewedTappedTwice_submitsOnce() = runTest {
+    api.issueDetailHandler = { ApiResult.Success(detailDto.copy(inbox = buildJsonObject { put("reason", 0) })) }
+    val vm = viewModel()
+    vm.onMarkReviewed()
+    val first = vm.state.value.notice as ActionNotice.Pending
+
+    vm.onMarkReviewed()
+
+    assertEquals(first, vm.state.value.notice)
+  }
+
   @Test
   fun archive_isHeldForUndo_andClosesTheScreen() = runTest {
     val vm = viewModel()

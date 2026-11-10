@@ -215,7 +215,11 @@ class IssueDetailViewModel(
 
   fun onArchive() = act(IssueAction.Archive, close = true)
 
-  fun onMarkReviewed() = act(IssueAction.MarkReviewed, close = false)
+  fun onMarkReviewed() {
+    // A second tap before the button goes away would only restart the Undo window.
+    if (_state.value.overlay.reviewed) return
+    act(IssueAction.MarkReviewed, close = false)
+  }
 
   fun onCloseHandled() {
     _state.update { it.copy(closeRequested = false) }
