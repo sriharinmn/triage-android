@@ -71,4 +71,20 @@ class AccountDataCleanerTest {
     assertNull(accountStore.current)
     assertEquals(0, accountStore.saveCount)
   }
+
+  @Test
+  fun forgetAccountData_forgetsTheOthersFirst() = runTest {
+    val order = mutableListOf<String>()
+    val cleaner =
+      AccountDataCleaner(
+        IssueRepository(api, cache),
+        settings,
+        others = listOf(AccountScoped { order += "pending" }, AccountScoped { order += "prefs" }),
+      )
+
+    cleaner.forgetAccountData()
+
+    assertEquals(listOf("pending", "prefs"), order)
+    assertEquals(InboxFilter(), settings.current)
+  }
 }
