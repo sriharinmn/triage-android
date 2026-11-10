@@ -11,6 +11,7 @@ import kotlin.time.Duration.Companion.seconds
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -136,15 +137,18 @@ class PendingActions(
   }
 
   private suspend fun send(entry: Entry) {
+    val self = currentCoroutineContext()[Job]
     synchronized(lock) {
-      if (entries[entry.submitted.id] !== entry || entry.sending) return
+      // A job that schedule() superseded may already be running; it must not become the in-flight send.
+      if (entries[entry.submitted.id] !== entry || entry.sending || entry.job !== self) return
       entry.sending = true
     }
     // Undo is no longer possible, so stop offering it.
     _notice.update { if (it is ActionNotice.Pending && it.action.id == entry.submitted.id) null else it }
     val (issueId, action) = entry.submitted.issueId to entry.submitted.action
     val result = actions.apply(entry.account, issueId, action)
-    // clear() cancels this job, but a result can still slip past the cancel.
+    // clear() cancels this job, but a result can still slip past the cancel. This only skips the tail if clear()
+    // emptied the entries before this point; clear() running after this line can still overlap the tail.
     synchronized(lock) { if (entries.remove(entry.submitted.id) == null) return }
     when {
       result is DetailResult.Success -> {
@@ -156,7 +160,6 @@ class PendingActions(
           is IssueAction.Assign -> Unit
         }
         updateOverlay(issueId) { if (action is IssueAction.Resolve || action is IssueAction.Archive) it.copy(hidden = false) else it }
-        _notice.update { if (it is ActionNotice.Pending && it.action.id == entry.submitted.id) null else it }
       }
       result is DetailResult.Failure && result.error == DetailError.NotFound -> {
         // Merged or deleted in Sentry: it won't come back on a refresh, so stop showing it now.

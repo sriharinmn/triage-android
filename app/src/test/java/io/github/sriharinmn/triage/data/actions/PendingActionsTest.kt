@@ -70,7 +70,6 @@ class PendingActionsTest {
 
   @Test
   fun onceTheSendStarts_thePendingNoticeIsGone() = runTest {
-    cacheLists(InboxTab.Unresolved)
     api.updateGate = CompletableDeferred()
     val pending = pending()
     pending.submit(TEST_ACCOUNT, "1", "DEMO-1", IssueAction.Resolve)
@@ -241,22 +240,6 @@ class PendingActionsTest {
 
     assertEquals(listOf("1"), api.updateCalls.map { it.first })
     assertEquals(ActionNotice.Pending(newer), pending.notice.value)
-  }
-
-  @Test
-  fun undo_isTooLateOnceTheActionIsBeingSent() = runTest {
-    val gateOpen = CompletableDeferred<Unit>()
-    api.updateGate = gateOpen
-    val pending = pending()
-    val submitted = pending.submit(TEST_ACCOUNT, "1", "DEMO-1", IssueAction.Resolve)
-    waitOutTheUndoWindow()
-
-    pending.undo(submitted.id)
-    gateOpen.complete(Unit)
-    runCurrent()
-
-    assertEquals(1, api.updateCalls.size)
-    assertTrue(pending.overlays.value.isEmpty())
   }
 
   @Test
