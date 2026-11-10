@@ -77,6 +77,8 @@ class PendingActions(
   private var nextId = 1L
   /** Counts clear() calls, so the tail of a send that clear() overlapped changes nothing on screen. */
   private var clears = 0L
+  /** A failure that landed while a newer action's Undo was showing; it shows once that notice goes. */
+  private var heldFailure: ActionNotice.Failed? = null
 
   private val _overlays = MutableStateFlow<Map<String, IssueOverlay>>(emptyMap())
   val overlays: StateFlow<Map<String, IssueOverlay>> = _overlays.asStateFlow()
@@ -86,8 +88,8 @@ class PendingActions(
 
   /**
    * Shows [action] on [issueId] at once and sends it when the Undo window ends. It replaces an action on the issue that
-   * changes the same thing and is still waiting (a second tap, or Resolve then Archive), so Undo always covers what will
-   * be sent.
+   * changes the same thing and is still waiting (a second tap, or Resolve then Archive), so Undo covers what will be
+   * sent.
    */
   fun submit(account: Account, issueId: String, shortId: String, action: IssueAction): SubmittedAction {
     val entry =
@@ -98,7 +100,8 @@ class PendingActions(
           it.job?.cancel()
         }
         // Undoing the new assignment goes back to what was there before the one it replaced.
-        val previous = if (replaced.isEmpty()) _overlays.value[issueId]?.assignment else replaced.first().previousAssignment
+        val previous =
+          if (replaced.isEmpty()) _overlays.value[issueId]?.assignment else replaced.first().previousAssignment
         val submitted = SubmittedAction(nextId++, issueId, shortId, action)
         val entry = Entry(submitted, account, previous).also { entries[submitted.id] = it }
         updateOverlay(issueId) { it.with(action) }
@@ -116,7 +119,7 @@ class PendingActions(
       entries.remove(id)
       entry.job?.cancel()
       revert(entry)
-      _notice.update { if (it?.action?.id == id) null else it }
+      takeDownUndo(id)
     }
   }
 
@@ -142,6 +145,7 @@ class PendingActions(
       clears++
       _overlays.value = emptyMap()
       _notice.value = null
+      heldFailure = null
     }
   }
 
@@ -168,7 +172,7 @@ class PendingActions(
       if (entries[entry.submitted.id] !== entry || entry.sending || entry.job !== self) return
       entry.sending = true
       // Undo is no longer possible, so stop offering it.
-      _notice.update { if (it is ActionNotice.Pending && it.action.id == entry.submitted.id) null else it }
+      takeDownUndo(entry.submitted.id)
     }
     val (issueId, action) = entry.submitted.issueId to entry.submitted.action
     val error = (actions.apply(entry.account, issueId, action) as? DetailResult.Failure)?.error
@@ -178,7 +182,7 @@ class PendingActions(
         if (entries.remove(entry.submitted.id) == null) return
         if (error != null && error != DetailError.NotFound) {
           revert(entry)
-          _notice.value = ActionNotice.Failed(entry.submitted, error)
+          showFailure(ActionNotice.Failed(entry.submitted, error))
           return
         }
         clears
@@ -202,9 +206,25 @@ class PendingActions(
         synchronized(lock) {
           if (clears != clearsBefore) return
           revert(entry)
-          _notice.value = ActionNotice.Failed(entry.submitted, DetailError.NotFound)
+          showFailure(ActionNotice.Failed(entry.submitted, DetailError.NotFound))
         }
       }
+    }
+  }
+
+  /** Shows [failed], or holds it back while a newer action's Undo shows: it must not take that. Call under [lock]. */
+  private fun showFailure(failed: ActionNotice.Failed) {
+    val current = _notice.value
+    if (current is ActionNotice.Pending && current.action.id != failed.action.id) heldFailure = failed
+    else _notice.value = failed
+  }
+
+  /** Takes down action [id]'s Undo notice, if showing, and shows any failure held back behind it. Call under [lock]. */
+  private fun takeDownUndo(id: Long) {
+    val current = _notice.value
+    if (current is ActionNotice.Pending && current.action.id == id) {
+      _notice.value = heldFailure
+      heldFailure = null
     }
   }
 
@@ -215,15 +235,16 @@ class PendingActions(
       Change.Status -> showAgain(issueId)
       Change.Review -> if (!isChanging(issueId, Change.Review)) updateOverlay(issueId) { it.copy(reviewed = false) }
       Change.Assignee -> {
-        val newer = entries.values.firstOrNull { it.submitted.id > entry.submitted.id && it.changes(issueId, Change.Assignee) }
-        // A newer assignment stays on screen; undoing it (or its failing) now goes back to what was there before this one.
+        val id = entry.submitted.id
+        val newer = entries.values.firstOrNull { it.submitted.id > id && it.changes(issueId, Change.Assignee) }
+        // A newer assignment stays on screen; undoing it (or its failing) now goes back to what was before this one.
         if (newer != null) newer.previousAssignment = entry.previousAssignment
         else updateOverlay(issueId) { it.copy(assignment = entry.previousAssignment) }
       }
     }
   }
 
-  /** Stops hiding [issueId], unless another resolve or archive of it is still waiting or being sent. Call under [lock]. */
+  /** Stops hiding [issueId] unless another resolve or archive of it is still waiting or sending. Call under [lock]. */
   private fun showAgain(issueId: String) {
     if (!isChanging(issueId, Change.Status)) updateOverlay(issueId) { it.copy(hidden = false) }
   }

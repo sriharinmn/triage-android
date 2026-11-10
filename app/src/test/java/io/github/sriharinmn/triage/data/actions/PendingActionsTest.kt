@@ -310,6 +310,60 @@ class PendingActionsTest {
   }
 
   @Test
+  fun anOlderFailure_neverTakesANewerActionsUndo() = runTest {
+    api.updateHandler = { _, _ -> ApiResult.Failure(ApiError.Network("offline")) }
+    val pending = pending()
+    val older = pending.submit(TEST_ACCOUNT, "1", "DEMO-1", IssueAction.Resolve)
+    advanceTimeBy(3_000)
+    val newer = pending.submit(TEST_ACCOUNT, "2", "DEMO-2", IssueAction.Archive)
+
+    advanceTimeBy(2_001)
+    runCurrent()
+    assertEquals(ActionNotice.Pending(newer), pending.notice.value)
+    pending.undo(newer.id)
+
+    assertEquals(ActionNotice.Failed(older, DetailError.Network), pending.notice.value)
+    waitOutTheUndoWindow()
+    assertEquals(listOf("1"), api.updateCalls.map { it.first })
+  }
+
+  @Test
+  fun aHeldBackFailure_showsOnceTheNewerActionIsSent() = runTest {
+    api.updateHandler = { issueId, _ -> if (issueId == "1") ApiResult.Failure(ApiError.Network("offline")) else ApiResult.Success(Unit) }
+    val pending = pending()
+    val older = pending.submit(TEST_ACCOUNT, "1", "DEMO-1", IssueAction.Resolve)
+    advanceTimeBy(3_000)
+    pending.submit(TEST_ACCOUNT, "2", "DEMO-2", IssueAction.Archive)
+    advanceTimeBy(2_001)
+    runCurrent()
+
+    advanceTimeBy(3_000)
+    runCurrent()
+
+    assertEquals(listOf("1", "2"), api.updateCalls.map { it.first })
+    assertEquals(ActionNotice.Failed(older, DetailError.Network), pending.notice.value)
+  }
+
+  @Test
+  fun clear_dropsAHeldBackFailure() = runTest {
+    api.updateHandler = { _, _ -> ApiResult.Failure(ApiError.Network("offline")) }
+    val pending = pending()
+    pending.submit(TEST_ACCOUNT, "1", "DEMO-1", IssueAction.Resolve)
+    advanceTimeBy(3_000)
+    pending.submit(TEST_ACCOUNT, "2", "DEMO-2", IssueAction.Archive)
+    advanceTimeBy(2_001)
+    runCurrent()
+
+    pending.clear()
+    api.updateHandler = { _, _ -> ApiResult.Success(Unit) }
+    pending.submit(TEST_ACCOUNT, "3", "DEMO-3", IssueAction.Resolve)
+    waitOutTheUndoWindow()
+
+    assertEquals(listOf("1", "3"), api.updateCalls.map { it.first })
+    assertNull(pending.notice.value)
+  }
+
+  @Test
   fun clear_dropsEverythingUnsent() = runTest {
     val pending = pending()
     pending.submit(TEST_ACCOUNT, "1", "DEMO-1", IssueAction.Resolve)
