@@ -15,6 +15,7 @@ import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -28,14 +29,16 @@ import androidx.compose.ui.unit.dp
 import io.github.sriharinmn.triage.R
 import io.github.sriharinmn.triage.data.issues.Issue
 import java.time.Instant
+import kotlinx.coroutines.launch
 
 /** How far a row must travel before letting go resolves or archives it. */
 private const val SWIPE_THRESHOLD = 0.4f
 
 /**
- * An issue row that resolves when swiped right and archives when swiped left. The row leaves the list as soon as the
- * action is submitted (and comes back on Undo as a new row), so its swipe state never needs resetting. TalkBack users
- * get the same two actions in the row's actions menu.
+ * An issue row that resolves when swiped right and archives when swiped left. The swipe state is snapped back to
+ * settled right after the action fires: it is saveable, and a LazyColumn restores saved state by item key, so a row that
+ * returns after Undo or a failed send (or that the ViewModel ignored) would otherwise stay in its dismissed position.
+ * TalkBack users get the same two actions in the row's actions menu.
  */
 @Composable
 internal fun SwipeableIssueRow(
@@ -49,6 +52,7 @@ internal fun SwipeableIssueRow(
   val resolveLabel = stringResource(R.string.action_resolve)
   val archiveLabel = stringResource(R.string.action_archive)
   val state = rememberSwipeToDismissBoxState(positionalThreshold = { width -> width * SWIPE_THRESHOLD })
+  val scope = rememberCoroutineScope()
   SwipeToDismissBox(
     state = state,
     backgroundContent = { SwipeBackground(state.dismissDirection) },
@@ -58,6 +62,7 @@ internal fun SwipeableIssueRow(
         SwipeToDismissBoxValue.EndToStart -> onArchive()
         SwipeToDismissBoxValue.Settled -> Unit
       }
+      if (value != SwipeToDismissBoxValue.Settled) scope.launch { state.snapTo(SwipeToDismissBoxValue.Settled) }
     },
   ) {
     IssueRow(

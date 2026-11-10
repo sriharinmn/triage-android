@@ -123,6 +123,41 @@ class InboxContentTest {
     assertEquals(listOf("resolve:1", "archive:2"), calls.filter { it.startsWith("resolve") || it.startsWith("archive") })
   }
 
+  @Test
+  fun aSwipedRow_theViewModelIgnored_settlesBackAndCanBeSwipedAgain() {
+    // The callbacks never remove the row, like a ViewModel that ignores the call.
+    show(loaded)
+
+    composeTestRule.onNodeWithTag(InboxTags.row("1")).performTouchInput { swipeRight() }
+    composeTestRule.waitForIdle()
+
+    composeTestRule.onNodeWithText("Error 1").assertIsDisplayed()
+    composeTestRule.onNodeWithTag(InboxTags.row("1")).performTouchInput { swipeRight() }
+    composeTestRule.waitForIdle()
+
+    assertEquals(listOf("resolve:1", "resolve:1"), calls)
+  }
+
+  @Test
+  fun aSwipedRow_thatComesBackAfterUndo_isBackInPlace() {
+    val state = mutableStateOf(loaded)
+    show(state)
+    composeTestRule.waitForIdle()
+    val leftBefore = composeTestRule.onNodeWithTag(InboxTags.row("1")).fetchSemanticsNode().boundsInRoot.left
+
+    composeTestRule.onNodeWithTag(InboxTags.row("1")).performTouchInput { swipeRight() }
+    composeTestRule.runOnIdle { state.value = state.value.copy(issues = listOf(issue("2"))) }
+    composeTestRule.waitForIdle()
+    composeTestRule.onNodeWithTag(InboxTags.row("1")).assertDoesNotExist()
+
+    composeTestRule.runOnIdle { state.value = state.value.copy(issues = listOf(issue("1"), issue("2"))) }
+    composeTestRule.waitForIdle()
+
+    composeTestRule.onNodeWithTag(InboxTags.row("1")).assertIsDisplayed()
+    val leftAfter = composeTestRule.onNodeWithTag(InboxTags.row("1")).fetchSemanticsNode().boundsInRoot.left
+    assertEquals(leftBefore, leftAfter, 0.5f)
+  }
+
   @OptIn(ExperimentalTestApi::class)
   @Test
   fun talkBackUsers_getTheSameActions() {

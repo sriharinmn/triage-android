@@ -169,7 +169,13 @@ internal fun InboxContent(
       onDisconnectFailureShown()
     }
   }
-  ActionNoticeEffect(state.notice, snackbarHostState, onUndo = onUndo, onRetry = onRetryAction, onDismissed = onNoticeDismissed)
+  ActionNoticeEffect(
+    state.notice,
+    snackbarHostState,
+    onUndo = onUndo,
+    onRetry = onRetryAction,
+    onDismissed = onNoticeDismissed,
+  )
 
   Scaffold(
     modifier = modifier,
@@ -212,7 +218,10 @@ internal fun InboxContent(
       ) {
         when {
           // A new key per filter resets the scroll position when the list changes.
-          hasIssues -> key(state.filter) { IssueList(state, now, onIssueClick, onResolve, onArchive, onLoadMore, onRetryLoadMore) }
+          hasIssues ->
+            key(state.filter) {
+              IssueList(state, now, onIssueClick, onResolve, onArchive, onLoadMore, onRetryLoadMore)
+            }
           // Retry (or a pull) shows progress instead of the unchanged error while the new attempt runs.
           state.isRefreshing -> LoadingPanel()
           errorText != null ->
