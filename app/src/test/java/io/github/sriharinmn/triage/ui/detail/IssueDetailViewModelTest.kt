@@ -628,4 +628,26 @@ class IssueDetailViewModelTest {
 
     assertEquals(IssueAction.MarkReviewed, (vm.state.value.notice as ActionNotice.Pending).action.action)
   }
+
+  @OptIn(ExperimentalCoroutinesApi::class)
+  @Test
+  fun aRetryWhileDisconnecting_sendsNothing() = runTest {
+    api.updateHandler = { _, _ -> ApiResult.Failure(ApiError.Network("offline")) }
+    val vm = viewModel()
+    vm.onArchive()
+    advanceTimeBy(PendingActions.UNDO_WINDOW.inWholeMilliseconds + 1)
+    runCurrent()
+    val failed = vm.state.value.notice as ActionNotice.Failed
+    val clearGate = CompletableDeferred<Unit>()
+    cache.clearGate = clearGate
+    vm.onReconnectConfirmed()
+
+    vm.onRetryAction(failed)
+    advanceTimeBy(PendingActions.UNDO_WINDOW.inWholeMilliseconds + 1)
+    runCurrent()
+
+    assertEquals(1, api.updateCalls.size)
+    assertEquals(failed, vm.state.value.notice)
+    clearGate.complete(Unit)
+  }
 }

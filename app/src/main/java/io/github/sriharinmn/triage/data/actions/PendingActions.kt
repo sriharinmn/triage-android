@@ -131,7 +131,11 @@ class PendingActions(
     }
   }
 
-  /** A pending notice swiped away sends its action at once (as Gmail does); a failure notice is just cleared. */
+  /**
+   * A pending notice that was dismissed sends its action at once (as Gmail does); a failure notice is just cleared.
+   * Material 3 snackbars can't be swiped away, so a pending one is only dismissed in code or by the accessibility
+   * dismiss action.
+   */
   fun onNoticeDismissed(notice: ActionNotice) {
     when (notice) {
       is ActionNotice.Pending -> synchronized(lock) { entries[notice.action.id] }?.let { schedule(it, afterUndoWindow = false) }

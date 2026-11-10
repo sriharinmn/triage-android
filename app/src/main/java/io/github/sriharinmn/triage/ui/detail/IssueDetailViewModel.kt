@@ -259,6 +259,8 @@ class IssueDetailViewModel(
   fun onUndo(notice: ActionNotice.Pending) = pendingActions.undo(notice.action.id)
 
   fun onRetryAction(notice: ActionNotice.Failed) {
+    // Not while disconnecting (or once the issue is gone), as for the action bar.
+    if (!_state.value.canAct) return
     pendingActions.onNoticeDismissed(notice)
     pendingActions.submit(account, notice.action.issueId, notice.action.shortId, notice.action.action)
   }

@@ -29,7 +29,9 @@ class MembersRepository(
     loaded.get()?.let { return DetailResult.Success(it) }
     return when (val result = gate.call { api.listMembers(account.apiBaseUrl, account.token, account.orgSlug) }) {
       is DetailResult.Success -> {
-        val members = result.value.mapNotNull { it.toMember() }.sortedBy { it.name.lowercase() }
+        // The sheet's list is keyed by user id, so someone Sentry lists twice must appear once.
+        val members =
+          result.value.mapNotNull { it.toMember() }.distinctBy { it.userId }.sortedBy { it.name.lowercase() }
         loaded.set(members)
         DetailResult.Success(members)
       }

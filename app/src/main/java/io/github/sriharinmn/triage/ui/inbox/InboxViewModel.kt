@@ -153,6 +153,8 @@ class InboxViewModel(
   fun onUndo(notice: ActionNotice.Pending) = pendingActions.undo(notice.action.id)
 
   fun onRetryAction(notice: ActionNotice.Failed) {
+    // As for a swipe: the retry would go out with a token that's about to be dropped.
+    if (_state.value.isDisconnecting) return
     pendingActions.onNoticeDismissed(notice)
     pendingActions.submit(account, notice.action.issueId, notice.action.shortId, notice.action.action)
   }

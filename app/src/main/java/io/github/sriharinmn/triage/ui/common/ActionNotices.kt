@@ -14,8 +14,9 @@ import io.github.sriharinmn.triage.data.detail.DetailError
 /**
  * Shows the latest issue action in [snackbarHostState]. While the action waits out its Undo window, the snackbar reads
  * "Resolved DEMO-1 · Undo". The notice is cleared the moment sending starts (the end of the window), which hides the
- * snackbar. If the action failed, the snackbar says why and offers Retry. Swiping a pending notice away sends its action
- * at once ([onDismissed]).
+ * snackbar. If the action failed, the snackbar says why and offers Retry, unless retrying can't help (the issue is
+ * gone, or the token can't do it). Material 3 snackbars can't be swiped away: a pending notice is only dismissed in code
+ * or by the accessibility dismiss action, which sends its action at once ([onDismissed]).
  */
 @Composable
 internal fun ActionNoticeEffect(
@@ -33,10 +34,11 @@ internal fun ActionNoticeEffect(
   LaunchedEffect(notice) {
     if (notice == null || message == null) return@LaunchedEffect
     val pending = notice is ActionNotice.Pending
+    val retryable = notice is ActionNotice.Failed && notice.error !in RETRY_CANT_HELP
     val result =
       snackbarHostState.showSnackbar(
         message,
-        actionLabel = if (pending) undo else retry,
+        actionLabel = if (pending) undo else retry.takeIf { retryable },
         withDismissAction = !pending,
         duration = if (pending) SnackbarDuration.Indefinite else SnackbarDuration.Long,
       )
@@ -47,6 +49,9 @@ internal fun ActionNoticeEffect(
     }
   }
 }
+
+/** Failures a retry would only repeat: the issue is gone, or only a new token can help. */
+private val RETRY_CANT_HELP = setOf(DetailError.NotFound, DetailError.Unauthorized, DetailError.Forbidden)
 
 /** "Resolved DEMO-1", "Assigned DEMO-1 to Ana Silva", or "Couldn't resolve DEMO-1. Couldn't reach Sentry. …" */
 @Composable

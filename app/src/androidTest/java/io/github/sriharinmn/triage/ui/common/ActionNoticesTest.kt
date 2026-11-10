@@ -82,6 +82,14 @@ class ActionNoticesTest {
   }
 
   @Test
+  fun anIssueThatIsGone_offersNoRetry() {
+    show(mutableStateOf(ActionNotice.Failed(SubmittedAction(5, "1", "DEMO-1", IssueAction.Resolve), DetailError.NotFound)))
+
+    composeTestRule.onNodeWithText("DEMO-1 no longer exists.").assertIsDisplayed()
+    composeTestRule.onNodeWithText("Retry").assertDoesNotExist()
+  }
+
+  @Test
   fun aTokenThatCantWrite_saysSo() {
     show(mutableStateOf(ActionNotice.Failed(SubmittedAction(4, "1", "DEMO-1", IssueAction.Archive), DetailError.Forbidden)))
 

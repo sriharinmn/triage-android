@@ -41,6 +41,15 @@ class MembersRepositoryTest {
   }
 
   @Test
+  fun aMemberListedTwice_appearsOnce() = runTest {
+    api.membersResult = ApiResult.Success(listOf(member("1", "Ana Silva", "ana@example.com"), member("1", "Ana Silva", "ana@example.com")))
+
+    val result = repository.members(TEST_ACCOUNT)
+
+    assertEquals(listOf(Member("u1", "Ana Silva", "ana@example.com")), (result as DetailResult.Success).value)
+  }
+
+  @Test
   fun aMemberWithoutAName_isShownByEmail() {
     assertEquals(Member("u1", "x@example.com", "x@example.com"), member("1", null, "x@example.com").toMember())
   }

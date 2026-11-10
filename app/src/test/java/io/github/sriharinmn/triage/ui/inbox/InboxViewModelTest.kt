@@ -167,6 +167,29 @@ class InboxViewModelTest {
     val failed = vm.state.value.notice as ActionNotice.Failed
     vm.onRetryAction(failed)
     assertEquals(listOf("2"), vm.ids())
+    assertEquals(IssueAction.Resolve, (vm.state.value.notice as ActionNotice.Pending).action.action)
+  }
+
+  @Test
+  fun aRetryWhileDisconnecting_sendsNothing() = runTest {
+    api.issuesHandler = { page("1", "2") }
+    api.updateHandler = { _, _ -> ApiResult.Failure(ApiError.Network("offline")) }
+    val vm = viewModel()
+    vm.onResolve(vm.state.value.issues.first())
+    advanceTimeBy(PendingActions.UNDO_WINDOW.inWholeMilliseconds + 1)
+    runCurrent()
+    val failed = vm.state.value.notice as ActionNotice.Failed
+    val gate = CompletableDeferred<Unit>()
+    cache.clearGate = gate
+    vm.onDisconnectConfirmed()
+
+    vm.onRetryAction(failed)
+    advanceTimeBy(PendingActions.UNDO_WINDOW.inWholeMilliseconds + 1)
+    runCurrent()
+
+    assertEquals(1, api.updateCalls.size)
+    assertEquals(failed, vm.state.value.notice)
+    gate.complete(Unit)
   }
 
   @Test
