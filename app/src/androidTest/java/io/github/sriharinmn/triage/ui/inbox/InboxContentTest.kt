@@ -119,6 +119,8 @@ class InboxContentTest {
 
     composeTestRule.onNodeWithTag(InboxTags.row("1")).performTouchInput { swipeRight() }
     composeTestRule.onNodeWithTag(InboxTags.row("2")).performTouchInput { swipeLeft() }
+    // The action fires when the swipe settles, not when the finger lifts.
+    composeTestRule.waitForIdle()
 
     assertEquals(listOf("resolve:1", "archive:2"), calls.filter { it.startsWith("resolve") || it.startsWith("archive") })
   }
