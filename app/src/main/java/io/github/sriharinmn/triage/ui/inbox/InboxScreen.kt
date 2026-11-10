@@ -169,9 +169,12 @@ internal fun InboxContent(
       onDisconnectFailureShown()
     }
   }
+  // Action notices get their own host: queued behind a refresh error (shown for 10 s), Undo would never show before its
+  // window ended.
+  val noticeHostState = remember { SnackbarHostState() }
   ActionNoticeEffect(
     state.notice,
-    snackbarHostState,
+    noticeHostState,
     onUndo = onUndo,
     onRetry = onRetryAction,
     onDismissed = onNoticeDismissed,
@@ -180,7 +183,10 @@ internal fun InboxContent(
   Scaffold(
     modifier = modifier,
     topBar = { InboxTopBar(orgName = state.orgName, onDisconnect = { confirmingDisconnect = true }) },
-    snackbarHost = { SnackbarHost(snackbarHostState) },
+    // A notice covers any other snackbar, which shows once the notice goes.
+    snackbarHost = {
+      if (noticeHostState.currentSnackbarData != null) SnackbarHost(noticeHostState) else SnackbarHost(snackbarHostState)
+    },
   ) { padding ->
     Column(Modifier.fillMaxSize().padding(padding)) {
       PrimaryScrollableTabRow(selectedTabIndex = state.filter.tab.ordinal, edgePadding = 8.dp) {

@@ -163,9 +163,11 @@ internal fun IssueDetailContent(
       onDisconnectFailureShown()
     }
   }
+  // Action notices get their own host, so Undo never waits behind another snackbar until its window has ended.
+  val noticeHostState = remember { SnackbarHostState() }
   ActionNoticeEffect(
     state.notice,
-    snackbarHostState,
+    noticeHostState,
     onUndo = actions.onUndo,
     onRetry = actions.onRetryAction,
     onDismissed = actions.onNoticeDismissed,
@@ -181,7 +183,10 @@ internal fun IssueDetailContent(
   Scaffold(
     modifier = modifier,
     topBar = { DetailTopBar(title = state.summary?.shortId.orEmpty(), onBack = onBack, onOpenInBrowser = onOpenInBrowser) },
-    snackbarHost = { SnackbarHost(snackbarHostState) },
+    // A notice covers any other snackbar, which shows once the notice goes.
+    snackbarHost = {
+      if (noticeHostState.currentSnackbarData != null) SnackbarHost(noticeHostState) else SnackbarHost(snackbarHostState)
+    },
     bottomBar = {
       if (state.canAct) {
         DetailActionBar(

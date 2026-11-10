@@ -182,6 +182,16 @@ class InboxContentTest {
   }
 
   @Test
+  fun anUndo_neverWaitsBehindAnErrorSnackbar() {
+    show(loaded.copy(error = InboxError.Server, notice = ActionNotice.Pending(SubmittedAction(8, "1", "DEMO-1", IssueAction.Resolve))))
+
+    composeTestRule.onNodeWithText("Resolved DEMO-1").assertIsDisplayed()
+    composeTestRule.onNodeWithText("Undo").performClick()
+
+    assertTrue("undo:8" in calls)
+  }
+
+  @Test
   fun anEmptyTab_saysSoKindly() {
     show(InboxUiState(orgName = "Example Org", filter = InboxFilter(tab = InboxTab.Escalating), refreshedAt = now))
 
