@@ -55,10 +55,12 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.sriharinmn.triage.R
+import io.github.sriharinmn.triage.data.actions.ActionNotice
 import io.github.sriharinmn.triage.data.issues.InboxError
 import io.github.sriharinmn.triage.data.issues.InboxTab
 import io.github.sriharinmn.triage.data.issues.Issue
 import io.github.sriharinmn.triage.data.issues.IssueSort
+import io.github.sriharinmn.triage.ui.common.ActionNoticeEffect
 import io.github.sriharinmn.triage.ui.common.DisconnectDialog
 import io.github.sriharinmn.triage.ui.common.ReconnectBanner
 import java.time.Instant
@@ -106,6 +108,11 @@ fun InboxScreen(viewModel: InboxViewModel, onOpenIssue: (issueId: String) -> Uni
     onLoadMore = viewModel::onLoadMore,
     onRetryLoadMore = viewModel::onRetryLoadMore,
     onIssueClick = { issue -> onOpenIssue(issue.id) },
+    onResolve = viewModel::onResolve,
+    onArchive = viewModel::onArchive,
+    onUndo = viewModel::onUndo,
+    onRetryAction = viewModel::onRetryAction,
+    onNoticeDismissed = viewModel::onNoticeDismissed,
     onDisconnectConfirmed = viewModel::onDisconnectConfirmed,
     onDisconnectFailureShown = viewModel::onDisconnectFailureShown,
     snackbarHostState = snackbarHostState,
@@ -126,6 +133,11 @@ internal fun InboxContent(
   onLoadMore: () -> Unit,
   onRetryLoadMore: () -> Unit,
   onIssueClick: (Issue) -> Unit,
+  onResolve: (Issue) -> Unit,
+  onArchive: (Issue) -> Unit,
+  onUndo: (ActionNotice.Pending) -> Unit,
+  onRetryAction: (ActionNotice.Failed) -> Unit,
+  onNoticeDismissed: (ActionNotice) -> Unit,
   onDisconnectConfirmed: () -> Unit,
   onDisconnectFailureShown: () -> Unit,
   modifier: Modifier = Modifier,
@@ -157,6 +169,7 @@ internal fun InboxContent(
       onDisconnectFailureShown()
     }
   }
+  ActionNoticeEffect(state.notice, snackbarHostState, onUndo = onUndo, onRetry = onRetryAction, onDismissed = onNoticeDismissed)
 
   Scaffold(
     modifier = modifier,
@@ -199,7 +212,7 @@ internal fun InboxContent(
       ) {
         when {
           // A new key per filter resets the scroll position when the list changes.
-          hasIssues -> key(state.filter) { IssueList(state, now, onIssueClick, onLoadMore, onRetryLoadMore) }
+          hasIssues -> key(state.filter) { IssueList(state, now, onIssueClick, onResolve, onArchive, onLoadMore, onRetryLoadMore) }
           // Retry (or a pull) shows progress instead of the unchanged error while the new attempt runs.
           state.isRefreshing -> LoadingPanel()
           errorText != null ->
@@ -256,6 +269,8 @@ private fun IssueList(
   state: InboxUiState,
   now: Instant,
   onIssueClick: (Issue) -> Unit,
+  onResolve: (Issue) -> Unit,
+  onArchive: (Issue) -> Unit,
   onLoadMore: () -> Unit,
   onRetryLoadMore: () -> Unit,
 ) {
@@ -275,7 +290,14 @@ private fun IssueList(
 
   LazyColumn(state = listState, modifier = Modifier.fillMaxSize().testTag(InboxTags.LIST)) {
     items(state.issues, key = { it.id }) { issue ->
-      IssueRow(issue = issue, now = now, onClick = { onIssueClick(issue) }, modifier = Modifier.testTag(InboxTags.row(issue.id)))
+      SwipeableIssueRow(
+        issue = issue,
+        now = now,
+        onClick = { onIssueClick(issue) },
+        onResolve = { onResolve(issue) },
+        onArchive = { onArchive(issue) },
+        modifier = Modifier.testTag(InboxTags.row(issue.id)),
+      )
       HorizontalDivider()
     }
     if (state.isLoadingMore || state.loadMoreFailed) {

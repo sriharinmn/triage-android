@@ -3,6 +3,7 @@ package io.github.sriharinmn.triage.ui.inbox
 import androidx.activity.ComponentActivity
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasText
@@ -12,6 +13,13 @@ import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performCustomAccessibilityActionWithLabel
+import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.swipeLeft
+import androidx.compose.ui.test.swipeRight
+import io.github.sriharinmn.triage.data.actions.ActionNotice
+import io.github.sriharinmn.triage.data.actions.IssueAction
+import io.github.sriharinmn.triage.data.actions.SubmittedAction
 import io.github.sriharinmn.triage.data.issues.InboxError
 import io.github.sriharinmn.triage.data.issues.InboxFilter
 import io.github.sriharinmn.triage.data.issues.InboxTab
@@ -71,6 +79,11 @@ class InboxContentTest {
           onLoadMore = { calls += "loadMore" },
           onRetryLoadMore = { calls += "retryLoadMore" },
           onIssueClick = { calls += "open:${it.id}" },
+          onResolve = { calls += "resolve:${it.id}" },
+          onArchive = { calls += "archive:${it.id}" },
+          onUndo = { calls += "undo:${it.action.id}" },
+          onRetryAction = { calls += "retryAction:${it.action.id}" },
+          onNoticeDismissed = { calls += "noticeDismissed:${it.action.id}" },
           onDisconnectConfirmed = { calls += "disconnect" },
           onDisconnectFailureShown = {},
         )
@@ -98,6 +111,37 @@ class InboxContentTest {
     composeTestRule.onNodeWithTag(InboxTags.row("2")).performClick()
 
     assertEquals(listOf("open:2"), calls)
+  }
+
+  @Test
+  fun swipingRight_resolves_andSwipingLeft_archives() {
+    show(loaded)
+
+    composeTestRule.onNodeWithTag(InboxTags.row("1")).performTouchInput { swipeRight() }
+    composeTestRule.onNodeWithTag(InboxTags.row("2")).performTouchInput { swipeLeft() }
+
+    assertEquals(listOf("resolve:1", "archive:2"), calls.filter { it.startsWith("resolve") || it.startsWith("archive") })
+  }
+
+  @OptIn(ExperimentalTestApi::class)
+  @Test
+  fun talkBackUsers_getTheSameActions() {
+    show(loaded)
+
+    composeTestRule.onNodeWithTag(InboxTags.row("1")).performCustomAccessibilityActionWithLabel("Resolve")
+    composeTestRule.onNodeWithTag(InboxTags.row("2")).performCustomAccessibilityActionWithLabel("Archive")
+
+    assertEquals(listOf("resolve:1", "archive:2"), calls)
+  }
+
+  @Test
+  fun aPendingAction_offersUndo() {
+    show(loaded.copy(notice = ActionNotice.Pending(SubmittedAction(7, "1", "DEMO-1", IssueAction.Resolve))))
+
+    composeTestRule.onNodeWithText("Resolved DEMO-1").assertIsDisplayed()
+    composeTestRule.onNodeWithText("Undo").performClick()
+
+    assertTrue("undo:7" in calls)
   }
 
   @Test
