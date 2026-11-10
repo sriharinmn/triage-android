@@ -4,6 +4,9 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import io.github.sriharinmn.triage.data.Disconnector
 import io.github.sriharinmn.triage.data.account.Account
+import io.github.sriharinmn.triage.data.actions.ActionNotice
+import io.github.sriharinmn.triage.data.actions.IssueAction
+import io.github.sriharinmn.triage.data.actions.PendingActions
 import io.github.sriharinmn.triage.data.issues.InboxError
 import io.github.sriharinmn.triage.data.issues.InboxFilter
 import io.github.sriharinmn.triage.data.issues.InboxTab
@@ -22,10 +25,10 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
@@ -45,6 +48,8 @@ data class InboxUiState(
   val loadMoreFailed: Boolean = false,
   val isDisconnecting: Boolean = false,
   val disconnectFailed: Boolean = false,
+  /** The latest issue action's notice, for the Undo / failure snackbar. */
+  val notice: ActionNotice? = null,
 ) {
   val selectedProject: Project?
     get() = projects.firstOrNull { it.id == filter.projectId }
@@ -64,6 +69,7 @@ class InboxViewModel(
   private val issues: IssueRepository,
   private val settings: InboxSettingsStore,
   private val disconnector: Disconnector,
+  private val pendingActions: PendingActions,
   private val clock: () -> Instant = Instant::now,
 ) : ViewModel() {
   private val _state = MutableStateFlow(InboxUiState(orgName = account.orgName))
@@ -80,7 +86,12 @@ class InboxViewModel(
     viewModelScope.launch {
       shownFilter
         .filterNotNull()
-        .flatMapLatest { filter -> issues.observeInbox(filter).map { filter to it } }
+        .flatMapLatest { filter ->
+          // Rows the user just resolved, archived or marked reviewed stay hidden while their Undo window runs.
+          issues.observeInbox(filter).combine(pendingActions.overlays) { snapshot, overlays ->
+            filter to snapshot.copy(issues = snapshot.issues.filterNot { overlays[it.id]?.hides(filter.tab) == true })
+          }
+        }
         .collect { (filter, snapshot) ->
           _state.update {
             if (it.filter != filter) it
@@ -88,6 +99,7 @@ class InboxViewModel(
           }
         }
     }
+    viewModelScope.launch { pendingActions.notice.collect { notice -> _state.update { it.copy(notice = notice) } } }
     viewModelScope.launch { issues.projects.collect(::onProjectsLoaded) }
     startupJob =
       viewModelScope.launch {
@@ -132,6 +144,25 @@ class InboxViewModel(
   fun onRetryLoadMore() {
     _state.update { it.copy(loadMoreFailed = false) }
     onLoadMore()
+  }
+
+  fun onResolve(issue: Issue) = act(issue, IssueAction.Resolve)
+
+  fun onArchive(issue: Issue) = act(issue, IssueAction.Archive)
+
+  fun onUndo(notice: ActionNotice.Pending) = pendingActions.undo(notice.action.id)
+
+  fun onRetryAction(notice: ActionNotice.Failed) {
+    pendingActions.onNoticeDismissed(notice)
+    pendingActions.submit(account, notice.action.issueId, notice.action.shortId, notice.action.action)
+  }
+
+  fun onNoticeDismissed(notice: ActionNotice) = pendingActions.onNoticeDismissed(notice)
+
+  private fun act(issue: Issue, action: IssueAction) {
+    // The account is being forgotten; an action now would go out with a token that's about to be dropped.
+    if (_state.value.isDisconnecting) return
+    pendingActions.submit(account, issue.id, issue.shortId, action)
   }
 
   fun onDisconnectConfirmed() {

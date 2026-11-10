@@ -23,7 +23,7 @@ fun TriageNavigation(account: Account, container: AppContainer) {
       // the key also names the account.
       val inboxViewModel: InboxViewModel =
         viewModel(key = "inbox|${account.apiBaseUrl}|${account.orgSlug}") {
-          InboxViewModel(account, container.issueRepository, container.inboxSettings, container.disconnector)
+          InboxViewModel(account, container.issueRepository, container.inboxSettings, container.disconnector, container.pendingActions)
         }
       InboxScreen(inboxViewModel, onOpenIssue = onOpenIssue)
     },
