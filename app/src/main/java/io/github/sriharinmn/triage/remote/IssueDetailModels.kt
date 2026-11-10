@@ -29,6 +29,22 @@ data class IssueDetailDto(
   /** "24h" (hourly) and "30d" (daily) buckets: `[[unixSeconds, count], ...]`, oldest first. */
   val stats: Map<String, List<List<Double>>> = emptyMap(),
   val tags: List<IssueTagKeyDto> = emptyList(),
+  /** Who the issue is assigned to; null while unassigned. */
+  val assignedTo: AssigneeDto? = null,
+  /**
+   * An object while Sentry has the issue up for review ("For review"), null otherwise; asked for with `expand=inbox`.
+   * Kept raw because Sentry doesn't document its fields.
+   */
+  val inbox: JsonElement? = null,
+)
+
+/** An issue's assignee: a user or a team. */
+@Serializable
+data class AssigneeDto(
+  val type: String? = null,
+  val id: String? = null,
+  val name: String? = null,
+  val email: String? = null,
 )
 
 @Serializable

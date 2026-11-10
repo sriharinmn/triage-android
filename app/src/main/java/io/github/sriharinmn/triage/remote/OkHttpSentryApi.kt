@@ -6,12 +6,15 @@ import kotlin.coroutines.resumeWithException
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
 import okhttp3.Call
 import okhttp3.Callback
 import okhttp3.HttpUrl
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
+import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.Response
 import okhttp3.ResponseBody
 
@@ -62,10 +65,11 @@ class OkHttpSentryApi(
     token: String,
     orgSlug: String,
     issueId: String,
-  ): ApiResult<IssueDetailDto> =
-    get(apiUrl(baseUrl, "organizations", orgSlug, "issues", issueId), token) { body, _ ->
-      json.decodeFromString<IssueDetailDto>(body)
-    }
+  ): ApiResult<IssueDetailDto> {
+    // expand=inbox adds the "up for review" state the detail screen needs for Mark reviewed.
+    val url = apiUrl(baseUrl, "organizations", orgSlug, "issues", issueId)?.newBuilder()?.addQueryParameter("expand", "inbox")?.build()
+    return send(url, token) { body, _ -> json.decodeFromString<IssueDetailDto>(body) }
+  }
 
   override suspend fun getIssueEvent(
     baseUrl: String,
@@ -74,7 +78,7 @@ class OkHttpSentryApi(
     issueId: String,
     eventId: String,
   ): ApiResult<EventDto> =
-    get(apiUrl(baseUrl, "organizations", orgSlug, "issues", issueId, "events", eventId), token) { body, _ ->
+    send(apiUrl(baseUrl, "organizations", orgSlug, "issues", issueId, "events", eventId), token) { body, _ ->
       json.decodeFromString<EventDto>(body)
     }
 
@@ -85,8 +89,22 @@ class OkHttpSentryApi(
     issueId: String,
     key: String,
   ): ApiResult<TagDetailDto> =
-    get(apiUrl(baseUrl, "organizations", orgSlug, "issues", issueId, "tags", key), token) { body, _ ->
+    send(apiUrl(baseUrl, "organizations", orgSlug, "issues", issueId, "tags", key), token) { body, _ ->
       json.decodeFromString<TagDetailDto>(body)
+    }
+
+  override suspend fun updateIssue(
+    baseUrl: String,
+    token: String,
+    orgSlug: String,
+    issueId: String,
+    changes: JsonObject,
+  ): ApiResult<Unit> =
+    send(apiUrl(baseUrl, "organizations", orgSlug, "issues", issueId), token, method = "PUT", jsonBody = changes.toString()) { _, _ -> }
+
+  override suspend fun listMembers(baseUrl: String, token: String, orgSlug: String): ApiResult<List<MemberDto>> =
+    getAllPages(apiUrl(baseUrl, "organizations", orgSlug, "members"), token) { body ->
+      json.decodeFromString<List<MemberDto>>(body)
     }
 
   /**
@@ -132,10 +150,19 @@ class OkHttpSentryApi(
   }
 
   private suspend fun <T> getPage(url: HttpUrl?, token: String, decode: (String) -> List<T>): ApiResult<Page<T>> =
-    get(url, token) { body, link -> Page(decode(body), nextCursorFromLink(link)) }
+    send(url, token) { body, link -> Page(decode(body), nextCursorFromLink(link)) }
 
-  /** The one place a token leaves the app: https only, cancellable, and HTTP or network problems become values. */
-  private suspend fun <T> get(url: HttpUrl?, token: String, decode: (body: String, link: String?) -> T): ApiResult<T> {
+  /**
+   * The one place a token leaves the app: https only, cancellable, and HTTP or network problems become values. A
+   * [jsonBody] is sent as `application/json` (writes); reads send none.
+   */
+  private suspend fun <T> send(
+    url: HttpUrl?,
+    token: String,
+    method: String = "GET",
+    jsonBody: String? = null,
+    decode: (body: String, link: String?) -> T,
+  ): ApiResult<T> {
     if (url == null) return ApiResult.Failure(ApiError.Network("Invalid server URL"))
     if (requireHttps && !url.isHttps) return ApiResult.Failure(ApiError.Network("Server URL must use https"))
     val request =
@@ -145,7 +172,7 @@ class OkHttpSentryApi(
           .header("Authorization", "Bearer $token")
           .header("Accept", "application/json")
           .header("User-Agent", userAgent)
-          .get()
+          .method(method, jsonBody?.toRequestBody(JSON_MEDIA_TYPE))
           .build()
       } catch (_: IllegalArgumentException) {
         // A token with characters that are illegal in a header (newline, control, non-ASCII) can never be valid, so
@@ -207,6 +234,8 @@ class OkHttpSentryApi(
 
     /** Sentry's `project` value for "every project this token can access". */
     const val ALL_PROJECTS = "-1"
+
+    val JSON_MEDIA_TYPE = "application/json; charset=utf-8".toMediaType()
   }
 }
 

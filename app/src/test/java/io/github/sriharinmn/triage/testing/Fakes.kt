@@ -8,6 +8,7 @@ import io.github.sriharinmn.triage.remote.EventDto
 import io.github.sriharinmn.triage.remote.IssueDetailDto
 import io.github.sriharinmn.triage.remote.IssueDto
 import io.github.sriharinmn.triage.remote.IssueListParams
+import io.github.sriharinmn.triage.remote.MemberDto
 import io.github.sriharinmn.triage.remote.OrganizationDto
 import io.github.sriharinmn.triage.remote.Page
 import io.github.sriharinmn.triage.remote.ProjectDto
@@ -16,6 +17,7 @@ import io.github.sriharinmn.triage.remote.TagDetailDto
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.serialization.json.JsonObject
 
 /** One recorded [SentryApi.listIssues] call. */
 data class IssueCall(
@@ -69,6 +71,20 @@ class FakeSentryApi(
 
   /** Answers getIssueTag; by default the tag doesn't exist. */
   var tagHandler: suspend (key: String) -> ApiResult<TagDetailDto> = { ApiResult.Failure(ApiError.Http(404)) }
+
+  /** Every updateIssue call: the issue id and the changes sent. */
+  val updateCalls = mutableListOf<Pair<String, JsonObject>>()
+
+  /** Answers updateIssue; by default Sentry accepts the change. */
+  var updateHandler: suspend (issueId: String, changes: JsonObject) -> ApiResult<Unit> = { _, _ -> ApiResult.Success(Unit) }
+
+  /** When set, updateIssue suspends until it is completed. */
+  var updateGate: CompletableDeferred<Unit>? = null
+
+  /** orgSlug of every listMembers call. */
+  val memberCalls = mutableListOf<String>()
+
+  var membersResult: ApiResult<List<MemberDto>> = ApiResult.Success(emptyList())
 
   override suspend fun listOrganizations(baseUrl: String, token: String): ApiResult<List<OrganizationDto>> {
     calls += baseUrl to token
@@ -124,6 +140,23 @@ class FakeSentryApi(
   ): ApiResult<TagDetailDto> {
     detailCalls += DetailCall(baseUrl, token, orgSlug, issueId, "tag:$key")
     return tagHandler(key)
+  }
+
+  override suspend fun updateIssue(
+    baseUrl: String,
+    token: String,
+    orgSlug: String,
+    issueId: String,
+    changes: JsonObject,
+  ): ApiResult<Unit> {
+    updateCalls += issueId to changes
+    updateGate?.await()
+    return updateHandler(issueId, changes)
+  }
+
+  override suspend fun listMembers(baseUrl: String, token: String, orgSlug: String): ApiResult<List<MemberDto>> {
+    memberCalls += orgSlug
+    return membersResult
   }
 }
 

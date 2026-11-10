@@ -1,5 +1,7 @@
 package io.github.sriharinmn.triage.remote
 
+import kotlinx.serialization.json.JsonObject
+
 interface SentryApi {
   /** `GET {baseUrl}/api/0/organizations/`, all organizations this token can see (every page). */
   suspend fun listOrganizations(baseUrl: String, token: String): ApiResult<List<OrganizationDto>>
@@ -42,4 +44,16 @@ interface SentryApi {
     issueId: String,
     key: String,
   ): ApiResult<TagDetailDto>
+
+  /** `PUT {baseUrl}/api/0/organizations/{org}/issues/{issueId}/` with [changes] as the JSON body. */
+  suspend fun updateIssue(
+    baseUrl: String,
+    token: String,
+    orgSlug: String,
+    issueId: String,
+    changes: JsonObject,
+  ): ApiResult<Unit>
+
+  /** `GET {baseUrl}/api/0/organizations/{org}/members/` (every page), including invites that have no user yet. */
+  suspend fun listMembers(baseUrl: String, token: String, orgSlug: String): ApiResult<List<MemberDto>>
 }
