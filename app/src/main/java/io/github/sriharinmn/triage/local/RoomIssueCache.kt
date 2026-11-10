@@ -32,6 +32,9 @@ class RoomIssueCache(database: TriageDatabase) : IssueCache {
   override suspend fun appendPage(listKey: String, issues: List<Issue>, nextCursor: String?) =
     storage { dao.appendPage(listKey, issues.map { it.toEntity() }, nextCursor) }
 
+  override suspend fun removeFromLists(issueId: String, listKeyPrefix: String) =
+    storage { dao.removeFromLists(issueId, listKeyPrefix) }
+
   override fun observeProjects(): Flow<List<Project>> = dao.observeProjects().map { rows -> rows.map { it.toProject() } }
 
   override suspend fun replaceProjects(projects: List<Project>) =

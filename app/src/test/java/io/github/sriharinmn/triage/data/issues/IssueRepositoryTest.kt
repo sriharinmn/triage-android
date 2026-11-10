@@ -380,4 +380,30 @@ class IssueRepositoryTest {
     assertEquals(LoadResult.Failure(InboxError.RateLimited(30)), other.refresh(TEST_ACCOUNT, filter))
     assertEquals(calls, api.issueCalls.size)
   }
+
+  @Test
+  fun forget_takesAnIssueOutOfEveryCachedList() = runTest {
+    val forReview = InboxFilter(tab = InboxTab.ForReview)
+    api.issuesHandler = { page("1", "2") }
+    repository.refresh(TEST_ACCOUNT, filter)
+    repository.refresh(TEST_ACCOUNT, forReview)
+
+    repository.forget("1")
+
+    assertEquals(listOf("2"), repository.observeInbox(filter).first().issues.map { it.id })
+    assertEquals(listOf("2"), repository.observeInbox(forReview).first().issues.map { it.id })
+  }
+
+  @Test
+  fun forgetFromOneTab_leavesTheOtherTabsAlone() = runTest {
+    val forReview = InboxFilter(tab = InboxTab.ForReview)
+    api.issuesHandler = { page("1", "2") }
+    repository.refresh(TEST_ACCOUNT, filter)
+    repository.refresh(TEST_ACCOUNT, forReview)
+
+    repository.forget("1", InboxTab.ForReview)
+
+    assertEquals(listOf("1", "2"), repository.observeInbox(filter).first().issues.map { it.id })
+    assertEquals(listOf("2"), repository.observeInbox(forReview).first().issues.map { it.id })
+  }
 }
