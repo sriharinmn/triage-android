@@ -62,9 +62,63 @@ class PendingActionsTest {
     advanceTimeBy(PendingActions.UNDO_WINDOW.inWholeMilliseconds - 1)
     runCurrent()
     assertTrue(api.updateCalls.isEmpty())
-    waitOutTheUndoWindow()
+    advanceTimeBy(2)
+    runCurrent()
     assertEquals(listOf("1"), api.updateCalls.map { it.first })
     assertNull(pending.notice.value)
+  }
+
+  @Test
+  fun onceTheSendStarts_thePendingNoticeIsGone() = runTest {
+    cacheLists(InboxTab.Unresolved)
+    api.updateGate = CompletableDeferred()
+    val pending = pending()
+    pending.submit(TEST_ACCOUNT, "1", "DEMO-1", IssueAction.Resolve)
+
+    waitOutTheUndoWindow()
+
+    assertEquals(1, api.updateCalls.size)
+    assertNull(pending.notice.value)
+  }
+
+  @Test
+  fun dismissingTheOldNoticeAndFlushing_whileSending_doesNotCancelTheSend() = runTest {
+    cacheLists(InboxTab.Unresolved)
+    val gateOpen = CompletableDeferred<Unit>()
+    api.updateGate = gateOpen
+    val pending = pending()
+    pending.submit(TEST_ACCOUNT, "1", "DEMO-1", IssueAction.Resolve)
+    val old = pending.notice.value!!
+    waitOutTheUndoWindow()
+
+    pending.onNoticeDismissed(old)
+    pending.flushNow()
+    runCurrent()
+    gateOpen.complete(Unit)
+    runCurrent()
+
+    assertEquals(1, api.updateCalls.size)
+    assertTrue(pending.overlays.value.isEmpty())
+    assertEquals(listOf("2"), ids(InboxTab.Unresolved))
+  }
+
+  @Test
+  fun undo_whileSending_changesNothing() = runTest {
+    cacheLists(InboxTab.Unresolved)
+    val gateOpen = CompletableDeferred<Unit>()
+    api.updateGate = gateOpen
+    val pending = pending()
+    val submitted = pending.submit(TEST_ACCOUNT, "1", "DEMO-1", IssueAction.Resolve)
+    waitOutTheUndoWindow()
+
+    pending.undo(submitted.id)
+    assertTrue(pending.overlays.value.getValue("1").hidden)
+    gateOpen.complete(Unit)
+    runCurrent()
+
+    assertEquals(1, api.updateCalls.size)
+    assertTrue(pending.overlays.value.isEmpty())
+    assertEquals(listOf("2"), ids(InboxTab.Unresolved))
   }
 
   @Test

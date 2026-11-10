@@ -25,7 +25,7 @@ data class SubmittedAction(val id: Long, val issueId: String, val shortId: Strin
 sealed interface ActionNotice {
   val action: SubmittedAction
 
-  /** Waiting out its Undo window; nothing has been sent yet. */
+  /** Waiting out its Undo window; nothing has been sent yet. Cleared the moment sending starts. */
   data class Pending(override val action: SubmittedAction) : ActionNotice
 
   /** Sentry refused it or couldn't be reached; the issue is back as it was. */
@@ -120,13 +120,18 @@ class PendingActions(
   }
 
   private fun schedule(entry: Entry, afterUndoWindow: Boolean) {
-    entry.job?.cancel()
     val job =
-      scope.launch(start = CoroutineStart.LAZY) {
-        if (afterUndoWindow) delay(undoWindow)
-        send(entry)
+      synchronized(lock) {
+        // A send already in flight is never cancelled here; only clear() may do that.
+        if (entries[entry.submitted.id] !== entry || entry.sending) return
+        entry.job?.cancel()
+        scope
+          .launch(start = CoroutineStart.LAZY) {
+            if (afterUndoWindow) delay(undoWindow)
+            send(entry)
+          }
+          .also { entry.job = it }
       }
-    entry.job = job
     job.start()
   }
 
@@ -135,6 +140,8 @@ class PendingActions(
       if (entries[entry.submitted.id] !== entry || entry.sending) return
       entry.sending = true
     }
+    // Undo is no longer possible, so stop offering it.
+    _notice.update { if (it is ActionNotice.Pending && it.action.id == entry.submitted.id) null else it }
     val (issueId, action) = entry.submitted.issueId to entry.submitted.action
     val result = actions.apply(entry.account, issueId, action)
     // clear() cancels this job, but a result can still slip past the cancel.
