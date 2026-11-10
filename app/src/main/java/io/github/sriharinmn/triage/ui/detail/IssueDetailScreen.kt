@@ -49,10 +49,13 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.sriharinmn.triage.R
+import io.github.sriharinmn.triage.data.actions.ActionNotice
 import io.github.sriharinmn.triage.data.detail.DetailError
 import io.github.sriharinmn.triage.data.detail.EventKind
 import io.github.sriharinmn.triage.data.detail.IssueEvent
 import io.github.sriharinmn.triage.data.detail.IssueSummary
+import io.github.sriharinmn.triage.data.members.Member
+import io.github.sriharinmn.triage.ui.common.ActionNoticeEffect
 import io.github.sriharinmn.triage.ui.common.DisconnectDialog
 import io.github.sriharinmn.triage.ui.common.ReconnectBanner
 import io.github.sriharinmn.triage.ui.format.elapsedSince
@@ -60,6 +63,23 @@ import io.github.sriharinmn.triage.ui.format.label
 import java.time.Instant
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+
+/** What the action bar, assignee sheet and action notices call. Each defaults to doing nothing, which tests rely on. */
+internal data class DetailActionHandlers(
+  val onResolve: () -> Unit = {},
+  val onArchive: () -> Unit = {},
+  val onAssign: () -> Unit = {},
+  val onMarkReviewed: () -> Unit = {},
+  val onMemberChosen: (Member) -> Unit = {},
+  val onUnassign: () -> Unit = {},
+  val onNotMe: () -> Unit = {},
+  val onRetryMembers: () -> Unit = {},
+  val onAssignSheetDismissed: () -> Unit = {},
+  val onCloseHandled: () -> Unit = {},
+  val onUndo: (ActionNotice.Pending) -> Unit = {},
+  val onRetryAction: (ActionNotice.Failed) -> Unit = {},
+  val onNoticeDismissed: (ActionNotice) -> Unit = {},
+)
 
 /** The issue detail, wired to [viewModel]; [onBack] returns to the inbox. */
 @Composable
@@ -98,6 +118,22 @@ fun IssueDetailScreen(viewModel: IssueDetailViewModel, onBack: () -> Unit, modif
     onReconnectConfirmed = viewModel::onReconnectConfirmed,
     onDisconnectFailureShown = viewModel::onDisconnectFailureShown,
     snackbarHostState = snackbarHostState,
+    actions =
+      DetailActionHandlers(
+        onResolve = viewModel::onResolve,
+        onArchive = viewModel::onArchive,
+        onAssign = viewModel::onAssignClicked,
+        onMarkReviewed = viewModel::onMarkReviewed,
+        onMemberChosen = viewModel::onMemberChosen,
+        onUnassign = viewModel::onUnassign,
+        onNotMe = viewModel::onNotMe,
+        onRetryMembers = viewModel::onRetryMembers,
+        onAssignSheetDismissed = viewModel::onAssignSheetDismissed,
+        onCloseHandled = viewModel::onCloseHandled,
+        onUndo = viewModel::onUndo,
+        onRetryAction = viewModel::onRetryAction,
+        onNoticeDismissed = viewModel::onNoticeDismissed,
+      ),
     modifier = modifier,
   )
 }
@@ -115,6 +151,7 @@ internal fun IssueDetailContent(
   onShowAllBreadcrumbs: () -> Unit,
   onReconnectConfirmed: () -> Unit,
   onDisconnectFailureShown: () -> Unit,
+  actions: DetailActionHandlers = DetailActionHandlers(),
   modifier: Modifier = Modifier,
   snackbarHostState: SnackbarHostState = remember { SnackbarHostState() },
 ) {
@@ -126,11 +163,36 @@ internal fun IssueDetailContent(
       onDisconnectFailureShown()
     }
   }
+  ActionNoticeEffect(
+    state.notice,
+    snackbarHostState,
+    onUndo = actions.onUndo,
+    onRetry = actions.onRetryAction,
+    onDismissed = actions.onNoticeDismissed,
+  )
+  // After Resolve or Archive, go back: the inbox shows the same Undo for the action.
+  LaunchedEffect(state.closeRequested) {
+    if (state.closeRequested) {
+      actions.onCloseHandled()
+      onBack()
+    }
+  }
 
   Scaffold(
     modifier = modifier,
     topBar = { DetailTopBar(title = state.summary?.shortId.orEmpty(), onBack = onBack, onOpenInBrowser = onOpenInBrowser) },
     snackbarHost = { SnackbarHost(snackbarHostState) },
+    bottomBar = {
+      if (state.canAct) {
+        DetailActionBar(
+          canMarkReviewed = state.canMarkReviewed,
+          onResolve = actions.onResolve,
+          onArchive = actions.onArchive,
+          onAssign = actions.onAssign,
+          onMarkReviewed = actions.onMarkReviewed,
+        )
+      }
+    },
   ) { padding ->
     val summary = state.summary
     Box(Modifier.fillMaxSize().padding(padding)) {
@@ -187,6 +249,17 @@ internal fun IssueDetailContent(
       onDismiss = { confirmingReconnect = false },
     )
   }
+
+  state.assignSheet?.let { sheet ->
+    AssigneeSheet(
+      state = sheet,
+      onMemberChosen = actions.onMemberChosen,
+      onUnassign = actions.onUnassign,
+      onNotMe = actions.onNotMe,
+      onRetry = actions.onRetryMembers,
+      onDismiss = actions.onAssignSheetDismissed,
+    )
+  }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -229,7 +302,7 @@ private fun DetailList(
         ReconnectBanner(message = detailErrorMessage(reconnectError), onReconnect = onReconnect, buttonTag = DetailTags.RECONNECT)
       }
     }
-    item(key = "summary") { SummarySection(summary, now) }
+    item(key = "summary") { SummarySection(summary, state.shownAssignee, now) }
     item(key = "event_header") { EventHeader(state.selectedKind, event, now, onEventKindSelected) }
     when {
       event != null -> {

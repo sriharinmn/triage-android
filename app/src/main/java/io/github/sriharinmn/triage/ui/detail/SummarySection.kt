@@ -44,7 +44,7 @@ import java.time.Instant
 /** Title, culprit, labels, counts, the 24h or 30d trend, and when the issue was first and last seen. */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-internal fun SummarySection(summary: IssueSummary, now: Instant, modifier: Modifier = Modifier) {
+internal fun SummarySection(summary: IssueSummary, assignee: ShownAssignee, now: Instant, modifier: Modifier = Modifier) {
   var daily by rememberSaveable { mutableStateOf(false) }
   // The 30-day series arrives with the fresh issue; until then the chart stays on 24 hours.
   val showDaily = daily && summary.dailyEvents.isNotEmpty()
@@ -66,6 +66,12 @@ internal fun SummarySection(summary: IssueSummary, now: Instant, modifier: Modif
         .joinToString(" · "),
       style = MaterialTheme.typography.bodyMedium,
     )
+    when (assignee) {
+      is ShownAssignee.Named -> Text(stringResource(R.string.detail_assigned_to, assignee.name), style = MaterialTheme.typography.bodyMedium)
+      ShownAssignee.Unassigned -> Text(stringResource(R.string.detail_unassigned), style = MaterialTheme.typography.bodyMedium, color = muted)
+      // Only the cached row is loaded, which doesn't say; show nothing rather than guess.
+      ShownAssignee.Unknown -> Unit
+    }
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
       val counts = if (showDaily) summary.dailyEvents else summary.hourlyEvents
       val total = counts.sum()
