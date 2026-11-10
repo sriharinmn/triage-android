@@ -337,9 +337,13 @@ class IssueDetailViewModel(
 
   private suspend fun loadSummary(cached: IssueSummary?) {
     _state.update { it.copy(isLoadingSummary = true, summaryError = null) }
+    // Taken before asking: only changes that went through before this load are sure to be in Sentry's answer.
+    val mark = pendingActions.freshnessMark()
     when (val result = repository.summary(account, issueId, cached)) {
       is DetailResult.Success -> {
         _state.update { it.copy(summary = result.value, isLoadingSummary = false) }
+        // After the fresh issue is on screen, so the assignee never flashes "unknown".
+        pendingActions.onFreshIssue(issueId, mark)
         loadTags(result.value.tagKeys)
       }
       is DetailResult.Failure -> _state.update { it.copy(isLoadingSummary = false, summaryError = result.error) }

@@ -36,13 +36,16 @@ sealed interface ActionNotice {
 /** Assigned to [member], or unassigned when it is null. */
 data class Assignment(val member: Member?)
 
-/** How the screens show an issue while actions on it wait out their Undo window, or after they went through. */
+/**
+ * How the screens show an issue while actions on it wait out their Undo window, or after they went through until fresh
+ * data from Sentry shows them.
+ */
 data class IssueOverlay(
   /** A resolve or archive is waiting, so the issue is hidden on every tab. */
   val hidden: Boolean = false,
-  /** Marked reviewed (waiting or done): hidden on For review, and no more "Mark reviewed". */
+  /** Marked reviewed (waiting, or done and not yet in fresh data): hidden on For review, no more "Mark reviewed". */
   val reviewed: Boolean = false,
-  /** The user's assignment (waiting or done); null while Sentry's own assignee still applies. */
+  /** The user's assignment (waiting, or done and not yet in fresh data); null while Sentry's own assignee applies. */
   val assignment: Assignment? = null,
 ) {
   /** Whether [tab]'s list should leave the issue out. */
@@ -53,7 +56,8 @@ data class IssueOverlay(
  * Holds each issue action for an Undo window before sending it, so an undone action never reaches Sentry (no activity,
  * no notifications for teammates). Lives as long as the process: leaving a screen never cancels an action. [flushNow]
  * sends everything at once (the app going to the background), and [clear] drops everything unsent (the account being
- * forgotten). Called from the main thread; sends run on [scope].
+ * forgotten). An assignment or review that went through stays overlaid until a load started after it brings Sentry's
+ * fresh data ([freshnessMark]). Called from the main thread; sends run on [scope].
  */
 class PendingActions(
   private val actions: IssueActionRepository,
@@ -79,6 +83,10 @@ class PendingActions(
   private var clears = 0L
   /** A failure that landed while a newer action's Undo was showing; it shows once that notice goes. */
   private var heldFailure: ActionNotice.Failed? = null
+  /** Counts assignments and reviews that went through; never reset, so an old mark can't cover later ones. */
+  private var commits = 0L
+  /** The [commits] count when each issue's latest assignment or review went through. */
+  private val committedAt = HashMap<String, Long>()
 
   private val _overlays = MutableStateFlow<Map<String, IssueOverlay>>(emptyMap())
   val overlays: StateFlow<Map<String, IssueOverlay>> = _overlays.asStateFlow()
@@ -131,6 +139,22 @@ class PendingActions(
     }
   }
 
+  /**
+   * Take this before loading an issue or a list from Sentry, and pass it to [onFreshIssue] or [onFreshReviewList] once
+   * the load succeeds: Sentry's answer shows the changes that went through before the mark, but maybe not later ones.
+   */
+  fun freshnessMark(): Long = synchronized(lock) { commits }
+
+  /** Sentry's fresh [issueId], loaded after [mark], takes over from the assignment and review that went through. */
+  fun onFreshIssue(issueId: String, mark: Long) {
+    synchronized(lock) { dropCommitted(issueId, mark, assignment = true) }
+  }
+
+  /** A fresh For review list, loaded after [mark], takes over from every review that went through. */
+  fun onFreshReviewList(mark: Long) {
+    synchronized(lock) { _overlays.value.keys.forEach { dropCommitted(it, mark, assignment = false) } }
+  }
+
   /** Sends every action still in its Undo window now; called when the app goes to the background. */
   fun flushNow() {
     val waiting = synchronized(lock) { entries.values.filter { !it.sending } }
@@ -146,6 +170,7 @@ class PendingActions(
       _overlays.value = emptyMap()
       _notice.value = null
       heldFailure = null
+      committedAt.clear()
     }
   }
 
@@ -180,6 +205,9 @@ class PendingActions(
       synchronized(lock) {
         // clear() cancels this job, but a result can still slip past the cancel: the account is gone, so stop here.
         if (entries.remove(entry.submitted.id) == null) return
+        // Recorded together with the removal: a fresh load always sees the entry or the commit, so it can't drop the
+        // overlay before Sentry's answer could show the change.
+        if (error == null && action.change != Change.Status) committedAt[issueId] = ++commits
         if (error != null && error != DetailError.NotFound) {
           revert(entry)
           showFailure(ActionNotice.Failed(entry.submitted, error))
@@ -247,6 +275,20 @@ class PendingActions(
   /** Stops hiding [issueId] unless another resolve or archive of it is still waiting or sending. Call under [lock]. */
   private fun showAgain(issueId: String) {
     if (!isChanging(issueId, Change.Status)) updateOverlay(issueId) { it.copy(hidden = false) }
+  }
+
+  /**
+   * Drops [issueId]'s review (and, with [assignment], its assignment) if what went through was before [mark] and no
+   * action still waiting or sending needs it shown. Call under [lock].
+   */
+  private fun dropCommitted(issueId: String, mark: Long, assignment: Boolean) {
+    val committed = committedAt[issueId] ?: return
+    if (committed > mark) return
+    val keepAssignment = !assignment || isChanging(issueId, Change.Assignee)
+    val keepReview = isChanging(issueId, Change.Review)
+    updateOverlay(issueId) {
+      it.copy(assignment = if (keepAssignment) it.assignment else null, reviewed = it.reviewed && keepReview)
+    }
   }
 
   /** Whether an action that makes [change] to [issueId] is still waiting or being sent. Call under [lock]. */

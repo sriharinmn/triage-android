@@ -148,7 +148,7 @@ class PendingActionsTest {
   }
 
   @Test
-  fun markReviewed_leavesOnlyForReview_andStaysMarked() = runTest {
+  fun markReviewed_leavesOnlyForReview_andStaysMarkedUntilAFreshReviewList() = runTest {
     cacheLists(InboxTab.Unresolved, InboxTab.ForReview)
     val pending = pending()
 
@@ -160,10 +160,28 @@ class PendingActionsTest {
     assertEquals(listOf("1", "2"), ids(InboxTab.Unresolved))
     assertEquals(listOf("2"), ids(InboxTab.ForReview))
     assertTrue(pending.overlays.value.getValue("1").reviewed)
+    pending.onFreshReviewList(pending.freshnessMark())
+    assertNull(pending.overlays.value["1"])
   }
 
   @Test
-  fun anAssignment_showsAtOnce_staysAfterItWentThrough_andUndoRestoresTheLastOne() = runTest {
+  fun aReviewThatWentThrough_givesWayOnlyToAReviewListLoadedAfterIt() = runTest {
+    val pending = pending()
+    pending.submit(TEST_ACCOUNT, "1", "DEMO-1", IssueAction.MarkReviewed)
+    val beforeTheCommit = pending.freshnessMark()
+
+    pending.onFreshReviewList(beforeTheCommit)
+    assertTrue(pending.overlays.value.getValue("1").reviewed)
+    waitOutTheUndoWindow()
+    pending.onFreshReviewList(beforeTheCommit)
+    assertTrue(pending.overlays.value.getValue("1").reviewed)
+
+    pending.onFreshReviewList(pending.freshnessMark())
+    assertNull(pending.overlays.value["1"])
+  }
+
+  @Test
+  fun anAssignment_showsAtOnce_staysUntilFreshData_andUndoRestoresTheLastOne() = runTest {
     val pending = pending()
     pending.submit(TEST_ACCOUNT, "1", "DEMO-1", IssueAction.Assign(ana))
     waitOutTheUndoWindow()
@@ -174,6 +192,39 @@ class PendingActionsTest {
     pending.undo(second.id)
 
     assertEquals(Assignment(ana), pending.overlays.value.getValue("1").assignment)
+  }
+
+  @Test
+  fun anAssignmentThatWentThrough_givesWayOnlyToAnIssueLoadedAfterIt() = runTest {
+    val pending = pending()
+    pending.submit(TEST_ACCOUNT, "1", "DEMO-1", IssueAction.Assign(ana))
+    val beforeTheCommit = pending.freshnessMark()
+
+    pending.onFreshIssue("1", beforeTheCommit)
+    assertEquals(Assignment(ana), pending.overlays.value.getValue("1").assignment)
+    waitOutTheUndoWindow()
+    pending.onFreshIssue("1", beforeTheCommit)
+    assertEquals(Assignment(ana), pending.overlays.value.getValue("1").assignment)
+    pending.onFreshIssue("1", pending.freshnessMark())
+    assertNull(pending.overlays.value["1"])
+
+    // One still waiting stays, however fresh the issue.
+    pending.submit(TEST_ACCOUNT, "1", "DEMO-1", IssueAction.Assign(ben))
+    pending.onFreshIssue("1", pending.freshnessMark())
+    assertEquals(Assignment(ben), pending.overlays.value.getValue("1").assignment)
+  }
+
+  @Test
+  fun aFreshIssue_alsoReplacesAReviewThatWentThrough() = runTest {
+    val pending = pending()
+    pending.submit(TEST_ACCOUNT, "1", "DEMO-1", IssueAction.MarkReviewed)
+    waitOutTheUndoWindow()
+
+    pending.onFreshIssue("2", pending.freshnessMark())
+    assertTrue(pending.overlays.value.getValue("1").reviewed)
+    pending.onFreshIssue("1", pending.freshnessMark())
+
+    assertNull(pending.overlays.value["1"])
   }
 
   @Test
@@ -374,6 +425,22 @@ class PendingActionsTest {
     assertTrue(api.updateCalls.isEmpty())
     assertTrue(pending.overlays.value.isEmpty())
     assertNull(pending.notice.value)
+  }
+
+  @Test
+  fun clear_forgetsWhatWentThrough() = runTest {
+    val pending = pending()
+    pending.submit(TEST_ACCOUNT, "1", "DEMO-1", IssueAction.Assign(ana))
+    waitOutTheUndoWindow()
+    val afterTheCommit = pending.freshnessMark()
+
+    pending.clear()
+    // The next account's assignment, waiting and then gone through, isn't mistaken for the forgotten one.
+    pending.submit(TEST_ACCOUNT, "1", "DEMO-1", IssueAction.Assign(ben))
+    waitOutTheUndoWindow()
+    pending.onFreshIssue("1", afterTheCommit)
+
+    assertEquals(Assignment(ben), pending.overlays.value.getValue("1").assignment)
   }
 
   @Test

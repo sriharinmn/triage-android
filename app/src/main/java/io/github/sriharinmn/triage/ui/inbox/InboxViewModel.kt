@@ -235,7 +235,11 @@ class InboxViewModel(
     _state.update { it.copy(isRefreshing = true, isLoadingMore = false, loadMoreFailed = false) }
     refreshJob =
       viewModelScope.launch {
+        // Taken before asking: only reviews that went through before this load are sure to be in Sentry's answer.
+        val mark = pendingActions.freshnessMark()
         val result = issues.refresh(account, filter)
+        // An issue Sentry has put up for review again shows again.
+        if (result is LoadResult.Success && filter.tab == InboxTab.ForReview) pendingActions.onFreshReviewList(mark)
         _state.update {
           if (it.filter != filter) it else it.copy(isRefreshing = false, error = (result as? LoadResult.Failure)?.error)
         }

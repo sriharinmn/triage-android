@@ -95,8 +95,11 @@ class IssueDetailViewModelTest {
 
   private fun TestScope.viewModel(): IssueDetailViewModel {
     pendingActions = PendingActions(IssueActionRepository(api, rateLimitGate), issueRepository, backgroundScope)
-    return IssueDetailViewModel(TEST_ACCOUNT, "4201", repository, disconnector, pendingActions, members)
+    return anotherVisit()
   }
+
+  /** Opens the issue again, with the actions of the earlier visits still in [pendingActions]. */
+  private fun anotherVisit() = IssueDetailViewModel(TEST_ACCOUNT, "4201", repository, disconnector, pendingActions, members)
 
   private fun membersAre(vararg people: Member) {
     api.membersResult =
@@ -552,6 +555,48 @@ class IssueDetailViewModelTest {
     vm.onUndo(vm.state.value.notice as ActionNotice.Pending)
 
     assertEquals(ShownAssignee.Named("Ana Silva"), vm.state.value.shownAssignee)
+  }
+
+  @OptIn(ExperimentalCoroutinesApi::class)
+  @Test
+  fun anAssignmentThatWentThrough_givesWayToTheFreshIssue() = runTest {
+    membersAre(ana, ben)
+    accountPrefs.saveMyUserId("41")
+    val vm = viewModel()
+    vm.onAssignClicked()
+    vm.onMemberChosen(ana)
+    advanceTimeBy(PendingActions.UNDO_WINDOW.inWholeMilliseconds + 1)
+    runCurrent()
+    assertEquals(ShownAssignee.Named("Ana Silva"), vm.state.value.shownAssignee)
+
+    // A teammate has reassigned it since.
+    api.issueDetailHandler = { ApiResult.Success(detailDto.copy(assignedTo = AssigneeDto(type = "user", id = "42", name = "Ben Okafor"))) }
+    val again = anotherVisit()
+
+    assertEquals(ShownAssignee.Named("Ben Okafor"), again.state.value.shownAssignee)
+  }
+
+  @OptIn(ExperimentalCoroutinesApi::class)
+  @Test
+  fun anIssueLoadedBeforeTheAssignmentWentThrough_keepsShowingIt() = runTest {
+    membersAre(ana)
+    accountPrefs.saveMyUserId("41")
+    val vm = viewModel()
+    vm.onAssignClicked()
+    vm.onMemberChosen(ana)
+    val issueGate = CompletableDeferred<Unit>()
+    // Sentry answers with the issue as it was before the assignment arrived.
+    api.issueDetailHandler = {
+      issueGate.await()
+      ApiResult.Success(detailDto)
+    }
+    val again = anotherVisit()
+
+    advanceTimeBy(PendingActions.UNDO_WINDOW.inWholeMilliseconds + 1)
+    runCurrent()
+    issueGate.complete(Unit)
+
+    assertEquals(ShownAssignee.Named("Ana Silva"), again.state.value.shownAssignee)
   }
 
   @Test

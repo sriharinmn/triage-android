@@ -117,6 +117,43 @@ class InboxViewModelTest {
   }
 
   @Test
+  fun aReviewListLoadedAfterAMarkReviewedWentThrough_showsTheIssueAgain() = runTest {
+    api.issuesHandler = { page("1", "2") }
+    val vm = viewModel()
+    vm.onTabSelected(InboxTab.ForReview)
+    pendingActions.submit(TEST_ACCOUNT, "1", "DEMO-1", IssueAction.MarkReviewed)
+    advanceTimeBy(PendingActions.UNDO_WINDOW.inWholeMilliseconds + 1)
+    runCurrent()
+    assertEquals(listOf("2"), vm.ids())
+
+    // Sentry has put it up for review again.
+    vm.onRefresh()
+
+    assertEquals(listOf("1", "2"), vm.ids())
+  }
+
+  @Test
+  fun aReviewListLoadedBeforeAMarkReviewedWentThrough_keepsTheIssueHidden() = runTest {
+    api.issuesHandler = { page("1", "2") }
+    val vm = viewModel()
+    vm.onTabSelected(InboxTab.ForReview)
+    pendingActions.submit(TEST_ACCOUNT, "1", "DEMO-1", IssueAction.MarkReviewed)
+    val gate = CompletableDeferred<Unit>()
+    // Sentry answers with the list as it was before the change arrived.
+    api.issuesHandler = {
+      gate.await()
+      page("1", "2")
+    }
+    vm.onRefresh()
+
+    advanceTimeBy(PendingActions.UNDO_WINDOW.inWholeMilliseconds + 1)
+    runCurrent()
+    gate.complete(Unit)
+
+    assertEquals(listOf("2"), vm.ids())
+  }
+
+  @Test
   fun aFailedAction_bringsTheRowBack_andCanBeRetried() = runTest {
     api.issuesHandler = { page("1", "2") }
     api.updateHandler = { _, _ -> ApiResult.Failure(ApiError.Network("offline")) }
