@@ -13,9 +13,7 @@ import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.core.stringSetPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
-import java.io.IOException
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.map
 
 /** The user's alert choices, forgotten with the account. A missing or unreadable file reads as the defaults (alerts off). */
@@ -50,7 +48,7 @@ class DataStoreAlertSettingsStore(private val dataStore: DataStore<Preferences>)
   override val settings: Flow<AlertSettings> =
     dataStore.data
       // Unreadable settings read as the defaults, which keep alerts off until the user turns them on again.
-      .catch { if (it is IOException) emit(emptyPreferences()) else throw it }
+      .retryOnReadError()
       .map { it.toSettings() }
 
   override suspend fun setEnabled(enabled: Boolean) {

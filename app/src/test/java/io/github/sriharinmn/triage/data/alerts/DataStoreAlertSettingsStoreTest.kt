@@ -1,12 +1,23 @@
 package io.github.sriharinmn.triage.data.alerts
 
+import androidx.datastore.core.DataStore
+import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
+import androidx.datastore.preferences.core.preferencesOf
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.core.stringSetPreferencesKey
 import io.github.sriharinmn.triage.testing.InMemoryPreferencesDataStore
 import io.github.sriharinmn.triage.testing.UnreadableDataStore
+import java.io.IOException
+import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.toList
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -92,5 +103,35 @@ class DataStoreAlertSettingsStoreTest {
   @Test
   fun anUnreadableFile_readsAsTheDefaults() = runTest {
     assertEquals(AlertSettings(), DataStoreAlertSettingsStore(UnreadableDataStore()).settings.first())
+  }
+
+  /** Fails its first read with an IOException, then serves [prefs]. */
+  private class FlakyDataStore(private val prefs: Preferences) : DataStore<Preferences> {
+    private var failuresLeft = 1
+
+    override val data: Flow<Preferences> = flow {
+      if (failuresLeft > 0) {
+        failuresLeft--
+        throw IOException("disk hiccup")
+      }
+      emit(prefs)
+      // Like a real DataStore, the flow stays open for later changes.
+      awaitCancellation()
+    }
+
+    override suspend fun updateData(transform: suspend (t: Preferences) -> Preferences): Preferences = transform(prefs)
+  }
+
+  @Test
+  fun aReadError_readsAsTheDefaults_thenTheFlowKeepsGoingWithTheRealSettings() = runTest {
+    val prefs = preferencesOf(booleanPreferencesKey("enabled") to true)
+    val values = mutableListOf<AlertSettings>()
+    val job = launch { DataStoreAlertSettingsStore(FlakyDataStore(prefs)).settings.toList(values) }
+
+    advanceUntilIdle()
+
+    assertEquals(listOf(AlertSettings(), AlertSettings(enabled = true)), values)
+    assertTrue("the flow must not complete after a read error", job.isActive)
+    job.cancel()
   }
 }

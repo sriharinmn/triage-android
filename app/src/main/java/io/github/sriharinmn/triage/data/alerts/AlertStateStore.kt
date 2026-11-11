@@ -10,10 +10,8 @@ import androidx.datastore.preferences.core.emptyPreferences
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringSetPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
-import java.io.IOException
 import java.time.Instant
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.map
 
 /** What the background check remembers between runs, forgotten with the account. Ids, kinds and times only. */
@@ -38,7 +36,7 @@ class DataStoreAlertStateStore(private val dataStore: DataStore<Preferences>) : 
   override val state: Flow<AlertState> =
     dataStore.data
       // An unreadable state reads as empty, so the next check is a quiet baseline rather than a burst of alerts.
-      .catch { if (it is IOException) emit(emptyPreferences()) else throw it }
+      .retryOnReadError()
       .map { it.toState() }
 
   override suspend fun save(state: AlertState) {
