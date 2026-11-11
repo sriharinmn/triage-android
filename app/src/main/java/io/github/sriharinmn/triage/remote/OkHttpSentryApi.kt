@@ -46,7 +46,8 @@ class OkHttpSentryApi(
         ?.newBuilder()
         ?.apply {
           addQueryParameter("query", params.query)
-          addQueryParameter("project", params.projectId ?: ALL_PROJECTS)
+          if (params.projectIds.isEmpty()) addQueryParameter("project", ALL_PROJECTS)
+          else params.projectIds.forEach { addQueryParameter("project", it) }
           params.environment?.let { addQueryParameter("environment", it) }
           addQueryParameter("sort", params.sort)
           addQueryParameter("statsPeriod", params.statsPeriod)

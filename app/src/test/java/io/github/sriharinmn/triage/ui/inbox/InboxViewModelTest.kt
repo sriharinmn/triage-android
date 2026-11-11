@@ -504,7 +504,7 @@ class InboxViewModelTest {
     val vm = viewModel()
 
     assertNull(vm.state.value.filter.projectId)
-    assertNull(api.issueCalls.last().params.projectId)
+    assertEquals(emptyList<String>(), api.issueCalls.last().params.projectIds)
     assertNull(settings.current.projectId)
   }
 

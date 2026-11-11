@@ -28,7 +28,7 @@ class InboxFilterTest {
   fun toParams_carriesEveryDimension() {
     val filter = InboxFilter(InboxTab.Regressed, projectId = "102", environment = "production", sort = IssueSort.Users)
     assertEquals(
-      IssueListParams(query = "is:regressed", projectId = "102", environment = "production", sort = "user"),
+      IssueListParams(query = "is:regressed", projectIds = listOf("102"), environment = "production", sort = "user"),
       filter.toParams(),
     )
   }
