@@ -232,8 +232,8 @@ class PendingActions(
           IssueAction.Resolve,
           IssueAction.Archive -> {
             issues.forget(issueId)
-            onIssueClosed(issueId)
             synchronized(lock) { if (clears == clearsBefore) showAgain(issueId) }
+            closeNotification(issueId)
           }
           IssueAction.MarkReviewed -> issues.forget(issueId, InboxTab.ForReview)
           is IssueAction.Assign -> Unit
@@ -241,14 +241,20 @@ class PendingActions(
       else -> {
         // Merged or deleted in Sentry: it won't come back on a refresh, so stop showing it now.
         issues.forget(issueId)
-        onIssueClosed(issueId)
         synchronized(lock) {
-          if (clears != clearsBefore) return
-          revert(entry)
-          showFailure(ActionNotice.Failed(entry.submitted, DetailError.NotFound))
+          if (clears == clearsBefore) {
+            revert(entry)
+            showFailure(ActionNotice.Failed(entry.submitted, DetailError.NotFound))
+          }
         }
+        closeNotification(issueId)
       }
     }
+  }
+
+  /** After the locked updates, and guarded: a throwing hook (a binder call) must not leave a row hidden or crash the app. */
+  private fun closeNotification(issueId: String) {
+    runCatching { onIssueClosed(issueId) }
   }
 
   /** Shows [failed], or holds it back while a newer action's Undo shows: it must not take that. Call under [lock]. */

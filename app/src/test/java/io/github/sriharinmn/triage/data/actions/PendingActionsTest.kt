@@ -100,6 +100,24 @@ class PendingActionsTest {
   }
 
   @Test
+  fun aThrowingCloseHook_doesNotLeaveTheRowHidden_orBreakTheSend() = runTest {
+    val pending =
+      PendingActions(IssueActionRepository(api, gate), issues, backgroundScope, onIssueClosed = { error("binder died") })
+    api.updateHandler = { issueId, _ ->
+      if (issueId == "1") ApiResult.Success(Unit) else ApiResult.Failure(ApiError.Http(404))
+    }
+
+    pending.submit(TEST_ACCOUNT, "1", "DEMO-1", IssueAction.Resolve)
+    pending.submit(TEST_ACCOUNT, "2", "DEMO-2", IssueAction.Resolve)
+    waitOutTheUndoWindow()
+
+    // The success path stopped hiding the row; the 404 path reverted and showed its notice.
+    assertFalse(pending.overlays.value["1"]?.hides(InboxTab.Unresolved) == true)
+    assertFalse(pending.overlays.value["2"]?.hides(InboxTab.Unresolved) == true)
+    assertEquals(DetailError.NotFound, (pending.notice.value as ActionNotice.Failed).error)
+  }
+
+  @Test
   fun onceTheSendStarts_thePendingNoticeIsGone() = runTest {
     api.updateGate = CompletableDeferred()
     val pending = pending()
@@ -185,7 +203,7 @@ class PendingActionsTest {
 
     pending.submit(TEST_ACCOUNT, "1", "DEMO-1", IssueAction.MarkReviewed)
     assertTrue(pending.overlays.value.getValue("1").hides(InboxTab.ForReview))
-    assertFalse(pending.overlays.value.getValue("1").hides(InboxTab.Unresolved))
+    assertFalse(pending.overlays.value["1"]?.hides(InboxTab.Unresolved) == true)
     waitOutTheUndoWindow()
 
     assertEquals(listOf("1", "2"), ids(InboxTab.Unresolved))
