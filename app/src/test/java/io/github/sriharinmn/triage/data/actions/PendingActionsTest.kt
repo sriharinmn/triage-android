@@ -69,6 +69,37 @@ class PendingActionsTest {
   }
 
   @Test
+  fun aResolveOrArchiveThatWentThrough_closesItsNotification_butAnAssignmentDoesNot() = runTest {
+    val closed = mutableListOf<String>()
+    val pending = PendingActions(IssueActionRepository(api, gate), issues, backgroundScope, onIssueClosed = { closed += it })
+
+    pending.submit(TEST_ACCOUNT, "1", "DEMO-1", IssueAction.Resolve)
+    pending.submit(TEST_ACCOUNT, "2", "DEMO-2", IssueAction.Archive)
+    pending.submit(TEST_ACCOUNT, "3", "DEMO-3", IssueAction.Assign(ana))
+    waitOutTheUndoWindow()
+
+    assertEquals(setOf("1", "2"), closed.toSet())
+    assertEquals(2, closed.size)
+  }
+
+  @Test
+  fun aFailedOrUndoneAction_leavesItsNotification_butAGoneIssueClosesIt() = runTest {
+    val closed = mutableListOf<String>()
+    val pending = PendingActions(IssueActionRepository(api, gate), issues, backgroundScope, onIssueClosed = { closed += it })
+    api.updateHandler = { issueId, _ ->
+      if (issueId == "1") ApiResult.Failure(ApiError.Network("offline")) else ApiResult.Failure(ApiError.Http(404))
+    }
+
+    pending.submit(TEST_ACCOUNT, "1", "DEMO-1", IssueAction.Resolve)
+    pending.submit(TEST_ACCOUNT, "2", "DEMO-2", IssueAction.Resolve)
+    val undone = pending.submit(TEST_ACCOUNT, "3", "DEMO-3", IssueAction.Archive)
+    pending.undo(undone.id)
+    waitOutTheUndoWindow()
+
+    assertEquals(listOf("2"), closed)
+  }
+
+  @Test
   fun onceTheSendStarts_thePendingNoticeIsGone() = runTest {
     api.updateGate = CompletableDeferred()
     val pending = pending()

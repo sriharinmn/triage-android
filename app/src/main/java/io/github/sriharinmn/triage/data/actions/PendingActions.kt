@@ -64,6 +64,11 @@ class PendingActions(
   private val issues: IssueRepository,
   private val scope: CoroutineScope,
   private val undoWindow: Duration = UNDO_WINDOW,
+  /**
+   * Called once a resolve or archive went through, or an action found the issue gone, so the app can take down that
+   * issue's alert notification. Called off the main thread.
+   */
+  private val onIssueClosed: (issueId: String) -> Unit = {},
 ) {
   private class Entry(val submitted: SubmittedAction, val account: Account, var previousAssignment: Assignment?) {
     var job: Job? = null
@@ -227,6 +232,7 @@ class PendingActions(
           IssueAction.Resolve,
           IssueAction.Archive -> {
             issues.forget(issueId)
+            onIssueClosed(issueId)
             synchronized(lock) { if (clears == clearsBefore) showAgain(issueId) }
           }
           IssueAction.MarkReviewed -> issues.forget(issueId, InboxTab.ForReview)
@@ -235,6 +241,7 @@ class PendingActions(
       else -> {
         // Merged or deleted in Sentry: it won't come back on a refresh, so stop showing it now.
         issues.forget(issueId)
+        onIssueClosed(issueId)
         synchronized(lock) {
           if (clears != clearsBefore) return
           revert(entry)
