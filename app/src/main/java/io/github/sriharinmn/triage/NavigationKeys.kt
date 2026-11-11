@@ -8,3 +8,6 @@ import kotlinx.serialization.Serializable
 
 /** One issue's detail, on top of the inbox. Only the id goes in: keys are saved into the activity's state. */
 @Serializable data class IssueDetail(val issueId: String) : NavKey
+
+/** ⋮ → Alerts, on top of the inbox. */
+@Serializable data object Alerts : NavKey

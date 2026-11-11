@@ -55,6 +55,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.sriharinmn.triage.R
+import io.github.sriharinmn.triage.ui.alerts.rememberNotificationPermissionRequest
 import io.github.sriharinmn.triage.data.actions.ActionNotice
 import io.github.sriharinmn.triage.data.issues.InboxError
 import io.github.sriharinmn.triage.data.issues.InboxTab
@@ -76,6 +77,10 @@ object InboxTags {
   const val SORT_FILTER = "inbox_filter_sort"
   const val LOAD_MORE_RETRY = "inbox_load_more_retry"
   const val ERROR_ACTION = "inbox_error_action"
+  const val MENU_ALERTS = "inbox_menu_alerts"
+  const val ALERTS_CARD = "inbox_alerts_card"
+  const val ALERTS_CARD_TURN_ON = "inbox_alerts_card_turn_on"
+  const val ALERTS_CARD_NOT_NOW = "inbox_alerts_card_not_now"
 
   fun row(issueId: String) = "inbox_issue_$issueId"
 }
@@ -83,10 +88,20 @@ object InboxTags {
 /** Ask for the next page once the last visible row is this close to the end of the list. */
 private const val LOAD_MORE_THRESHOLD = 5
 
-/** The inbox: tabs, filters and the issue list, wired to [viewModel]; tapping an issue calls [onOpenIssue]. */
+/**
+ * The inbox: tabs, filters and the issue list, wired to [viewModel]; tapping an issue calls [onOpenIssue], and
+ * ⋮ → Alerts calls [onOpenAlerts].
+ */
 @Composable
-fun InboxScreen(viewModel: InboxViewModel, onOpenIssue: (issueId: String) -> Unit, modifier: Modifier = Modifier) {
+fun InboxScreen(
+  viewModel: InboxViewModel,
+  onOpenIssue: (issueId: String) -> Unit,
+  onOpenAlerts: () -> Unit,
+  modifier: Modifier = Modifier,
+) {
   val state by viewModel.state.collectAsStateWithLifecycle()
+  // The card's Turn on shows Android's notification popup first (Android 13+); alerts go on only if it's allowed.
+  val requestNotifications = rememberNotificationPermissionRequest(viewModel::onAlertsCardTurnOn)
   val snackbarHostState = remember { SnackbarHostState() }
   // "3m ago" labels tick every minute and catch up whenever fresh data arrives.
   val now by
@@ -115,6 +130,9 @@ fun InboxScreen(viewModel: InboxViewModel, onOpenIssue: (issueId: String) -> Uni
     onNoticeDismissed = viewModel::onNoticeDismissed,
     onDisconnectConfirmed = viewModel::onDisconnectConfirmed,
     onDisconnectFailureShown = viewModel::onDisconnectFailureShown,
+    onAlertsCardTurnOn = requestNotifications,
+    onAlertsCardNotNow = viewModel::onAlertsCardNotNow,
+    onOpenAlerts = onOpenAlerts,
     snackbarHostState = snackbarHostState,
     modifier = modifier,
   )
@@ -140,6 +158,9 @@ internal fun InboxContent(
   onNoticeDismissed: (ActionNotice) -> Unit,
   onDisconnectConfirmed: () -> Unit,
   onDisconnectFailureShown: () -> Unit,
+  onAlertsCardTurnOn: () -> Unit,
+  onAlertsCardNotNow: () -> Unit,
+  onOpenAlerts: () -> Unit,
   modifier: Modifier = Modifier,
   snackbarHostState: SnackbarHostState = remember { SnackbarHostState() },
 ) {
@@ -182,7 +203,9 @@ internal fun InboxContent(
 
   Scaffold(
     modifier = modifier,
-    topBar = { InboxTopBar(orgName = state.orgName, onDisconnect = { confirmingDisconnect = true }) },
+    topBar = {
+      InboxTopBar(orgName = state.orgName, onOpenAlerts = onOpenAlerts, onDisconnect = { confirmingDisconnect = true })
+    },
     // A notice covers any other snackbar, which shows once the notice goes.
     snackbarHost = {
       if (noticeHostState.currentSnackbarData != null) SnackbarHost(noticeHostState) else SnackbarHost(snackbarHostState)
@@ -204,6 +227,7 @@ internal fun InboxContent(
         onEnvironmentSelected = onEnvironmentSelected,
         onSortSelected = onSortSelected,
       )
+      if (state.showAlertsCard) AlertsPromptCard(onTurnOn = onAlertsCardTurnOn, onNotNow = onAlertsCardNotNow)
       val refreshedAt = state.refreshedAt
       if (hasIssues && errorText != null) {
         if (error.needsReconnect()) {
@@ -256,7 +280,7 @@ internal fun InboxContent(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun InboxTopBar(orgName: String, onDisconnect: () -> Unit) {
+private fun InboxTopBar(orgName: String, onOpenAlerts: () -> Unit, onDisconnect: () -> Unit) {
   var menuOpen by remember { mutableStateOf(false) }
   TopAppBar(
     title = { Text(orgName, maxLines = 1, overflow = TextOverflow.Ellipsis) },
@@ -266,6 +290,14 @@ private fun InboxTopBar(orgName: String, onDisconnect: () -> Unit) {
           Icon(painterResource(R.drawable.ic_more_vert), contentDescription = stringResource(R.string.inbox_menu))
         }
         DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+          DropdownMenuItem(
+            text = { Text(stringResource(R.string.inbox_alerts)) },
+            onClick = {
+              menuOpen = false
+              onOpenAlerts()
+            },
+            modifier = Modifier.testTag(InboxTags.MENU_ALERTS),
+          )
           DropdownMenuItem(
             text = { Text(stringResource(R.string.inbox_disconnect)) },
             onClick = {

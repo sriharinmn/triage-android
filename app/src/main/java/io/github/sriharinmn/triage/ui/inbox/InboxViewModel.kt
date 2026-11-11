@@ -4,6 +4,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import io.github.sriharinmn.triage.data.Disconnector
 import io.github.sriharinmn.triage.data.account.Account
+import io.github.sriharinmn.triage.data.alerts.AlertSettingsStore
+import io.github.sriharinmn.triage.data.alerts.AlertStateStore
 import io.github.sriharinmn.triage.data.actions.ActionNotice
 import io.github.sriharinmn.triage.data.actions.IssueAction
 import io.github.sriharinmn.triage.data.actions.PendingActions
@@ -50,6 +52,8 @@ data class InboxUiState(
   val disconnectFailed: Boolean = false,
   /** The latest issue action's notice, for the Undo / failure snackbar. */
   val notice: ActionNotice? = null,
+  /** The one-time "Get alerts…" card: shown until it is answered or alerts are switched on. */
+  val showAlertsCard: Boolean = false,
 ) {
   val selectedProject: Project?
     get() = projects.firstOrNull { it.id == filter.projectId }
@@ -70,6 +74,8 @@ class InboxViewModel(
   private val settings: InboxSettingsStore,
   private val disconnector: Disconnector,
   private val pendingActions: PendingActions,
+  private val alertSettings: AlertSettingsStore,
+  private val alertState: AlertStateStore,
   private val clock: () -> Instant = Instant::now,
 ) : ViewModel() {
   private val _state = MutableStateFlow(InboxUiState(orgName = account.orgName))
@@ -100,6 +106,11 @@ class InboxViewModel(
         }
     }
     viewModelScope.launch { pendingActions.notice.collect { notice -> _state.update { it.copy(notice = notice) } } }
+    viewModelScope.launch {
+      alertSettings.settings.collect { alerts ->
+        _state.update { it.copy(showAlertsCard = !alerts.enabled && !alerts.cardDismissed) }
+      }
+    }
     viewModelScope.launch { issues.projects.collect(::onProjectsLoaded) }
     startupJob =
       viewModelScope.launch {
@@ -160,6 +171,25 @@ class InboxViewModel(
   }
 
   fun onNoticeDismissed(notice: ActionNotice) = pendingActions.onNoticeDismissed(notice)
+
+  /** The card's Turn on, after Android's notification popup: alerts go on only if notifications are allowed. */
+  fun onAlertsCardTurnOn(allowed: Boolean) = answerAlertsCard(turnOn = allowed)
+
+  /** The card's Not now: it doesn't show again; Alerts stays in the ⋮ menu. */
+  fun onAlertsCardNotNow() = answerAlertsCard(turnOn = false)
+
+  private fun answerAlertsCard(turnOn: Boolean) {
+    // The account is being forgotten; a choice saved now would land after its alert settings were cleared.
+    if (_state.value.isDisconnecting) return
+    viewModelScope.launch {
+      try {
+        if (turnOn) alertSettings.setEnabled(true)
+        alertSettings.dismissCard()
+      } catch (_: IOException) {
+        // The card stays, so the user can answer again.
+      }
+    }
+  }
 
   private fun act(issue: Issue, action: IssueAction) {
     // The account is being forgotten; an action now would go out with a token that's about to be dropped.
@@ -242,10 +272,20 @@ class InboxViewModel(
         val result = issues.refresh(account, filter)
         // An issue Sentry has put up for review again shows again.
         if (result is LoadResult.Success && filter.tab == InboxTab.ForReview) pendingActions.onFreshReviewList(mark)
+        // The token works, so background alert checks paused by a rejected token may run again.
+        if (result is LoadResult.Success) letAlertChecksRun()
         _state.update {
           if (it.filter != filter) it else it.copy(isRefreshing = false, error = (result as? LoadResult.Failure)?.error)
         }
       }
+  }
+
+  private suspend fun letAlertChecksRun() {
+    try {
+      alertState.clearAuthProblem()
+    } catch (_: IOException) {
+      // The next successful load tries again.
+    }
   }
 
   private suspend fun rememberFilter(filter: InboxFilter) {

@@ -9,6 +9,8 @@ import androidx.navigation3.runtime.rememberNavBackStack
 import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
 import androidx.navigation3.ui.NavDisplay
 import io.github.sriharinmn.triage.data.account.Account
+import io.github.sriharinmn.triage.ui.alerts.AlertsScreen
+import io.github.sriharinmn.triage.ui.alerts.AlertsViewModel
 import io.github.sriharinmn.triage.ui.detail.IssueDetailScreen
 import io.github.sriharinmn.triage.ui.detail.IssueDetailViewModel
 import io.github.sriharinmn.triage.ui.inbox.InboxScreen
@@ -18,14 +20,22 @@ import io.github.sriharinmn.triage.ui.inbox.InboxViewModel
 @Composable
 fun TriageNavigation(account: Account, container: AppContainer) {
   TriageNavDisplay(
-    inbox = { onOpenIssue ->
+    inbox = { onOpenIssue, onOpenAlerts ->
       // AccountGate gives these screens a per-account ViewModel store, so this ViewModel is dropped on disconnect;
       // the key also names the account.
       val inboxViewModel: InboxViewModel =
         viewModel(key = "inbox|${account.apiBaseUrl}|${account.orgSlug}") {
-          InboxViewModel(account, container.issueRepository, container.inboxSettings, container.disconnector, container.pendingActions)
+          InboxViewModel(
+            account,
+            container.issueRepository,
+            container.inboxSettings,
+            container.disconnector,
+            container.pendingActions,
+            container.alertSettings,
+            container.alertState,
+          )
         }
-      InboxScreen(inboxViewModel, onOpenIssue = onOpenIssue)
+      InboxScreen(inboxViewModel, onOpenIssue = onOpenIssue, onOpenAlerts = onOpenAlerts)
     },
     issueDetail = { issueId, onBack ->
       // Each detail entry has its own store (the nav-entry decorator), so leaving the screen drops its ViewModel and the
@@ -43,17 +53,25 @@ fun TriageNavigation(account: Account, container: AppContainer) {
         }
       IssueDetailScreen(detailViewModel, onBack = onBack)
     },
+    alerts = { onBack ->
+      val alertsViewModel: AlertsViewModel =
+        viewModel(key = "alerts|${account.apiBaseUrl}|${account.orgSlug}") {
+          AlertsViewModel(container.alertSettings, container.alertState, container.issueRepository.projects)
+        }
+      AlertsScreen(alertsViewModel, onBack = onBack)
+    },
   )
 }
 
 /**
- * The signed-in back stack: the inbox, with an issue's detail pushed on top. The screens come in as lambdas so tests
- * can drive the real back stack with stand-ins.
+ * The signed-in back stack: the inbox, with an issue's detail or the Alerts screen pushed on top. The screens come in as
+ * lambdas so tests can drive the real back stack with stand-ins.
  */
 @Composable
 internal fun TriageNavDisplay(
-  inbox: @Composable (onOpenIssue: (issueId: String) -> Unit) -> Unit,
+  inbox: @Composable (onOpenIssue: (issueId: String) -> Unit, onOpenAlerts: () -> Unit) -> Unit,
   issueDetail: @Composable (issueId: String, onBack: () -> Unit) -> Unit,
+  alerts: @Composable (onBack: () -> Unit) -> Unit,
 ) {
   val backStack = rememberNavBackStack(Inbox)
 
@@ -66,10 +84,13 @@ internal fun TriageNavDisplay(
     entryProvider =
       entryProvider {
         entry<Inbox> {
-          inbox { issueId ->
-            // A second tap while the detail is opening must not stack two copies.
-            if (backStack.lastOrNull() == Inbox) backStack.add(IssueDetail(issueId))
-          }
+          inbox(
+            { issueId ->
+              // A second tap while the detail is opening must not stack two copies.
+              if (backStack.lastOrNull() == Inbox) backStack.add(IssueDetail(issueId))
+            },
+            { if (backStack.lastOrNull() == Inbox) backStack.add(Alerts) },
+          )
         }
         entry<IssueDetail> { key ->
           issueDetail(key.issueId) {
@@ -78,6 +99,7 @@ internal fun TriageNavDisplay(
             if (backStack.lastOrNull() == key) backStack.removeLastOrNull()
           }
         }
+        entry<Alerts> { alerts { if (backStack.lastOrNull() == Alerts) backStack.removeLastOrNull() } }
       },
   )
 }

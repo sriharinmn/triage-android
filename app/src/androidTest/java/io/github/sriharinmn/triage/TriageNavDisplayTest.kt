@@ -40,12 +40,21 @@ class TriageNavDisplayTest {
   ) {
     composeTestRule.setContent {
       TriageNavDisplay(
-        inbox = { onOpenIssue ->
-          LazyColumn(Modifier.testTag("inbox_list")) {
-            items(100) { i -> Text("Issue $i", Modifier.fillMaxWidth().clickable { onOpenIssue("$i") }.padding(16.dp)) }
+        inbox = { onOpenIssue, onOpenAlerts ->
+          Column {
+            Button(onClick = onOpenAlerts) { Text("Open alerts") }
+            LazyColumn(Modifier.testTag("inbox_list")) {
+              items(100) { i -> Text("Issue $i", Modifier.fillMaxWidth().clickable { onOpenIssue("$i") }.padding(16.dp)) }
+            }
           }
         },
         issueDetail = issueDetail,
+        alerts = { onBack ->
+          Column {
+            Text("Alerts screen")
+            Button(onClick = onBack) { Text("Back") }
+          }
+        },
       )
     }
   }
@@ -73,6 +82,18 @@ class TriageNavDisplayTest {
 
     composeTestRule.onNodeWithText("Issue 3").assertIsDisplayed()
     composeTestRule.onNodeWithText("Detail of 3").assertDoesNotExist()
+  }
+
+  @Test
+  fun alerts_opensFromTheInbox_andBackReturnsToIt() {
+    showStandIns()
+    composeTestRule.onNodeWithText("Open alerts").performClick()
+    composeTestRule.onNodeWithText("Alerts screen").assertIsDisplayed()
+
+    composeTestRule.onNodeWithText("Back").performClick()
+
+    composeTestRule.onNodeWithText("Open alerts").assertIsDisplayed()
+    composeTestRule.onNodeWithText("Alerts screen").assertDoesNotExist()
   }
 
   @Test

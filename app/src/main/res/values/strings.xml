@@ -259,4 +259,10 @@
     <string name="battery_tip_huawei">On Huawei and Honor phones: open Settings, then Battery, then App launch, find Triage and switch it to Manage manually with every option on.</string>
     <string name="battery_tip_generic">In the list that opens, choose All apps, find Triage and choose Don\'t optimize (or Unrestricted).</string>
     <string name="battery_open_settings">Open battery settings</string>
+
+    <string name="inbox_alerts">Alerts</string>
+    <string name="alerts_card_title">Get alerts for new, regressed and escalating issues?</string>
+    <string name="alerts_card_body">Triage checks Sentry in the background. No server involved.</string>
+    <string name="alerts_card_not_now">Not now</string>
+    <string name="alerts_card_turn_on">Turn on</string>
 </resources>

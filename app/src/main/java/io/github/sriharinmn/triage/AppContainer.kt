@@ -28,7 +28,13 @@ import io.github.sriharinmn.triage.local.TriageDatabase
 import io.github.sriharinmn.triage.remote.OkHttpSentryApi
 import io.github.sriharinmn.triage.remote.SentryApi
 import androidx.work.WorkManager
+import io.github.sriharinmn.triage.data.alerts.AlertSettingsStore
+import io.github.sriharinmn.triage.data.alerts.AlertStateStore
+import io.github.sriharinmn.triage.data.alerts.DataStoreAlertSettingsStore
+import io.github.sriharinmn.triage.data.alerts.DataStoreAlertStateStore
 import io.github.sriharinmn.triage.data.alerts.WorkManagerAlertWork
+import io.github.sriharinmn.triage.data.alerts.alertSettingsDataStore
+import io.github.sriharinmn.triage.data.alerts.alertStateDataStore
 import io.github.sriharinmn.triage.ui.alerts.AlertNotifier
 import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.CoroutineScope
@@ -82,6 +88,10 @@ class AppContainer(context: Context) {
 
   /** The periodic check and the notification actions waiting out their Undo window, in WorkManager. */
   val alertWork = WorkManagerAlertWork { WorkManager.getInstance(appContext) }
+
+  val alertSettings: AlertSettingsStore = DataStoreAlertSettingsStore(appContext.alertSettingsDataStore)
+
+  val alertState: AlertStateStore = DataStoreAlertStateStore(appContext.alertStateDataStore)
 
   private val accountDataCleaner =
     AccountDataCleaner(
