@@ -32,6 +32,7 @@ node send.mjs android                     # the full Android batch
 node send.mjs shop --scenario webhook-failures  # just one scenario, as in the full batch
 node send.mjs shop --only cache-refused   # one event now from a newer release: regresses a resolved issue
 node send.mjs android --burst socket-timeout   # 60 events now: escalates an issue archived "until escalating"
+node send.mjs shop --fresh cart-total     # one event now under a new fingerprint: a brand-new issue (a "new issue" alert)
 node send.mjs shop --dry-run              # print the events instead of sending
 ```
 
