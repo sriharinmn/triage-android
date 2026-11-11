@@ -16,6 +16,7 @@ import io.github.sriharinmn.triage.data.alerts.NotificationActionRequest
 import io.github.sriharinmn.triage.data.detail.DetailError
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
 import org.junit.Assume.assumeTrue
@@ -120,6 +121,31 @@ class AlertNotifierTest {
       "Archiving DEMO-1â€¦",
       notifier.buildPending(request.copy(action = AlertAction.Archive), original = null).title(),
     )
+  }
+
+  @Test
+  fun pending_carriesTheOriginalNotification_soUndoCanBringItBack() {
+    val original = notifier.buildSingle("example-org", finding)
+
+    val pending = notifier.buildPending(request, original)
+
+    // Read back the way restore() does, without posting anything.
+    assertEquals("Regressed · DEMO-1", AlertNotifier.originalOf(pending)?.title())
+    assertNull(AlertNotifier.originalOf(original))
+  }
+
+  @Test
+  fun aSecondTap_keepsTheInnermostOriginal_notThePendingNotification() {
+    val original = notifier.buildSingle("example-org", finding)
+    val firstPending = notifier.buildPending(request, original)
+
+    val kept = AlertNotifier.originalToKeep(firstPending)
+    val secondPending = notifier.buildPending(request.copy(action = AlertAction.Archive), kept)
+
+    assertEquals("Regressed · DEMO-1", AlertNotifier.originalOf(secondPending)?.title())
+    // A notification that isn't pending is its own original; with nothing showing there is nothing to keep.
+    assertEquals("Regressed · DEMO-1", AlertNotifier.originalToKeep(original)?.title())
+    assertNull(AlertNotifier.originalToKeep(null))
   }
 
   @Test

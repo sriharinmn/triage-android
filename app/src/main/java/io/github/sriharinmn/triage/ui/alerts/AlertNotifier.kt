@@ -70,13 +70,13 @@ class AlertNotifier(private val context: Context, private val channelPrefix: Str
 
   /** Resolve or Archive was tapped: "Resolving DEMO-3â€¦ Undo" in its place, silently, keeping the original for [restore]. */
   fun showPending(request: NotificationActionRequest) {
-    notify(issueTag(request.issueId), ISSUE_NOTIFICATION, buildPending(request, activeIssueNotification(request.issueId)))
+    val original = originalToKeep(activeIssueNotification(request.issueId))
+    notify(issueTag(request.issueId), ISSUE_NOTIFICATION, buildPending(request, original))
   }
 
   /** Undo: the original notification comes back without ringing again; if it can't be found, the issue's goes. */
   fun restore(issueId: String) {
-    val original =
-      activeIssueNotification(issueId)?.let { BundleCompat.getParcelable(it.extras, EXTRA_ORIGINAL, Notification::class.java) }
+    val original = activeIssueNotification(issueId)?.let(::originalOf)
     if (original != null) notify(issueTag(issueId), ISSUE_NOTIFICATION, original) else cancelIssue(issueId)
   }
 
@@ -289,6 +289,16 @@ class AlertNotifier(private val context: Context, private val channelPrefix: Str
     const val EXTRA_ORIGINAL = "io.github.sriharinmn.triage.ORIGINAL"
 
     fun issueTag(issueId: String): String = ISSUE_TAG_PREFIX + issueId
+
+    /** The notification a pending one will bring back on Undo, or null if [notification] isn't a pending one. */
+    internal fun originalOf(notification: Notification): Notification? =
+      BundleCompat.getParcelable(notification.extras, EXTRA_ORIGINAL, Notification::class.java)
+
+    /**
+     * What a new pending notification keeps as its original. If [active] is itself a pending one (a second tap before the
+     * shade updated), keep the one it holds, so Undo never brings back a stale "Resolving…".
+     */
+    internal fun originalToKeep(active: Notification?): Notification? = active?.let { originalOf(it) ?: it }
   }
 }
 
