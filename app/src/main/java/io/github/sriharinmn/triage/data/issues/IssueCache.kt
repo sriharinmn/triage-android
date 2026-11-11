@@ -28,6 +28,12 @@ interface IssueCache {
   /** Adds the next page, skipping issues already in the list. Does nothing if the list was never loaded. */
   suspend fun appendPage(listKey: String, issues: List<Issue>, nextCursor: String?)
 
+  /**
+   * Takes issue [issueId] out of every cached list whose key starts with [listKeyPrefix] (an empty prefix means every
+   * list), and forgets its row once no list holds it.
+   */
+  suspend fun removeFromLists(issueId: String, listKeyPrefix: String)
+
   fun observeProjects(): Flow<List<Project>>
 
   suspend fun replaceProjects(projects: List<Project>)

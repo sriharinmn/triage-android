@@ -2,6 +2,13 @@ package io.github.sriharinmn.triage
 
 import android.content.Context
 import io.github.sriharinmn.triage.data.AccountDataCleaner
+import io.github.sriharinmn.triage.data.AccountScoped
+import io.github.sriharinmn.triage.data.actions.IssueActionRepository
+import io.github.sriharinmn.triage.data.actions.PendingActions
+import io.github.sriharinmn.triage.data.members.MembersRepository
+import io.github.sriharinmn.triage.data.settings.AccountPrefsStore
+import io.github.sriharinmn.triage.data.settings.DataStoreAccountPrefsStore
+import io.github.sriharinmn.triage.data.settings.accountPrefsDataStore
 import io.github.sriharinmn.triage.data.Disconnector
 import io.github.sriharinmn.triage.data.RateLimitGate
 import io.github.sriharinmn.triage.data.account.AccountRepository
@@ -60,7 +67,20 @@ class AppContainer(context: Context) {
 
   val inboxSettings: InboxSettingsStore = DataStoreInboxSettingsStore(appContext.inboxSettingsDataStore)
 
-  private val accountDataCleaner = AccountDataCleaner(issueRepository, inboxSettings)
+  private val accountPrefs: AccountPrefsStore = DataStoreAccountPrefsStore(appContext.accountPrefsDataStore)
+
+  /** Issue actions wait out their Undo window here, on the app's scope, so leaving a screen never cancels one. */
+  val pendingActions = PendingActions(IssueActionRepository(sentryApi, rateLimitGate), issueRepository, applicationScope)
+
+  val members = MembersRepository(sentryApi, rateLimitGate, accountPrefs)
+
+  private val accountDataCleaner =
+    AccountDataCleaner(
+      issueRepository,
+      inboxSettings,
+      others =
+        listOf(AccountScoped { pendingActions.clear() }, AccountScoped { members.clear() }, AccountScoped { accountPrefs.clear() }),
+    )
 
   val accountRepository =
     AccountRepository(

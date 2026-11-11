@@ -8,6 +8,11 @@ import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import io.github.sriharinmn.triage.data.actions.ActionNotice
+import io.github.sriharinmn.triage.data.actions.Assignment
+import io.github.sriharinmn.triage.data.actions.IssueAction
+import io.github.sriharinmn.triage.data.actions.IssueOverlay
+import io.github.sriharinmn.triage.data.actions.SubmittedAction
 import io.github.sriharinmn.triage.data.detail.DetailError
 import io.github.sriharinmn.triage.data.detail.EventContext
 import io.github.sriharinmn.triage.data.detail.EventKind
@@ -18,10 +23,12 @@ import io.github.sriharinmn.triage.data.detail.IssueSummary
 import io.github.sriharinmn.triage.data.detail.StackFrame
 import io.github.sriharinmn.triage.data.issues.IssueBadge
 import io.github.sriharinmn.triage.data.issues.IssueLevel
+import io.github.sriharinmn.triage.data.members.Member
 import io.github.sriharinmn.triage.theme.TriageTheme
 import java.time.Duration
 import java.time.Instant
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 
@@ -84,7 +91,7 @@ class IssueDetailContentTest {
       isLoadingEvent = false,
     )
 
-  private fun show(state: IssueDetailUiState) {
+  private fun show(state: IssueDetailUiState, actions: DetailActionHandlers = DetailActionHandlers()) {
     composeTestRule.setContent {
       TriageTheme {
         IssueDetailContent(
@@ -99,6 +106,7 @@ class IssueDetailContentTest {
           onShowAllBreadcrumbs = { calls += "crumbs" },
           onReconnectConfirmed = { calls += "reconnect" },
           onDisconnectFailureShown = {},
+          actions = actions,
         )
       }
     }
@@ -257,5 +265,112 @@ class IssueDetailContentTest {
     show(loaded.copy(summary = summary.copy(status = IssueStatus.Resolved)))
 
     composeTestRule.onNodeWithText("Resolved").assertIsDisplayed()
+  }
+
+  private val ana = Member("41", "Ana Silva", "ana@example.com")
+  private val ben = Member("42", "Ben Okafor", "ben@example.com")
+
+  private fun recording() =
+    DetailActionHandlers(
+      onResolve = { calls += "resolve" },
+      onArchive = { calls += "archive" },
+      onAssign = { calls += "assign" },
+      onMarkReviewed = { calls += "reviewed" },
+      onMemberChosen = { calls += "member:${it.userId}" },
+      onUnassign = { calls += "unassign" },
+      onNotMe = { calls += "notMe" },
+      onRetryMembers = { calls += "retryMembers" },
+      onCloseHandled = { calls += "closeHandled" },
+      onUndo = { calls += "undo:${it.action.id}" },
+    )
+
+  @Test
+  fun theActionBar_offersResolveArchiveAssign_andReviewedOnlyWhenUpForReview() {
+    show(loaded, actions = recording())
+
+    composeTestRule.onNodeWithTag(DetailTags.RESOLVE).performClick()
+    composeTestRule.onNodeWithTag(DetailTags.ARCHIVE).performClick()
+    composeTestRule.onNodeWithTag(DetailTags.ASSIGN).performClick()
+    composeTestRule.onNodeWithTag(DetailTags.MARK_REVIEWED).assertDoesNotExist()
+
+    assertEquals(listOf("resolve", "archive", "assign"), calls)
+  }
+
+  @Test
+  fun reviewed_isOfferedWhileUpForReview() {
+    show(loaded.copy(summary = summary.copy(isUpForReview = true)), actions = recording())
+
+    composeTestRule.onNodeWithTag(DetailTags.MARK_REVIEWED).performClick()
+
+    assertEquals(listOf("reviewed"), calls)
+  }
+
+  @Test
+  fun noActions_withoutASummary() {
+    show(IssueDetailUiState(issueId = "4201"), actions = recording())
+
+    composeTestRule.onNodeWithTag(DetailTags.RESOLVE).assertDoesNotExist()
+  }
+
+  @Test
+  fun afterResolve_theScreenCloses() {
+    show(loaded.copy(closeRequested = true), actions = recording())
+
+    composeTestRule.waitForIdle()
+    assertEquals(listOf("closeHandled", "back"), calls)
+  }
+
+  @Test
+  fun theAssignee_isShown_whenKnown() {
+    show(loaded.copy(summary = summary.copy(isFresh = true, assignedTo = "Ana Silva")))
+    composeTestRule.onNodeWithText("Assigned to Ana Silva").assertIsDisplayed()
+  }
+
+  @Test
+  fun aPendingAssignment_showsAtOnce_overSentrysAssignee() {
+    show(loaded.copy(summary = summary.copy(isFresh = true), overlay = IssueOverlay(assignment = Assignment(ben))))
+    composeTestRule.onNodeWithText("Assigned to Ben Okafor").assertIsDisplayed()
+  }
+
+  @Test
+  fun theSheet_asksWhoIsMe_first() {
+    show(loaded.copy(assignSheet = AssignSheetState(isLoading = false, members = listOf(ana, ben))), actions = recording())
+
+    composeTestRule.onNodeWithText("Which one is you?").assertIsDisplayed()
+    composeTestRule.onNodeWithText("Ana Silva").performClick()
+
+    assertEquals(listOf("member:41"), calls)
+  }
+
+  @Test
+  fun theSheet_offersMeUnassignedAndEveryoneElse() {
+    show(loaded.copy(assignSheet = AssignSheetState(isLoading = false, members = listOf(ana, ben), me = ana)), actions = recording())
+
+    composeTestRule.onNodeWithText("Assign to me (Ana Silva)").performClick()
+    composeTestRule.onNodeWithText("Unassigned").performClick()
+    composeTestRule.onNodeWithText("Ben Okafor").performClick()
+    composeTestRule.onNodeWithTag(DetailTags.NOT_ME).performClick()
+
+    assertEquals(listOf("member:41", "unassign", "member:42", "notMe"), calls)
+  }
+
+  @Test
+  fun membersThatFailToLoad_offerRetry_andUnassignedStillWorks() {
+    show(loaded.copy(assignSheet = AssignSheetState(isLoading = false, error = DetailError.Network)), actions = recording())
+
+    composeTestRule.onNodeWithText("Retry").performClick()
+    composeTestRule.onNodeWithText("Unassigned").performClick()
+
+    assertEquals(listOf("retryMembers", "unassign"), calls)
+  }
+
+  @Test
+  fun aPendingAssignment_offersUndo() {
+    show(loaded.copy(notice = ActionNotice.Pending(SubmittedAction(5, "4201", "TRIAGE-DEMO-1A", IssueAction.Assign(ana)))), actions = recording())
+
+    composeTestRule.onNodeWithText("Assigned TRIAGE-DEMO-1A to Ana Silva").assertIsDisplayed()
+    composeTestRule.onNodeWithText("Undo").performClick()
+
+    assertTrue("undo:5" in calls)
   }
 }

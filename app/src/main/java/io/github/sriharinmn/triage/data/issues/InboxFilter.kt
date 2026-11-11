@@ -41,3 +41,7 @@ data class InboxFilter(
 
   private fun String?.keyPart(): String = if (this == null) "*" else "=" + URLEncoder.encode(this, "UTF-8")
 }
+
+/** How every cached list key of this tab starts; see [InboxFilter.listKey]. */
+val InboxTab.listKeyPrefix: String
+  get() = "$name|"

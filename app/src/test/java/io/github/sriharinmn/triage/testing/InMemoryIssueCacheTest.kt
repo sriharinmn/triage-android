@@ -191,4 +191,20 @@ class InMemoryIssueCacheTest {
     assertEquals("First", cache.issue("1")?.title)
     assertNull(cache.issue("2"))
   }
+
+  @Test
+  fun removeFromLists_dropsTheIssueFromMatchingListsOnly() = runTest {
+    cache.replaceList("ForReview|*|*|LastSeen", listOf(issue("1"), issue("2")), null, t0)
+    cache.replaceList("Unresolved|*|*|LastSeen", listOf(issue("1")), null, t0)
+
+    cache.removeFromLists("1", "ForReview|")
+
+    assertEquals(listOf("2"), cache.observeIssues("ForReview|*|*|LastSeen").first().map { it.id })
+    assertEquals(listOf("1"), cache.observeIssues("Unresolved|*|*|LastSeen").first().map { it.id })
+
+    cache.removeFromLists("1", "")
+
+    assertTrue(cache.observeIssues("Unresolved|*|*|LastSeen").first().isEmpty())
+    assertTrue("1" !in cache.storedIssueIds)
+  }
 }

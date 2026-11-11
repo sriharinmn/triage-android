@@ -22,4 +22,11 @@ class MainActivity : ComponentActivity() {
       }
     }
   }
+
+  override fun onStop() {
+    super.onStop()
+    // Leaving the app ends every Undo window: send what's pending while the process is still sure to be alive. A
+    // rotation also stops the activity, but the user is still here, so the window keeps running.
+    if (!isChangingConfigurations) (application as TriageApplication).container.pendingActions.flushNow()
+  }
 }

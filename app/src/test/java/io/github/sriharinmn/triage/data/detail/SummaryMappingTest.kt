@@ -3,6 +3,7 @@ package io.github.sriharinmn.triage.data.detail
 import io.github.sriharinmn.triage.data.issues.IssueBadge
 import io.github.sriharinmn.triage.data.issues.IssueLevel
 import io.github.sriharinmn.triage.data.issues.toIssue
+import io.github.sriharinmn.triage.remote.AssigneeDto
 import io.github.sriharinmn.triage.remote.IssueDetailDto
 import io.github.sriharinmn.triage.remote.SentryJson
 import io.github.sriharinmn.triage.remote.TagDetailDto
@@ -10,6 +11,8 @@ import io.github.sriharinmn.triage.testing.issueDto
 import io.github.sriharinmn.triage.testing.readFixture
 import java.time.Instant
 import kotlinx.serialization.decodeFromString
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -18,6 +21,36 @@ import org.junit.Test
 
 class SummaryMappingTest {
   private val detail = SentryJson.decodeFromString<IssueDetailDto>(readFixture("issue_detail.json"))
+
+  @Test
+  fun freshIssue_saysWhoItIsAssignedTo_andWhetherItIsUpForReview() {
+    val unassigned = detail.toSummary(cached = null)
+    assertNull(unassigned.assignedTo)
+    assertFalse(unassigned.isUpForReview)
+    assertTrue(unassigned.isFresh)
+
+    val assigned =
+      detail
+        .copy(
+          assignedTo = AssigneeDto(type = "user", id = "41", name = "Ana Silva", email = "ana@example.com"),
+          inbox = buildJsonObject { put("reason", 0) },
+        )
+        .toSummary(cached = null)
+
+    assertEquals("Ana Silva", assigned.assignedTo)
+    assertTrue(assigned.isUpForReview)
+  }
+
+  @Test
+  fun aTeamAssignee_isWrittenAsSentryDoes_andAPersonWithoutANameByEmail() {
+    assertEquals("#backend", detail.copy(assignedTo = AssigneeDto(type = "team", id = "7", name = "backend")).toSummary(null).assignedTo)
+    assertEquals("ana@example.com", detail.copy(assignedTo = AssigneeDto(type = "user", email = "ana@example.com")).toSummary(null).assignedTo)
+  }
+
+  @Test
+  fun aCachedRow_isNotFresh() {
+    assertFalse(issueDto("7").toIssue().toSummary().isFresh)
+  }
 
   @Test
   fun freshIssue_fillsTheWholeSummary() {

@@ -12,6 +12,11 @@ object DetailTags {
   const val SHOW_ALL_BREADCRUMBS = "detail_show_all_breadcrumbs"
   const val TREND_24H = "detail_trend_24h"
   const val TREND_30D = "detail_trend_30d"
+  const val RESOLVE = "detail_resolve"
+  const val ARCHIVE = "detail_archive"
+  const val ASSIGN = "detail_assign"
+  const val MARK_REVIEWED = "detail_mark_reviewed"
+  const val NOT_ME = "detail_not_me"
 
   fun eventChip(kind: EventKind) = "detail_event_${kind.name}"
 

@@ -5,9 +5,11 @@ import io.github.sriharinmn.triage.data.issues.IssueLevel
 import io.github.sriharinmn.triage.data.issues.badgeFromSubstatus
 import io.github.sriharinmn.triage.data.issues.bucketCounts
 import io.github.sriharinmn.triage.data.issues.toInstantOrNull
+import io.github.sriharinmn.triage.remote.AssigneeDto
 import io.github.sriharinmn.triage.remote.IssueDetailDto
 import io.github.sriharinmn.triage.remote.ReleaseDto
 import io.github.sriharinmn.triage.remote.TagDetailDto
+import kotlinx.serialization.json.JsonObject
 
 /** At most this many tags get a distribution on screen; each costs one request. */
 const val MAX_SHOWN_TAGS = 5
@@ -70,6 +72,9 @@ fun IssueDetailDto.toSummary(cached: IssueSummary?): IssueSummary =
     firstRelease = firstRelease?.displayName(),
     lastRelease = lastRelease?.displayName(),
     tagKeys = tags.map { it.key }.distinct(),
+    assignedTo = assignedTo?.displayName(),
+    isUpForReview = inbox is JsonObject,
+    isFresh = true,
   )
 
 private fun ReleaseDto.displayName(): String? = shortVersion ?: version
@@ -87,4 +92,10 @@ fun chooseTagKeys(keys: List<String>): List<String> {
   val preferred = PREFERRED_TAG_GROUPS.mapNotNull { group -> group.firstOrNull { it in present } }
   val grouped = PREFERRED_TAG_GROUPS.flatten().toSet()
   return (preferred + keys.filter { it !in grouped }).distinct().take(MAX_SHOWN_TAGS)
+}
+
+/** A person by name, or else email; a team as "#name", the way Sentry writes it. */
+private fun AssigneeDto.displayName(): String? {
+  val label = name?.takeIf { it.isNotBlank() } ?: email ?: return null
+  return if (type == "team") "#$label" else label
 }

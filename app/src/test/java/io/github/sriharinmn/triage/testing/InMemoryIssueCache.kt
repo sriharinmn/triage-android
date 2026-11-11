@@ -90,6 +90,15 @@ class InMemoryIssueCache : IssueCache {
     }
   }
 
+  override suspend fun removeFromLists(issueId: String, listKeyPrefix: String) {
+    writeError?.let { throw it }
+    state.update { s ->
+      val entries = s.entries.mapValues { (key, ids) -> if (key.startsWith(listKeyPrefix)) ids - issueId else ids }
+      val used = entries.values.flatMapTo(HashSet()) { it }
+      s.copy(issues = s.issues.filterKeys { it in used }, entries = entries)
+    }
+  }
+
   override fun observeProjects(): Flow<List<Project>> = state.map { it.projects }.distinctUntilChanged()
 
   override suspend fun replaceProjects(projects: List<Project>) {

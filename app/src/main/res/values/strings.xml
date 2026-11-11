@@ -158,4 +158,32 @@
     </plurals>
     <string name="detail_status_resolved">Resolved</string>
     <string name="detail_status_archived">Archived</string>
+    <string name="action_resolve">Resolve</string>
+    <string name="action_archive">Archive</string>
+    <string name="action_assign">Assign</string>
+    <string name="action_mark_reviewed">Reviewed</string>
+    <string name="action_undo">Undo</string>
+    <string name="action_resolved">Resolved %1$s</string>
+    <string name="action_archived">Archived %1$s</string>
+    <string name="action_assigned">Assigned %1$s to %2$s</string>
+    <string name="action_unassigned">Unassigned %1$s</string>
+    <string name="action_reviewed">Marked %1$s reviewed</string>
+    <string name="action_resolve_failed">Couldn\'t resolve %1$s.</string>
+    <string name="action_archive_failed">Couldn\'t archive %1$s.</string>
+    <string name="action_assign_failed">Couldn\'t assign %1$s.</string>
+    <string name="action_review_failed">Couldn\'t mark %1$s reviewed.</string>
+    <string name="action_failed_with_reason">%1$s %2$s</string>
+    <string name="action_error_forbidden">Your token can\'t change issues. Create a new Personal Token with Issue &amp; Event Read &amp; Write, then reconnect.</string>
+    <string name="action_error_not_found">%1$s no longer exists.</string>
+
+    <string name="assign_title">Assign to</string>
+    <string name="assign_who_are_you">Which one is you?</string>
+    <string name="assign_who_are_you_hint">Triage remembers this, so Assign to me is one tap.</string>
+    <string name="assign_to_me">Assign to me (%1$s)</string>
+    <string name="assign_unassigned">Unassigned</string>
+    <string name="assign_not_you">Not you? Change</string>
+    <string name="assign_loading">Loading members…</string>
+    <string name="assign_no_members">No one in this organization can be assigned yet.</string>
+    <string name="detail_assigned_to">Assigned to %1$s</string>
+    <string name="detail_unassigned">Unassigned</string>
 </resources>

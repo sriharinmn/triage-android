@@ -130,6 +130,15 @@ class IssueRepository(
     }
   }
 
+  /**
+   * Takes [issueId] out of the cached lists once Sentry accepted an action on it: every list, or only [tab]'s. Like a
+   * load, it writes nothing if the account's data was forgotten meanwhile.
+   */
+  suspend fun forget(issueId: String, tab: InboxTab? = null): LoadResult {
+    val startedIn = generation.get()
+    return storing(startedIn) { cache.removeFromLists(issueId, tab?.listKeyPrefix ?: "") }
+  }
+
   /** Forgets every cached list and project and lifts the shared rate-limit hold; used when the account's data is forgotten. */
   suspend fun clear() {
     writeLock.withLock {

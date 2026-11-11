@@ -78,6 +78,18 @@ abstract class CacheDao {
   @Query("DELETE FROM issues WHERE id NOT IN (SELECT issueId FROM issue_list_entries)")
   abstract suspend fun deleteOrphanIssues()
 
+  // substr rather than LIKE, so a "_" or "%" in a key can never act as a wildcard.
+  @Query(
+    "DELETE FROM issue_list_entries WHERE issueId = :issueId AND substr(listKey, 1, length(:listKeyPrefix)) = :listKeyPrefix"
+  )
+  abstract suspend fun deleteEntriesOf(issueId: String, listKeyPrefix: String)
+
+  @Transaction
+  open suspend fun removeFromLists(issueId: String, listKeyPrefix: String) {
+    deleteEntriesOf(issueId, listKeyPrefix)
+    deleteOrphanIssues()
+  }
+
   @Transaction
   open suspend fun prune(cutoffMillis: Long) {
     deleteEntriesOfListsOlderThan(cutoffMillis)

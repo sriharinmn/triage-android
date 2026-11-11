@@ -2,7 +2,12 @@ package io.github.sriharinmn.triage.ui.inbox
 
 import io.github.sriharinmn.triage.data.AccountDataCleaner
 import io.github.sriharinmn.triage.data.Disconnector
+import io.github.sriharinmn.triage.data.RateLimitGate
 import io.github.sriharinmn.triage.data.account.AccountRepository
+import io.github.sriharinmn.triage.data.actions.ActionNotice
+import io.github.sriharinmn.triage.data.actions.IssueAction
+import io.github.sriharinmn.triage.data.actions.IssueActionRepository
+import io.github.sriharinmn.triage.data.actions.PendingActions
 import io.github.sriharinmn.triage.data.issues.InboxError
 import io.github.sriharinmn.triage.data.issues.InboxFilter
 import io.github.sriharinmn.triage.data.issues.InboxTab
@@ -25,8 +30,12 @@ import io.github.sriharinmn.triage.testing.projectDto
 import java.io.IOException
 import java.time.Duration
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.test.advanceTimeBy
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withContext
 import org.junit.Assert.assertEquals
@@ -37,6 +46,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 
+@OptIn(ExperimentalCoroutinesApi::class)
 class InboxViewModelTest {
   // Unconfined Main: each action runs to completion (or to a gate) before the test's next line.
   @get:Rule val mainDispatcherRule = MainDispatcherRule()
@@ -50,7 +60,12 @@ class InboxViewModelTest {
   private val disconnector =
     Disconnector(AccountRepository(api, accountStore), AccountDataCleaner(repository, settings))
 
-  private fun viewModel() = InboxViewModel(TEST_ACCOUNT, repository, settings, disconnector, clock::now)
+  private lateinit var pendingActions: PendingActions
+
+  private fun TestScope.viewModel(): InboxViewModel {
+    pendingActions = PendingActions(IssueActionRepository(api, RateLimitGate(clock::now)), repository, backgroundScope)
+    return InboxViewModel(TEST_ACCOUNT, repository, settings, disconnector, pendingActions, clock::now)
+  }
 
   private fun page(vararg ids: String, next: String? = null): ApiResult<Page<IssueDto>> =
     ApiResult.Success(Page(ids.map { issueDto(it) }, next))
@@ -59,6 +74,137 @@ class InboxViewModelTest {
 
   private suspend fun cacheList(filter: InboxFilter, ids: List<String>, age: Duration) =
     cache.replaceList(filter.listKey, ids.map { issueDto(it).toIssue() }, null, clock.now() - age)
+
+  @Test
+  fun aResolvedRow_disappearsAtOnce_andUndoBringsItBack() = runTest {
+    api.issuesHandler = { page("1", "2") }
+    val vm = viewModel()
+
+    vm.onResolve(vm.state.value.issues.first())
+
+    assertEquals(listOf("2"), vm.ids())
+    val notice = vm.state.value.notice as ActionNotice.Pending
+    assertEquals(IssueAction.Resolve, notice.action.action)
+    assertEquals("DEMO-1", notice.action.shortId)
+    vm.onUndo(notice)
+    assertEquals(listOf("1", "2"), vm.ids())
+    assertNull(vm.state.value.notice)
+  }
+
+  @Test
+  fun anArchivedRow_staysGoneOnceSentryAcceptsIt() = runTest {
+    api.issuesHandler = { page("1", "2") }
+    val vm = viewModel()
+
+    vm.onArchive(vm.state.value.issues.first())
+    advanceTimeBy(PendingActions.UNDO_WINDOW.inWholeMilliseconds + 1)
+    runCurrent()
+
+    assertEquals(listOf("2"), vm.ids())
+    assertEquals("""{"status":"ignored","substatus":"archived_until_escalating","statusDetails":{}}""", api.updateCalls.single().second.toString())
+  }
+
+  @Test
+  fun aRowMarkedReviewed_leavesOnlyForReview() = runTest {
+    api.issuesHandler = { page("1", "2") }
+    val vm = viewModel()
+
+    pendingActions.submit(TEST_ACCOUNT, "1", "DEMO-1", IssueAction.MarkReviewed)
+    assertEquals(listOf("1", "2"), vm.ids())
+    vm.onTabSelected(InboxTab.ForReview)
+
+    assertEquals(listOf("2"), vm.ids())
+  }
+
+  @Test
+  fun aReviewListLoadedAfterAMarkReviewedWentThrough_showsTheIssueAgain() = runTest {
+    api.issuesHandler = { page("1", "2") }
+    val vm = viewModel()
+    vm.onTabSelected(InboxTab.ForReview)
+    pendingActions.submit(TEST_ACCOUNT, "1", "DEMO-1", IssueAction.MarkReviewed)
+    advanceTimeBy(PendingActions.UNDO_WINDOW.inWholeMilliseconds + 1)
+    runCurrent()
+    assertEquals(listOf("2"), vm.ids())
+
+    // Sentry has put it up for review again.
+    vm.onRefresh()
+
+    assertEquals(listOf("1", "2"), vm.ids())
+  }
+
+  @Test
+  fun aReviewListLoadedBeforeAMarkReviewedWentThrough_keepsTheIssueHidden() = runTest {
+    api.issuesHandler = { page("1", "2") }
+    val vm = viewModel()
+    vm.onTabSelected(InboxTab.ForReview)
+    pendingActions.submit(TEST_ACCOUNT, "1", "DEMO-1", IssueAction.MarkReviewed)
+    val gate = CompletableDeferred<Unit>()
+    // Sentry answers with the list as it was before the change arrived.
+    api.issuesHandler = {
+      gate.await()
+      page("1", "2")
+    }
+    vm.onRefresh()
+
+    advanceTimeBy(PendingActions.UNDO_WINDOW.inWholeMilliseconds + 1)
+    runCurrent()
+    gate.complete(Unit)
+
+    assertEquals(listOf("2"), vm.ids())
+  }
+
+  @Test
+  fun aFailedAction_bringsTheRowBack_andCanBeRetried() = runTest {
+    api.issuesHandler = { page("1", "2") }
+    api.updateHandler = { _, _ -> ApiResult.Failure(ApiError.Network("offline")) }
+    val vm = viewModel()
+
+    vm.onResolve(vm.state.value.issues.first())
+    advanceTimeBy(PendingActions.UNDO_WINDOW.inWholeMilliseconds + 1)
+    runCurrent()
+
+    assertEquals(listOf("1", "2"), vm.ids())
+    val failed = vm.state.value.notice as ActionNotice.Failed
+    vm.onRetryAction(failed)
+    assertEquals(listOf("2"), vm.ids())
+    assertEquals(IssueAction.Resolve, (vm.state.value.notice as ActionNotice.Pending).action.action)
+  }
+
+  @Test
+  fun aRetryWhileDisconnecting_sendsNothing() = runTest {
+    api.issuesHandler = { page("1", "2") }
+    api.updateHandler = { _, _ -> ApiResult.Failure(ApiError.Network("offline")) }
+    val vm = viewModel()
+    vm.onResolve(vm.state.value.issues.first())
+    advanceTimeBy(PendingActions.UNDO_WINDOW.inWholeMilliseconds + 1)
+    runCurrent()
+    val failed = vm.state.value.notice as ActionNotice.Failed
+    val gate = CompletableDeferred<Unit>()
+    cache.clearGate = gate
+    vm.onDisconnectConfirmed()
+
+    vm.onRetryAction(failed)
+    advanceTimeBy(PendingActions.UNDO_WINDOW.inWholeMilliseconds + 1)
+    runCurrent()
+
+    assertEquals(1, api.updateCalls.size)
+    assertEquals(failed, vm.state.value.notice)
+    gate.complete(Unit)
+  }
+
+  @Test
+  fun noSwipesWhileDisconnecting() = runTest {
+    api.issuesHandler = { page("1") }
+    val vm = viewModel()
+    val gate = CompletableDeferred<Unit>()
+    cache.clearGate = gate
+    vm.onDisconnectConfirmed()
+
+    vm.onResolve(vm.state.value.issues.first())
+
+    assertNull(pendingActions.notice.value)
+    gate.complete(Unit)
+  }
 
   @Test
   fun opens_onTheSavedFilter_andLoadsIt() = runTest {
