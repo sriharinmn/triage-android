@@ -1,6 +1,7 @@
 package io.github.sriharinmn.triage
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.viewmodel.navigation3.rememberViewModelStoreNavEntryDecorator
 import androidx.navigation3.runtime.NavKey
@@ -9,6 +10,7 @@ import androidx.navigation3.runtime.rememberNavBackStack
 import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
 import androidx.navigation3.ui.NavDisplay
 import io.github.sriharinmn.triage.data.account.Account
+import io.github.sriharinmn.triage.data.issues.InboxTab
 import io.github.sriharinmn.triage.ui.alerts.AlertsScreen
 import io.github.sriharinmn.triage.ui.alerts.AlertsViewModel
 import io.github.sriharinmn.triage.ui.alerts.DeepLink
@@ -20,10 +22,10 @@ import io.github.sriharinmn.triage.ui.inbox.InboxViewModel
 /** Screens available once an account is connected, opened where a tapped notification's [deepLink] points. */
 @Composable
 fun TriageNavigation(account: Account, container: AppContainer, deepLink: DeepLink? = null) {
-  // A link from a notification applies only to the org it was about; after connecting to another org it is ignored.
-  val link = deepLink?.takeIf { it.orgSlug == account.orgSlug }
+  // Worked out once: TriageApp clears the link after this composition, but the start must not change with it.
+  val start = remember { startFor(deepLink, account.orgSlug) }
   TriageNavDisplay(
-    initialStack = if (link is DeepLink.OpenIssue) listOf(Inbox, IssueDetail(link.issueId)) else listOf(Inbox),
+    initialStack = start.stack,
     inbox = { onOpenIssue, onOpenAlerts ->
       // AccountGate gives these screens a per-account ViewModel store, so this ViewModel is dropped on disconnect;
       // the key also names the account.
@@ -37,7 +39,7 @@ fun TriageNavigation(account: Account, container: AppContainer, deepLink: DeepLi
             container.pendingActions,
             container.alertSettings,
             container.alertState,
-            openTab = (link as? DeepLink.OpenInbox)?.tab,
+            openTab = start.inboxTab,
           )
         }
       InboxScreen(inboxViewModel, onOpenIssue = onOpenIssue, onOpenAlerts = onOpenAlerts)
@@ -67,6 +69,20 @@ fun TriageNavigation(account: Account, container: AppContainer, deepLink: DeepLi
     },
   )
 }
+
+/** Where a fresh signed-in start opens: the back stack, and the inbox tab to show first (a summary's strongest kind). */
+internal data class Start(val stack: List<NavKey> = listOf(Inbox), val inboxTab: InboxTab? = null)
+
+/**
+ * A link from a notification applies only to the org it was about; after connecting to another org it is ignored, as
+ * is no link at all: both start on the plain inbox.
+ */
+internal fun startFor(link: DeepLink?, orgSlug: String): Start =
+  when (val valid = link?.takeIf { it.orgSlug == orgSlug }) {
+    is DeepLink.OpenIssue -> Start(stack = listOf(Inbox, IssueDetail(valid.issueId)))
+    is DeepLink.OpenInbox -> Start(inboxTab = valid.tab)
+    null -> Start()
+  }
 
 /**
  * The signed-in back stack: the inbox, with an issue's detail or the Alerts screen pushed on top. [initialStack] is where a
