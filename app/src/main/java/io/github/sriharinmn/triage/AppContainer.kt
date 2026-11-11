@@ -27,6 +27,9 @@ import io.github.sriharinmn.triage.local.RoomIssueCache
 import io.github.sriharinmn.triage.local.TriageDatabase
 import io.github.sriharinmn.triage.remote.OkHttpSentryApi
 import io.github.sriharinmn.triage.remote.SentryApi
+import androidx.work.WorkManager
+import io.github.sriharinmn.triage.data.alerts.WorkManagerAlertWork
+import io.github.sriharinmn.triage.ui.alerts.AlertNotifier
 import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -73,6 +76,12 @@ class AppContainer(context: Context) {
   val pendingActions = PendingActions(IssueActionRepository(sentryApi, rateLimitGate), issueRepository, applicationScope)
 
   val members = MembersRepository(sentryApi, rateLimitGate, accountPrefs)
+
+  /** Triage's notifications: alerts, and the Undo and failure states of notification actions. */
+  val alertNotifier = AlertNotifier(appContext)
+
+  /** The periodic check and the notification actions waiting out their Undo window, in WorkManager. */
+  val alertWork = WorkManagerAlertWork { WorkManager.getInstance(appContext) }
 
   private val accountDataCleaner =
     AccountDataCleaner(

@@ -186,4 +186,42 @@
     <string name="assign_no_members">No one in this organization can be assigned yet.</string>
     <string name="detail_assigned_to">Assigned to %1$s</string>
     <string name="detail_unassigned">Unassigned</string>
+    <string name="alerts_channel_new">New issues</string>
+    <string name="alerts_channel_regressed">Regressed issues</string>
+    <string name="alerts_channel_escalating">Escalating issues</string>
+    <string name="alerts_channel_status">Alert status</string>
+    <string name="alerts_channel_status_description">Undo, failed actions and connection problems</string>
+    <string name="alerts_single_title">%1$s · %2$s</string>
+    <string name="alerts_open">Open</string>
+    <string name="alerts_summary_text">Tap to open the inbox</string>
+    <string name="alerts_summary_in_project">%1$s in %2$s</string>
+    <plurals name="alerts_count_new">
+        <item quantity="one">%1$d new issue</item>
+        <item quantity="other">%1$d new issues</item>
+    </plurals>
+    <plurals name="alerts_count_regressed">
+        <item quantity="one">%1$d regressed issue</item>
+        <item quantity="other">%1$d regressed issues</item>
+    </plurals>
+    <plurals name="alerts_count_escalating">
+        <item quantity="one">%1$d escalating issue</item>
+        <item quantity="other">%1$d escalating issues</item>
+    </plurals>
+    <plurals name="alerts_count_new_short">
+        <item quantity="one">%1$d new</item>
+        <item quantity="other">%1$d new</item>
+    </plurals>
+    <plurals name="alerts_count_regressed_short">
+        <item quantity="one">%1$d regressed</item>
+        <item quantity="other">%1$d regressed</item>
+    </plurals>
+    <plurals name="alerts_count_escalating_short">
+        <item quantity="one">%1$d escalating</item>
+        <item quantity="other">%1$d escalating</item>
+    </plurals>
+    <string name="alerts_resolving">Resolving %1$s…</string>
+    <string name="alerts_archiving">Archiving %1$s…</string>
+    <string name="alerts_auth_title">Triage can\'t check Sentry</string>
+    <string name="alerts_auth_text">Open Triage to reconnect.</string>
+    <string name="alerts_group_title">Issue alerts</string>
 </resources>
