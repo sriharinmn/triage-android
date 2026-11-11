@@ -101,4 +101,8 @@ dependencies {
   implementation(libs.androidx.datastore.preferences)
   implementation(libs.androidx.room.runtime)
   ksp(libs.androidx.room.compiler)
+
+  // Background alert checks and notification actions. work-testing needs a real Context, so it's for device tests only.
+  implementation(libs.androidx.work.runtime.ktx)
+  androidTestImplementation(libs.androidx.work.testing)
 }
