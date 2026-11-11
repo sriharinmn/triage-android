@@ -77,7 +77,7 @@ class AlertCheckerTest {
   }
 
   @Test
-  fun aNewBaselineRequest_onlyRecords_andDropsTheBacklog() = runTest {
+  fun aNewBaselineRequest_onlyRecords_butKeepsTheQuietHoursBacklog() = runTest {
     regressedIssues = listOf(issueDto("2"))
 
     val outcome =
@@ -85,7 +85,27 @@ class AlertCheckerTest {
 
     assertTrue(outcome.findings.isEmpty())
     assertEquals(2L, outcome.next.baselineFor)
+    assertEquals(mapOf("9" to AlertKind.New), outcome.next.backlog)
+  }
+
+  @Test
+  fun aBaseline_dropsABacklogFromBeforeTheLookbackCap() = runTest {
+    val stale = settled.copy(lastSuccessAt = clock.now() - Duration.ofHours(25), backlog = mapOf("9" to AlertKind.New))
+
+    val outcome = check(settings = on.copy(baselineRequest = 2), state = stale).checked()
+
     assertTrue(outcome.next.backlog.isEmpty())
+  }
+
+  @Test
+  fun aBaseline_keepsOnlyTheBacklogOfKindsStillOn() = runTest {
+    val held = settled.copy(backlog = mapOf("9" to AlertKind.New, "8" to AlertKind.Regressed))
+
+    val outcome =
+      check(settings = on.copy(baselineRequest = 2, kinds = setOf(AlertKind.Regressed, AlertKind.Escalating)), state = held)
+        .checked()
+
+    assertEquals(mapOf("8" to AlertKind.Regressed), outcome.next.backlog)
   }
 
   @Test

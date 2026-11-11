@@ -123,8 +123,15 @@ class AlertChecker(private val api: SentryApi, private val gate: RateLimitGate) 
         escalating = escalatingPage.mapTo(mutableSetOf()) { it.id },
         alertedNew =
           (recentNew + newPage.associate { it.id to (it.firstSeen.toInstantOrNull() ?: now) }).filterValues { it > lookbackStart },
-        // A baseline starts afresh; a kind switched off no longer shows in the summary.
-        backlog = if (baseline) emptyMap() else state.backlog.filterValues { it in settings.kinds },
+        // A baseline only means "don't alert on what already existed": issues held back by quiet hours came from earlier
+        // checks and still become their summary. A backlog older than the lookback cap is stale, so it goes. A kind
+        // switched off no longer shows in the summary.
+        backlog =
+          if (baseline && !(state.lastSuccessAt != null && state.lastSuccessAt >= lookbackStart)) {
+            emptyMap()
+          } else {
+            state.backlog.filterValues { it in settings.kinds }
+          },
         authProblemNotified = false,
       )
     return CheckOutcome.Checked(

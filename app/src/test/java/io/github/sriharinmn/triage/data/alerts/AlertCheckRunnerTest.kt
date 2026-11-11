@@ -134,6 +134,27 @@ class AlertCheckRunnerTest {
   }
 
   @Test
+  fun aKindSwitchedOnDuringQuietHours_stillPostsTheBacklogAfterTheWindow() = runTest {
+    clock.current = Instant.parse("2026-11-11T23:00:00Z")
+    settingsStore.setQuietHours(QuietHours(enabled = true))
+    settingsStore.setKind(AlertKind.Escalating, on = false)
+    baseline()
+    regressedIssues = listOf(issueDto("4"))
+    runner.runCheck()
+    assertEquals(mapOf("4" to AlertKind.Regressed), stateStore.state.first().backlog)
+
+    // A baseline check, still inside the window.
+    settingsStore.setKind(AlertKind.Escalating, on = true)
+    runner.runCheck()
+    assertTrue(poster.posts.isEmpty())
+
+    clock.current = Instant.parse("2026-11-12T07:15:00Z")
+    runner.runCheck()
+
+    assertEquals(AlertPost.Summary(mapOf(AlertKind.Regressed to 1), projectSlug = null), poster.posts.single().second)
+  }
+
+  @Test
   fun aRejectedToken_isReportedOnce_andPausesChecks_untilTheInboxLoadsAgain() = runTest {
     baseline()
     val callsBefore = api.issueCalls.size
@@ -239,6 +260,7 @@ class AlertCheckRunnerTest {
   @Test
   fun twoChecksAtOnce_runOneAfterTheOther_andAlertOnce() = runTest {
     baseline()
+    val callsAfterBaseline = api.issueCalls.size
     regressedIssues = listOf(issueDto("4"))
     val answered = CompletableDeferred<Unit>()
     api.issuesHandler = { call ->
@@ -254,6 +276,8 @@ class AlertCheckRunnerTest {
     second.join()
 
     assertEquals(1, poster.posts.size)
+    // Both checks searched (3 kinds each), one after the other, rather than the second being dropped.
+    assertEquals(callsAfterBaseline + 6, api.issueCalls.size)
   }
 
   @Test
