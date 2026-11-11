@@ -262,13 +262,13 @@ private fun WarningRow(text: String, tag: String, onClick: () -> Unit) {
     leadingContent = {
       Icon(painterResource(R.drawable.ic_warning), contentDescription = null, tint = MaterialTheme.colorScheme.error)
     },
-    modifier = Modifier.testTag(tag).clickable(onClick = onClick),
+    modifier = Modifier.testTag(tag).clickable(role = Role.Button, onClick = onClick),
   )
 }
 
 @Composable
 private fun TimeRow(text: String, tag: String, onClick: () -> Unit) {
-  ListItem(headlineContent = { Text(text) }, modifier = Modifier.testTag(tag).clickable(onClick = onClick))
+  ListItem(headlineContent = { Text(text) }, modifier = Modifier.testTag(tag).clickable(role = Role.Button, onClick = onClick))
 }
 
 @Composable

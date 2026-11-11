@@ -134,7 +134,9 @@ class AppContainer(context: Context) {
           AccountScoped { pendingActions.clear() },
           AccountScoped { members.clear() },
           AccountScoped { accountPrefs.clear() },
-          // Clears alert_state and takes down Triage's notifications; a check still running saves nothing.
+          // Clears alert_state and takes down Triage's notifications; a check still running saves nothing. It must run
+          // before alertSettings.clear(): clearing the settings restarts the baseline counter at 0, so the stored
+          // alert_state.baselineFor has to be gone first, or a reconnect could match it and skip its baseline.
           AccountScoped { alertCheckRunner.forget() },
           AccountScoped { alertSettings.clear() },
         ),
