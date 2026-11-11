@@ -69,7 +69,7 @@ class InboxViewModelTest {
 
   private lateinit var pendingActions: PendingActions
 
-  private fun TestScope.viewModel(): InboxViewModel {
+  private fun TestScope.viewModel(openTab: InboxTab? = null): InboxViewModel {
     pendingActions = PendingActions(IssueActionRepository(api, RateLimitGate(clock::now)), repository, backgroundScope)
     return InboxViewModel(
       TEST_ACCOUNT,
@@ -79,6 +79,7 @@ class InboxViewModelTest {
       pendingActions,
       alertSettings,
       alertState,
+      openTab = openTab,
       clock = clock::now,
     )
   }
@@ -684,5 +685,15 @@ class InboxViewModelTest {
     vm.onRefresh()
 
     assertFalse(alertState.state.first().authProblemNotified)
+  }
+
+  @Test
+  fun aSummaryNotification_opensItsTab_withoutChangingTheRememberedOne() = runTest {
+    settings.save(InboxFilter(tab = InboxTab.Regressed))
+
+    val vm = viewModel(openTab = InboxTab.Escalating)
+
+    assertEquals(InboxTab.Escalating, vm.state.value.filter.tab)
+    assertEquals(InboxTab.Regressed, settings.current.tab)
   }
 }

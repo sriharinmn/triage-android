@@ -14,12 +14,13 @@ import androidx.lifecycle.viewmodel.compose.LocalViewModelStoreOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
 import io.github.sriharinmn.triage.data.account.Account
 import io.github.sriharinmn.triage.data.account.AccountState
+import io.github.sriharinmn.triage.ui.alerts.DeepLink
 import io.github.sriharinmn.triage.ui.connect.ConnectScreen
 import io.github.sriharinmn.triage.ui.connect.ConnectViewModel
 
-/** Shows Connect until an account is stored, then the main navigation. */
+/** Shows Connect until an account is stored, then the main navigation, opened where a tapped notification points. */
 @Composable
-fun TriageApp(container: AppContainer) {
+fun TriageApp(container: AppContainer, deepLink: DeepLink? = null) {
   val accountState by container.accountState.collectAsStateWithLifecycle()
   AccountGate(
     state = accountState,
@@ -27,7 +28,7 @@ fun TriageApp(container: AppContainer) {
       val connectViewModel: ConnectViewModel = viewModel { ConnectViewModel(container.accountRepository) }
       ConnectScreen(connectViewModel)
     },
-    signedIn = { account -> TriageNavigation(account = account, container = container) },
+    signedIn = { account -> TriageNavigation(account = account, container = container, deepLink = deepLink) },
   )
 }
 

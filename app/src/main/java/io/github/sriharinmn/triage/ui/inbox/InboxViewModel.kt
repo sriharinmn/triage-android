@@ -76,6 +76,8 @@ class InboxViewModel(
   private val pendingActions: PendingActions,
   private val alertSettings: AlertSettingsStore,
   private val alertState: AlertStateStore,
+  /** A summary notification's tab, shown instead of the remembered one (which stays as the user left it). */
+  private val openTab: InboxTab? = null,
   private val clock: () -> Instant = Instant::now,
 ) : ViewModel() {
   private val _state = MutableStateFlow(InboxUiState(orgName = account.orgName))
@@ -114,7 +116,8 @@ class InboxViewModel(
     viewModelScope.launch { issues.projects.collect(::onProjectsLoaded) }
     startupJob =
       viewModelScope.launch {
-        show(settings.filter.first(), persist = false)
+        val saved = settings.filter.first()
+        show(if (openTab != null) saved.copy(tab = openTab) else saved, persist = false)
         // A failure here only leaves the filter choices stale; the issue list reports errors itself.
         issues.refreshProjects(account)
       }

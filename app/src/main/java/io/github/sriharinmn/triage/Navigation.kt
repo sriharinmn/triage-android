@@ -11,15 +11,19 @@ import androidx.navigation3.ui.NavDisplay
 import io.github.sriharinmn.triage.data.account.Account
 import io.github.sriharinmn.triage.ui.alerts.AlertsScreen
 import io.github.sriharinmn.triage.ui.alerts.AlertsViewModel
+import io.github.sriharinmn.triage.ui.alerts.DeepLink
 import io.github.sriharinmn.triage.ui.detail.IssueDetailScreen
 import io.github.sriharinmn.triage.ui.detail.IssueDetailViewModel
 import io.github.sriharinmn.triage.ui.inbox.InboxScreen
 import io.github.sriharinmn.triage.ui.inbox.InboxViewModel
 
-/** Screens available once an account is connected. */
+/** Screens available once an account is connected, opened where a tapped notification's [deepLink] points. */
 @Composable
-fun TriageNavigation(account: Account, container: AppContainer) {
+fun TriageNavigation(account: Account, container: AppContainer, deepLink: DeepLink? = null) {
+  // A link from a notification applies only to the org it was about; after connecting to another org it is ignored.
+  val link = deepLink?.takeIf { it.orgSlug == account.orgSlug }
   TriageNavDisplay(
+    initialStack = if (link is DeepLink.OpenIssue) listOf(Inbox, IssueDetail(link.issueId)) else listOf(Inbox),
     inbox = { onOpenIssue, onOpenAlerts ->
       // AccountGate gives these screens a per-account ViewModel store, so this ViewModel is dropped on disconnect;
       // the key also names the account.
@@ -33,6 +37,7 @@ fun TriageNavigation(account: Account, container: AppContainer) {
             container.pendingActions,
             container.alertSettings,
             container.alertState,
+            openTab = (link as? DeepLink.OpenInbox)?.tab,
           )
         }
       InboxScreen(inboxViewModel, onOpenIssue = onOpenIssue, onOpenAlerts = onOpenAlerts)
@@ -64,16 +69,18 @@ fun TriageNavigation(account: Account, container: AppContainer) {
 }
 
 /**
- * The signed-in back stack: the inbox, with an issue's detail or the Alerts screen pushed on top. The screens come in as
- * lambdas so tests can drive the real back stack with stand-ins.
+ * The signed-in back stack: the inbox, with an issue's detail or the Alerts screen pushed on top. [initialStack] is where a
+ * fresh start opens (a notification's issue opens on top of the inbox). The screens come in as lambdas so tests can drive
+ * the real back stack with stand-ins.
  */
 @Composable
 internal fun TriageNavDisplay(
   inbox: @Composable (onOpenIssue: (issueId: String) -> Unit, onOpenAlerts: () -> Unit) -> Unit,
   issueDetail: @Composable (issueId: String, onBack: () -> Unit) -> Unit,
   alerts: @Composable (onBack: () -> Unit) -> Unit,
+  initialStack: List<NavKey> = listOf(Inbox),
 ) {
-  val backStack = rememberNavBackStack(Inbox)
+  val backStack = rememberNavBackStack(*initialStack.toTypedArray())
 
   NavDisplay(
     backStack = backStack,

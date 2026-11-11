@@ -20,6 +20,7 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.navigation3.runtime.NavKey
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -31,6 +32,7 @@ class TriageNavDisplayTest {
   @get:Rule val composeTestRule = createAndroidComposeRule<ComponentActivity>()
 
   private fun showStandIns(
+    initialStack: List<NavKey> = listOf(Inbox),
     issueDetail: @Composable (issueId: String, onBack: () -> Unit) -> Unit = { issueId, onBack ->
       Column {
         Text("Detail of $issueId")
@@ -40,6 +42,7 @@ class TriageNavDisplayTest {
   ) {
     composeTestRule.setContent {
       TriageNavDisplay(
+        initialStack = initialStack,
         inbox = { onOpenIssue, onOpenAlerts ->
           Column {
             Button(onClick = onOpenAlerts) { Text("Open alerts") }
@@ -94,6 +97,17 @@ class TriageNavDisplayTest {
 
     composeTestRule.onNodeWithText("Open alerts").assertIsDisplayed()
     composeTestRule.onNodeWithText("Alerts screen").assertDoesNotExist()
+  }
+
+  @Test
+  fun aNotificationsIssue_opensOnTopOfTheInbox_andBackGoesToTheInbox() {
+    showStandIns(initialStack = listOf(Inbox, IssueDetail("7")))
+    composeTestRule.onNodeWithText("Detail of 7").assertIsDisplayed()
+
+    composeTestRule.onNodeWithText("Back").performClick()
+
+    composeTestRule.onNodeWithText("Issue 0").assertIsDisplayed()
+    composeTestRule.onNodeWithText("Detail of 7").assertDoesNotExist()
   }
 
   @Test
