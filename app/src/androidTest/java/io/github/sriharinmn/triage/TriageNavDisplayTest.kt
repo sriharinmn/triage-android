@@ -27,7 +27,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 
-/** The real signed-in back stack with stand-in screens: opening an issue and coming back keeps the inbox as it was. */
+/** The real signed-in back stack with stand-in screens: opening a screen and coming back keeps the one below as it was. */
 class TriageNavDisplayTest {
   @get:Rule val composeTestRule = createAndroidComposeRule<ComponentActivity>()
 
@@ -38,23 +38,37 @@ class TriageNavDisplayTest {
         Text("Detail of $issueId")
         Button(onClick = onBack) { Text("Back") }
       }
-    }
+    },
   ) {
     composeTestRule.setContent {
       TriageNavDisplay(
         initialStack = initialStack,
-        inbox = { onOpenIssue, onOpenAlerts ->
+        inbox = { onOpenIssue, onOpenSettings ->
           Column {
-            Button(onClick = onOpenAlerts) { Text("Open alerts") }
+            Button(onClick = onOpenSettings) { Text("Open settings") }
             LazyColumn(Modifier.testTag("inbox_list")) {
               items(100) { i -> Text("Issue $i", Modifier.fillMaxWidth().clickable { onOpenIssue("$i") }.padding(16.dp)) }
             }
           }
         },
         issueDetail = issueDetail,
+        settings = { onBack, onOpenAlerts, onOpenAbout ->
+          Column {
+            Text("Settings screen")
+            Button(onClick = onOpenAlerts) { Text("Open alerts") }
+            Button(onClick = onOpenAbout) { Text("Open about") }
+            Button(onClick = onBack) { Text("Back") }
+          }
+        },
         alerts = { onBack ->
           Column {
             Text("Alerts screen")
+            Button(onClick = onBack) { Text("Back") }
+          }
+        },
+        about = { onBack ->
+          Column {
+            Text("About screen")
             Button(onClick = onBack) { Text("Back") }
           }
         },
@@ -88,15 +102,24 @@ class TriageNavDisplayTest {
   }
 
   @Test
-  fun alerts_opensFromTheInbox_andBackReturnsToIt() {
+  fun theGear_opensSettings_whichOpensAlertsAndAbout_andBackWalksBackToTheInbox() {
     showStandIns()
+    composeTestRule.onNodeWithText("Open settings").performClick()
+    composeTestRule.onNodeWithText("Settings screen").assertIsDisplayed()
+
     composeTestRule.onNodeWithText("Open alerts").performClick()
     composeTestRule.onNodeWithText("Alerts screen").assertIsDisplayed()
+    composeTestRule.onNodeWithText("Back").performClick()
+    composeTestRule.onNodeWithText("Settings screen").assertIsDisplayed()
+
+    composeTestRule.onNodeWithText("Open about").performClick()
+    composeTestRule.onNodeWithText("About screen").assertIsDisplayed()
+    composeTestRule.onNodeWithText("Back").performClick()
+    composeTestRule.onNodeWithText("Settings screen").assertIsDisplayed()
 
     composeTestRule.onNodeWithText("Back").performClick()
-
-    composeTestRule.onNodeWithText("Open alerts").assertIsDisplayed()
-    composeTestRule.onNodeWithText("Alerts screen").assertDoesNotExist()
+    composeTestRule.onNodeWithText("Open settings").assertIsDisplayed()
+    composeTestRule.onNodeWithText("Settings screen").assertDoesNotExist()
   }
 
   @Test

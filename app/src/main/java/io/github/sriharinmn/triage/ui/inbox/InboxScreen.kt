@@ -13,8 +13,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -63,6 +61,7 @@ import io.github.sriharinmn.triage.data.issues.Issue
 import io.github.sriharinmn.triage.data.issues.IssueSort
 import io.github.sriharinmn.triage.ui.common.ActionNoticeEffect
 import io.github.sriharinmn.triage.ui.common.DisconnectDialog
+import io.github.sriharinmn.triage.ui.common.OrgInitialTile
 import io.github.sriharinmn.triage.ui.common.ReconnectBanner
 import java.time.Instant
 import java.util.Date
@@ -71,13 +70,12 @@ import kotlinx.coroutines.delay
 /** Test tags for the inbox's interactive and scrollable parts. */
 object InboxTags {
   const val LIST = "inbox_list"
-  const val MENU = "inbox_menu"
+  const val SETTINGS = "inbox_settings"
   const val PROJECT_FILTER = "inbox_filter_project"
   const val ENVIRONMENT_FILTER = "inbox_filter_environment"
   const val SORT_FILTER = "inbox_filter_sort"
   const val LOAD_MORE_RETRY = "inbox_load_more_retry"
   const val ERROR_ACTION = "inbox_error_action"
-  const val MENU_ALERTS = "inbox_menu_alerts"
   const val ALERTS_CARD = "inbox_alerts_card"
   const val ALERTS_CARD_TURN_ON = "inbox_alerts_card_turn_on"
   const val ALERTS_CARD_NOT_NOW = "inbox_alerts_card_not_now"
@@ -90,13 +88,13 @@ private const val LOAD_MORE_THRESHOLD = 5
 
 /**
  * The inbox: tabs, filters and the issue list, wired to [viewModel]; tapping an issue calls [onOpenIssue], and
- * ⋮ → Alerts calls [onOpenAlerts].
+ * the gear calls [onOpenSettings].
  */
 @Composable
 fun InboxScreen(
   viewModel: InboxViewModel,
   onOpenIssue: (issueId: String) -> Unit,
-  onOpenAlerts: () -> Unit,
+  onOpenSettings: () -> Unit,
   modifier: Modifier = Modifier,
 ) {
   val state by viewModel.state.collectAsStateWithLifecycle()
@@ -132,7 +130,7 @@ fun InboxScreen(
     onDisconnectFailureShown = viewModel::onDisconnectFailureShown,
     onAlertsCardTurnOn = requestNotifications,
     onAlertsCardNotNow = viewModel::onAlertsCardNotNow,
-    onOpenAlerts = onOpenAlerts,
+    onOpenSettings = onOpenSettings,
     snackbarHostState = snackbarHostState,
     modifier = modifier,
   )
@@ -160,7 +158,7 @@ internal fun InboxContent(
   onDisconnectFailureShown: () -> Unit,
   onAlertsCardTurnOn: () -> Unit,
   onAlertsCardNotNow: () -> Unit,
-  onOpenAlerts: () -> Unit,
+  onOpenSettings: () -> Unit,
   modifier: Modifier = Modifier,
   snackbarHostState: SnackbarHostState = remember { SnackbarHostState() },
 ) {
@@ -204,7 +202,7 @@ internal fun InboxContent(
   Scaffold(
     modifier = modifier,
     topBar = {
-      InboxTopBar(orgName = state.orgName, onOpenAlerts = onOpenAlerts, onDisconnect = { confirmingDisconnect = true })
+      InboxTopBar(orgName = state.orgName, onOpenSettings = onOpenSettings)
     },
     // A notice covers any other snackbar, which shows once the notice goes.
     snackbarHost = {
@@ -278,34 +276,20 @@ internal fun InboxContent(
   }
 }
 
+/** The org's initial and name, and the gear to Settings (Disconnect, Alerts, Appearance and About live there now). */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun InboxTopBar(orgName: String, onOpenAlerts: () -> Unit, onDisconnect: () -> Unit) {
-  var menuOpen by remember { mutableStateOf(false) }
+private fun InboxTopBar(orgName: String, onOpenSettings: () -> Unit) {
   TopAppBar(
-    title = { Text(orgName, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+    title = {
+      Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        OrgInitialTile(orgName)
+        Text(orgName, maxLines = 1, overflow = TextOverflow.Ellipsis)
+      }
+    },
     actions = {
-      Box {
-        IconButton(onClick = { menuOpen = true }, modifier = Modifier.testTag(InboxTags.MENU)) {
-          Icon(painterResource(R.drawable.ic_more_vert), contentDescription = stringResource(R.string.inbox_menu))
-        }
-        DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-          DropdownMenuItem(
-            text = { Text(stringResource(R.string.inbox_alerts)) },
-            onClick = {
-              menuOpen = false
-              onOpenAlerts()
-            },
-            modifier = Modifier.testTag(InboxTags.MENU_ALERTS),
-          )
-          DropdownMenuItem(
-            text = { Text(stringResource(R.string.inbox_disconnect)) },
-            onClick = {
-              menuOpen = false
-              onDisconnect()
-            },
-          )
-        }
+      IconButton(onClick = onOpenSettings, modifier = Modifier.testTag(InboxTags.SETTINGS)) {
+        Icon(painterResource(R.drawable.ic_settings), contentDescription = stringResource(R.string.inbox_settings))
       }
     },
   )

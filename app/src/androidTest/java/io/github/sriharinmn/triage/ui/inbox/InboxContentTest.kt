@@ -88,7 +88,7 @@ class InboxContentTest {
           onDisconnectFailureShown = {},
           onAlertsCardTurnOn = { calls += "alertsTurnOn" },
           onAlertsCardNotNow = { calls += "alertsNotNow" },
-          onOpenAlerts = { calls += "openAlerts" },
+          onOpenSettings = { calls += "openSettings" },
         )
       }
     }
@@ -316,18 +316,6 @@ class InboxContentTest {
   }
 
   @Test
-  fun disconnect_asksForConfirmationFirst() {
-    show(loaded)
-
-    composeTestRule.onNodeWithTag(InboxTags.MENU).performClick()
-    composeTestRule.onNodeWithText("Disconnect…").performClick()
-    assertTrue(calls.isEmpty())
-    composeTestRule.onNodeWithText("Disconnect").performClick()
-
-    assertEquals(listOf("disconnect"), calls)
-  }
-
-  @Test
   fun theAlertsCard_showsAboveTheList_andItsButtonsCallBack() {
     show(loaded.copy(showAlertsCard = true))
 
@@ -346,13 +334,19 @@ class InboxContentTest {
   }
 
   @Test
-  fun theMenu_opensAlerts() {
+  fun theGear_opensSettings() {
     show(loaded)
 
-    composeTestRule.onNodeWithTag(InboxTags.MENU).performClick()
-    composeTestRule.onNodeWithTag(InboxTags.MENU_ALERTS).performClick()
+    composeTestRule.onNodeWithContentDescription("Settings").performClick()
 
-    assertEquals(listOf("openAlerts"), calls)
+    assertEquals(listOf("openSettings"), calls)
+  }
+
+  @Test
+  fun theTopBar_namesTheOrg() {
+    show(loaded)
+
+    composeTestRule.onNodeWithText("Example Org").assertIsDisplayed()
   }
 
   private fun waitForText(text: String, present: Boolean) {
