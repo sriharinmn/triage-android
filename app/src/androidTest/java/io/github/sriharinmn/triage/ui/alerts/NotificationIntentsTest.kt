@@ -30,10 +30,18 @@ class NotificationIntentsTest {
   }
 
   @Test
-  fun anInboxIntent_opensThatTab() {
+  fun anInboxIntent_opensThatTabAndProject() {
     assertEquals(
-      DeepLink.OpenInbox("example-org", InboxTab.Escalating),
-      openInboxIntent(context, "example-org", InboxTab.Escalating).toDeepLink(),
+      DeepLink.OpenInbox("example-org", InboxTab.Escalating, "42"),
+      openInboxIntent(context, "example-org", InboxTab.Escalating, "42").toDeepLink(),
+    )
+  }
+
+  @Test
+  fun anInboxIntent_withoutAProject_opensAllProjects() {
+    assertEquals(
+      DeepLink.OpenInbox("example-org", InboxTab.Escalating, null),
+      openInboxIntent(context, "example-org", InboxTab.Escalating, null).toDeepLink(),
     )
   }
 
@@ -42,7 +50,7 @@ class NotificationIntentsTest {
     assertNull(launchIntent(context).toDeepLink())
     assertNull(Intent(context, MainActivity::class.java).toDeepLink())
     assertNull(
-      openInboxIntent(context, "example-org", InboxTab.Regressed).putExtra(NotificationIntents.EXTRA_TAB, "Archived").toDeepLink()
+      openInboxIntent(context, "example-org", InboxTab.Regressed, null).putExtra(NotificationIntents.EXTRA_TAB, "Archived").toDeepLink()
     )
   }
 
@@ -57,7 +65,11 @@ class NotificationIntentsTest {
   @Test
   fun theIntents_carryIdsTheActionAndTheOrg_only() {
     assertEquals(setOf("issue_id", "org_slug"), openIssueIntent(context, "example-org", "1").extras!!.keySet())
-    assertEquals(setOf("tab", "org_slug"), openInboxIntent(context, "example-org", InboxTab.Regressed).extras!!.keySet())
+    assertEquals(setOf("tab", "org_slug"), openInboxIntent(context, "example-org", InboxTab.Regressed, null).extras!!.keySet())
+    assertEquals(
+      setOf("tab", "org_slug", "project"),
+      openInboxIntent(context, "example-org", InboxTab.Regressed, "42").extras!!.keySet(),
+    )
     assertEquals(
       setOf("issue_id", "short_id", "org_slug", "action"),
       notificationActionIntent(context, NotificationIntents.ACTION_UNDO, request).extras!!.keySet(),

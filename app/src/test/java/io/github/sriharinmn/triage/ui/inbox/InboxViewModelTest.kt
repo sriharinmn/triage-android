@@ -69,7 +69,7 @@ class InboxViewModelTest {
 
   private lateinit var pendingActions: PendingActions
 
-  private fun TestScope.viewModel(openTab: InboxTab? = null): InboxViewModel {
+  private fun TestScope.viewModel(opening: InboxOpening? = null): InboxViewModel {
     pendingActions = PendingActions(IssueActionRepository(api, RateLimitGate(clock::now)), repository, backgroundScope)
     return InboxViewModel(
       TEST_ACCOUNT,
@@ -79,7 +79,7 @@ class InboxViewModelTest {
       pendingActions,
       alertSettings,
       alertState,
-      openTab = openTab,
+      opening = opening,
       clock = clock::now,
     )
   }
@@ -688,12 +688,24 @@ class InboxViewModelTest {
   }
 
   @Test
-  fun aSummaryNotification_opensItsTab_withoutChangingTheRememberedOne() = runTest {
-    settings.save(InboxFilter(tab = InboxTab.Regressed))
+  fun aSummaryNotification_opensItsTabAndProject_withoutChangingTheRememberedFilter() = runTest {
+    api.projectsResult = ApiResult.Success(listOf(projectDto("101", listOf("production")), projectDto("102")))
+    val saved = InboxFilter(tab = InboxTab.Regressed, projectId = "101", environment = "production")
+    settings.save(saved)
 
-    val vm = viewModel(openTab = InboxTab.Escalating)
+    val vm = viewModel(InboxOpening(InboxTab.Escalating, "102"))
 
-    assertEquals(InboxTab.Escalating, vm.state.value.filter.tab)
-    assertEquals(InboxTab.Regressed, settings.current.tab)
+    assertEquals(InboxFilter(tab = InboxTab.Escalating, projectId = "102", environment = null), vm.state.value.filter)
+    assertEquals(saved, settings.current)
+  }
+
+  @Test
+  fun aSummaryWithoutAProject_opensOnAllProjects() = runTest {
+    api.projectsResult = ApiResult.Success(listOf(projectDto("101", listOf("production"))))
+    settings.save(InboxFilter(projectId = "101", environment = "production"))
+
+    val vm = viewModel(InboxOpening(InboxTab.Escalating, null))
+
+    assertEquals(InboxFilter(tab = InboxTab.Escalating, projectId = null, environment = null), vm.state.value.filter)
   }
 }

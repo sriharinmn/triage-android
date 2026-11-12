@@ -10,12 +10,12 @@ import androidx.navigation3.runtime.rememberNavBackStack
 import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
 import androidx.navigation3.ui.NavDisplay
 import io.github.sriharinmn.triage.data.account.Account
-import io.github.sriharinmn.triage.data.issues.InboxTab
 import io.github.sriharinmn.triage.ui.alerts.AlertsScreen
 import io.github.sriharinmn.triage.ui.alerts.AlertsViewModel
 import io.github.sriharinmn.triage.ui.alerts.DeepLink
 import io.github.sriharinmn.triage.ui.detail.IssueDetailScreen
 import io.github.sriharinmn.triage.ui.detail.IssueDetailViewModel
+import io.github.sriharinmn.triage.ui.inbox.InboxOpening
 import io.github.sriharinmn.triage.ui.inbox.InboxScreen
 import io.github.sriharinmn.triage.ui.inbox.InboxViewModel
 
@@ -39,7 +39,7 @@ fun TriageNavigation(account: Account, container: AppContainer, deepLink: DeepLi
             container.pendingActions,
             container.alertSettings,
             container.alertState,
-            openTab = start.inboxTab,
+            opening = start.inboxOpening,
           )
         }
       InboxScreen(inboxViewModel, onOpenIssue = onOpenIssue, onOpenAlerts = onOpenAlerts)
@@ -70,8 +70,8 @@ fun TriageNavigation(account: Account, container: AppContainer, deepLink: DeepLi
   )
 }
 
-/** Where a fresh signed-in start opens: the back stack, and the inbox tab to show first (a summary's strongest kind). */
-internal data class Start(val stack: List<NavKey> = listOf(Inbox), val inboxTab: InboxTab? = null)
+/** Where a fresh signed-in start opens: the back stack, and how the inbox opens (a summary's tab and project). */
+internal data class Start(val stack: List<NavKey> = listOf(Inbox), val inboxOpening: InboxOpening? = null)
 
 /**
  * A link from a notification applies only to the org it was about; after connecting to another org it is ignored, as
@@ -80,7 +80,7 @@ internal data class Start(val stack: List<NavKey> = listOf(Inbox), val inboxTab:
 internal fun startFor(link: DeepLink?, orgSlug: String): Start =
   when (val valid = link?.takeIf { it.orgSlug == orgSlug }) {
     is DeepLink.OpenIssue -> Start(stack = listOf(Inbox, IssueDetail(valid.issueId)))
-    is DeepLink.OpenInbox -> Start(inboxTab = valid.tab)
+    is DeepLink.OpenInbox -> Start(inboxOpening = InboxOpening(valid.tab, valid.projectId))
     null -> Start()
   }
 

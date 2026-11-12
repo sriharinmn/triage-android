@@ -6,11 +6,12 @@ sealed interface AlertPost {
   data class Singles(val findings: List<AlertFinding>) : AlertPost
 
   /**
-   * One notification for many issues: how many of each kind, and the project they all belong to (null when they span
-   * projects or include issues held back during quiet hours, whose projects aren't kept). Tapping it opens the inbox on
-   * the [strongest] kind's tab.
+   * One notification for many issues: how many of each kind, and the project they all belong to ([projectSlug] for the
+   * text and [projectId] for the inbox filter; both null when they span projects or include issues held back during quiet
+   * hours, whose projects aren't kept). Tapping it opens the inbox on the [strongest] kind's tab and on that project (All
+   * projects when null).
    */
-  data class Summary(val counts: Map<AlertKind, Int>, val projectSlug: String?) : AlertPost {
+  data class Summary(val counts: Map<AlertKind, Int>, val projectSlug: String?, val projectId: String?) : AlertPost {
     val strongest: AlertKind
       get() = counts.keys.max()
   }
@@ -41,6 +42,7 @@ fun groupAlerts(
   val summarize = backlog.isNotEmpty() || findings.size > MAX_SINGLES || findings.any { it.kind in capped }
   if (!summarize) return GroupedAlerts(AlertPost.Singles(findings), backlog = emptyMap())
   val fromThisCheck = backlog.keys.all { id -> findings.any { it.issueId == id } }
-  val project = findings.map { it.projectSlug }.distinct().singleOrNull()?.takeIf { fromThisCheck }
-  return GroupedAlerts(AlertPost.Summary(everything.values.groupingBy { it }.eachCount(), project), backlog = emptyMap())
+  val project = findings.map { it.projectId to it.projectSlug }.distinct().singleOrNull()?.takeIf { fromThisCheck }
+  val counts = everything.values.groupingBy { it }.eachCount()
+  return GroupedAlerts(AlertPost.Summary(counts, project?.second, project?.first), backlog = emptyMap())
 }

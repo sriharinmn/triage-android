@@ -34,7 +34,7 @@ class AlertNotifierTest {
   private val notifier = AlertNotifier(context, channelPrefix = TEST_PREFIX)
   private val system = context.getSystemService(NotificationManager::class.java)
   private val finding =
-    AlertFinding("test-1", "DEMO-1", "DatabaseTimeoutError: Query timed out", "triage-demo", AlertKind.Regressed, 36, 6)
+    AlertFinding("test-1", "DEMO-1", "DatabaseTimeoutError: Query timed out", "triage-demo", "101", AlertKind.Regressed, 36, 6)
   private val request = NotificationActionRequest("test-1", "DEMO-1", "example-org", AlertAction.Resolve)
 
   @Before
@@ -92,7 +92,7 @@ class AlertNotifierTest {
 
   @Test
   fun aSummary_countsEachKind_namesTheProject_andHasNoButtons() {
-    val summary = AlertPost.Summary(mapOf(AlertKind.New to 12, AlertKind.Regressed to 1), "triage-demo")
+    val summary = AlertPost.Summary(mapOf(AlertKind.New to 12, AlertKind.Regressed to 1), "triage-demo", "101")
 
     val notification = notifier.buildSummary("example-org", summary)
 
@@ -105,7 +105,7 @@ class AlertNotifierTest {
 
   @Test
   fun aSummaryWithoutOneProject_leavesItOut() {
-    val notification = notifier.buildSummary("example-org", AlertPost.Summary(mapOf(AlertKind.Escalating to 4), null))
+    val notification = notifier.buildSummary("example-org", AlertPost.Summary(mapOf(AlertKind.Escalating to 4), null, null))
 
     assertEquals("4 escalating issues", notification.title())
   }

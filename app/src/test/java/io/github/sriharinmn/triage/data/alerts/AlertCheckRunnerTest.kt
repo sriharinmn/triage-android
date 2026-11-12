@@ -107,7 +107,7 @@ class AlertCheckRunnerTest {
 
     runner.runCheck()
 
-    assertEquals(AlertPost.Summary(mapOf(AlertKind.Regressed to 4), "project-101"), poster.posts.single().second)
+    assertEquals(AlertPost.Summary(mapOf(AlertKind.Regressed to 4), "project-101", "101"), poster.posts.single().second)
   }
 
   @Test
@@ -127,7 +127,7 @@ class AlertCheckRunnerTest {
     runner.runCheck()
 
     assertEquals(
-      AlertPost.Summary(mapOf(AlertKind.Regressed to 1, AlertKind.Escalating to 1), projectSlug = null),
+      AlertPost.Summary(mapOf(AlertKind.Regressed to 1, AlertKind.Escalating to 1), projectSlug = null, projectId = null),
       poster.posts.single().second,
     )
     assertTrue(stateStore.state.first().backlog.isEmpty())
@@ -151,7 +151,7 @@ class AlertCheckRunnerTest {
     clock.current = Instant.parse("2026-11-12T07:15:00Z")
     runner.runCheck()
 
-    assertEquals(AlertPost.Summary(mapOf(AlertKind.Regressed to 1), projectSlug = null), poster.posts.single().second)
+    assertEquals(AlertPost.Summary(mapOf(AlertKind.Regressed to 1), projectSlug = null, projectId = null), poster.posts.single().second)
   }
 
   @Test

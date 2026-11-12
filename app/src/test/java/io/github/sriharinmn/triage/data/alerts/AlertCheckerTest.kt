@@ -114,7 +114,7 @@ class AlertCheckerTest {
 
     val finding = check().checked().findings.single()
 
-    assertEquals(AlertFinding("1", "DEMO-1", "Error 1", "project-101", AlertKind.New, eventCount = 3, userCount = 1), finding)
+    assertEquals(AlertFinding("1", "DEMO-1", "Error 1", "project-101", "101", AlertKind.New, eventCount = 3, userCount = 1), finding)
   }
 
   @Test

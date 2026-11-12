@@ -5,8 +5,8 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 class AlertGroupingTest {
-  private fun finding(id: String, kind: AlertKind = AlertKind.New, project: String = "triage-demo") =
-    AlertFinding(id, "DEMO-$id", "Error $id", project, kind, eventCount = 3, userCount = 1)
+  private fun finding(id: String, kind: AlertKind = AlertKind.New, project: String = "triage-demo", projectId: String = "p1") =
+    AlertFinding(id, "DEMO-$id", "Error $id", project, projectId, kind, eventCount = 3, userCount = 1)
 
   private fun group(
     findings: List<AlertFinding>,
@@ -27,16 +27,16 @@ class AlertGroupingTest {
     val findings = listOf(finding("1", AlertKind.Regressed), finding("2"), finding("3"), finding("4"))
 
     assertEquals(
-      GroupedAlerts(AlertPost.Summary(mapOf(AlertKind.New to 3, AlertKind.Regressed to 1), "triage-demo"), emptyMap()),
+      GroupedAlerts(AlertPost.Summary(mapOf(AlertKind.New to 3, AlertKind.Regressed to 1), "triage-demo", "p1"), emptyMap()),
       group(findings),
     )
   }
 
   @Test
   fun aSummaryAcrossProjects_namesNone() {
-    val findings = listOf(finding("1"), finding("2"), finding("3"), finding("4", project = "triage-demo-android"))
+    val findings = listOf(finding("1"), finding("2"), finding("3"), finding("4", project = "triage-demo-android", projectId = "p2"))
 
-    assertEquals(AlertPost.Summary(mapOf(AlertKind.New to 4), projectSlug = null), group(findings).post)
+    assertEquals(AlertPost.Summary(mapOf(AlertKind.New to 4), projectSlug = null, projectId = null), group(findings).post)
   }
 
   @Test
@@ -57,7 +57,7 @@ class AlertGroupingTest {
     val grouped = group(listOf(finding("2")), backlog = mapOf("1" to AlertKind.Regressed))
 
     assertEquals(
-      GroupedAlerts(AlertPost.Summary(mapOf(AlertKind.Regressed to 1, AlertKind.New to 1), projectSlug = null), emptyMap()),
+      GroupedAlerts(AlertPost.Summary(mapOf(AlertKind.Regressed to 1, AlertKind.New to 1), projectSlug = null, projectId = null), emptyMap()),
       grouped,
     )
   }
@@ -65,7 +65,7 @@ class AlertGroupingTest {
   @Test
   fun aBacklogAlone_isASummary() {
     assertEquals(
-      AlertPost.Summary(mapOf(AlertKind.Escalating to 1), projectSlug = null),
+      AlertPost.Summary(mapOf(AlertKind.Escalating to 1), projectSlug = null, projectId = null),
       group(emptyList(), backlog = mapOf("1" to AlertKind.Escalating)).post,
     )
   }
@@ -73,7 +73,7 @@ class AlertGroupingTest {
   @Test
   fun aKindWhoseFirstPageWasFull_isAlwaysSummarised() {
     assertEquals(
-      AlertPost.Summary(mapOf(AlertKind.Regressed to 1), "triage-demo"),
+      AlertPost.Summary(mapOf(AlertKind.Regressed to 1), "triage-demo", "p1"),
       group(listOf(finding("1", AlertKind.Regressed)), capped = setOf(AlertKind.Regressed)).post,
     )
   }
@@ -87,7 +87,7 @@ class AlertGroupingTest {
 
   @Test
   fun aSummary_opensTheStrongestKindsTab() {
-    val summary = AlertPost.Summary(mapOf(AlertKind.New to 5, AlertKind.Escalating to 1), projectSlug = null)
+    val summary = AlertPost.Summary(mapOf(AlertKind.New to 5, AlertKind.Escalating to 1), projectSlug = null, projectId = null)
 
     assertEquals(AlertKind.Escalating, summary.strongest)
     assertEquals(InboxTab.Escalating, summary.strongest.inboxTab)

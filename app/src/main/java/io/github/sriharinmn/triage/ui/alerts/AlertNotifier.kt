@@ -134,7 +134,7 @@ class AlertNotifier(private val context: Context, private val channelPrefix: Str
       .setSmallIcon(R.drawable.ic_notification)
       .setContentTitle(countsText(summary.counts, summary.projectSlug))
       .setContentText(context.getString(R.string.alerts_summary_text))
-      .setContentIntent(activity(openInboxIntent(context, orgSlug, summary.strongest.inboxTab)))
+      .setContentIntent(activity(openInboxIntent(context, orgSlug, summary.strongest.inboxTab, summary.projectId)))
       .setAutoCancel(true)
       .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)
       .setPublicVersion(publicVersion(channel, summary.counts))

@@ -15,8 +15,8 @@ sealed interface DeepLink {
   /** An issue's detail, on top of the inbox. */
   data class OpenIssue(override val orgSlug: String, val issueId: String) : DeepLink
 
-  /** The inbox on [tab] (from a summary). */
-  data class OpenInbox(override val orgSlug: String, val tab: InboxTab) : DeepLink
+  /** The inbox on [tab] (from a summary), filtered to [projectId], or to All projects when null. */
+  data class OpenInbox(override val orgSlug: String, val tab: InboxTab, val projectId: String?) : DeepLink
 }
 
 /** The actions and extras of Triage's notification intents. They carry ids, the action and the org: never a token. */
@@ -31,6 +31,7 @@ internal object NotificationIntents {
   const val EXTRA_ORG_SLUG = "org_slug"
   const val EXTRA_ACTION = "action"
   const val EXTRA_TAB = "tab"
+  const val EXTRA_PROJECT = "project"
 }
 
 /** Opens [issueId]'s detail on top of the inbox, in a fresh task (whatever the app showed before). */
@@ -42,13 +43,14 @@ internal fun openIssueIntent(context: Context, orgSlug: String, issueId: String)
     .putExtra(NotificationIntents.EXTRA_ORG_SLUG, orgSlug)
     .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
 
-/** Opens the inbox on [tab], in a fresh task. */
-internal fun openInboxIntent(context: Context, orgSlug: String, tab: InboxTab): Intent =
+/** Opens the inbox on [tab] and on project [projectId] (All projects when null), in a fresh task. */
+internal fun openInboxIntent(context: Context, orgSlug: String, tab: InboxTab, projectId: String?): Intent =
   Intent(context, MainActivity::class.java)
     .setAction(NotificationIntents.ACTION_OPEN_INBOX)
     .setData(triageUri("inbox", tab.name))
     .putExtra(NotificationIntents.EXTRA_TAB, tab.name)
     .putExtra(NotificationIntents.EXTRA_ORG_SLUG, orgSlug)
+    .apply { if (projectId != null) putExtra(NotificationIntents.EXTRA_PROJECT, projectId) }
     .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
 
 /** Opens the app as its launcher icon does (back to where the user was, or the start). */
@@ -77,7 +79,7 @@ internal fun Intent.toDeepLink(): DeepLink? {
     NotificationIntents.ACTION_OPEN_INBOX ->
       InboxTab.entries
         .firstOrNull { it.name == getStringExtra(NotificationIntents.EXTRA_TAB) }
-        ?.let { DeepLink.OpenInbox(orgSlug, it) }
+        ?.let { DeepLink.OpenInbox(orgSlug, it, getStringExtra(NotificationIntents.EXTRA_PROJECT)) }
     else -> null
   }
 }
