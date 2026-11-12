@@ -15,13 +15,24 @@ internal fun InboxTab.labelRes(): Int =
     InboxTab.Escalating -> R.string.inbox_tab_escalating
   }
 
+/** The empty tab's headline ("All clear"). */
 @StringRes
-internal fun InboxTab.emptyRes(): Int =
+internal fun InboxTab.emptyHeadlineRes(): Int =
   when (this) {
     InboxTab.ForReview -> R.string.inbox_empty_for_review
     InboxTab.Unresolved -> R.string.inbox_empty_unresolved
     InboxTab.Regressed -> R.string.inbox_empty_regressed
     InboxTab.Escalating -> R.string.inbox_empty_escalating
+  }
+
+/** The line of help under it. */
+@StringRes
+internal fun InboxTab.emptyHelpRes(): Int =
+  when (this) {
+    InboxTab.ForReview -> R.string.inbox_empty_for_review_help
+    InboxTab.Unresolved -> R.string.inbox_empty_unresolved_help
+    InboxTab.Regressed -> R.string.inbox_empty_regressed_help
+    InboxTab.Escalating -> R.string.inbox_empty_escalating_help
   }
 
 @StringRes

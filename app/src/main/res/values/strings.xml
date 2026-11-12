@@ -53,10 +53,19 @@
     <string name="inbox_sort_events">Events</string>
     <string name="inbox_sort_users">Users</string>
 
-    <string name="inbox_empty_for_review">Nothing to review.</string>
-    <string name="inbox_empty_unresolved">No unresolved issues in the last 14 days.</string>
-    <string name="inbox_empty_regressed">No regressions in the last 14 days.</string>
-    <string name="inbox_empty_escalating">Nothing is escalating.</string>
+    <string name="inbox_empty_for_review">Nothing to review</string>
+    <string name="inbox_empty_for_review_help">Issues waiting for someone to look at them show up here.</string>
+    <string name="inbox_empty_unresolved">All clear</string>
+    <string name="inbox_empty_unresolved_help">No unresolved issues in the last 14 days.</string>
+    <string name="inbox_empty_regressed">Nothing regressed</string>
+    <string name="inbox_empty_regressed_help">No regressions in the last 14 days.</string>
+    <string name="inbox_empty_escalating">Nothing escalating</string>
+    <string name="inbox_empty_escalating_help">Issues that suddenly get busier show up here.</string>
+    <string name="inbox_no_matches">No issues match these filters</string>
+    <string name="inbox_no_matches_help">Clear them to see every issue on this tab.</string>
+    <string name="inbox_clear_filters">Clear filters</string>
+    <string name="inbox_offline_since">Offline · showing issues from %1$s</string>
+    <string name="inbox_offline">Offline · showing saved issues</string>
     <string name="inbox_loading">Loading issues…</string>
 
     <string name="inbox_updated_stale">Updated %1$s · couldn\'t refresh</string>
@@ -339,4 +348,11 @@
         <item quantity="one">%1$d year ago</item>
         <item quantity="other">%1$d years ago</item>
     </plurals>
+    <string name="state_cant_reach">Can\'t reach Sentry</string>
+    <string name="state_cant_reach_help">Check your connection, then try again.</string>
+    <string name="state_reconnect">Reconnect to Sentry</string>
+    <string name="state_missing_permissions">Missing permissions</string>
+    <string name="state_rate_limited">Sentry asked us to wait</string>
+    <string name="state_server">Something went wrong</string>
+    <string name="state_storage">This phone is out of space</string>
 </resources>

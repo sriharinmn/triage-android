@@ -17,6 +17,7 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performCustomAccessibilityActionWithLabel
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipeLeft
 import androidx.compose.ui.test.swipeRight
@@ -79,6 +80,7 @@ class InboxContentTest {
             onProjectSelected = { calls += "project:$it" },
             onEnvironmentSelected = { calls += "environment:$it" },
             onSortSelected = { calls += "sort:${it.name}" },
+            onClearFilters = { calls += "clearFilters" },
             onRefresh = { calls += "refresh" },
             onLoadMore = { calls += "loadMore" },
             onRetryLoadMore = { calls += "retryLoadMore" },
@@ -220,14 +222,14 @@ class InboxContentTest {
   fun anEmptyTab_saysSoKindly() {
     show(InboxUiState(orgName = "Example Org", filter = InboxFilter(tab = InboxTab.Escalating), refreshedAt = now))
 
-    composeTestRule.onNodeWithText("Nothing is escalating.").assertIsDisplayed()
+    composeTestRule.onNodeWithText("Nothing escalating").assertIsDisplayed()
   }
 
   @Test
   fun noCacheAndNoNetwork_offersRetry() {
     show(InboxUiState(orgName = "Example Org", error = InboxError.Network))
 
-    composeTestRule.onNodeWithText("Couldn't reach Sentry. Check your connection.").assertIsDisplayed()
+    composeTestRule.onNodeWithText(CANT_REACH).assertIsDisplayed()
     composeTestRule.onNodeWithTag(InboxTags.ERROR_ACTION).performClick()
 
     assertEquals(listOf("refresh"), calls)
@@ -262,23 +264,23 @@ class InboxContentTest {
   fun refreshingWithNoCache_showsTheSpinnerNotTheOldError() {
     show(InboxUiState(orgName = "Example Org", error = InboxError.Network, isRefreshing = true))
 
-    composeTestRule.onNodeWithText(NETWORK_ERROR).assertDoesNotExist()
+    composeTestRule.onNodeWithText(CANT_REACH).assertDoesNotExist()
     composeTestRule.onNodeWithContentDescription("Loading issues…").assertIsDisplayed()
   }
 
   @Test
   fun aRepeatedFailure_showsTheSnackbarAgain() {
-    val state = mutableStateOf(loaded.copy(error = InboxError.Network))
+    val state = mutableStateOf(loaded.copy(error = InboxError.Server))
     show(state)
-    waitForText(NETWORK_ERROR, present = true)
+    waitForText(SERVER_ERROR, present = true)
 
     // The same error stays set while the next refresh runs; starting it dismisses the old snackbar.
     composeTestRule.runOnIdle { state.value = state.value.copy(isRefreshing = true) }
-    waitForText(NETWORK_ERROR, present = false)
+    waitForText(SERVER_ERROR, present = false)
 
     // The retry fails with the very same error, and the snackbar comes back.
     composeTestRule.runOnIdle { state.value = state.value.copy(isRefreshing = false) }
-    waitForText(NETWORK_ERROR, present = true)
+    waitForText(SERVER_ERROR, present = true)
   }
 
   @Test
@@ -299,9 +301,48 @@ class InboxContentTest {
 
   @Test
   fun aCachedListWithAnError_saysItCouldNotRefresh() {
-    show(loaded.copy(error = InboxError.Network))
+    show(loaded.copy(error = InboxError.Server))
 
     composeTestRule.onNodeWithText("couldn't refresh", substring = true).assertIsDisplayed()
+  }
+
+  @Test
+  fun offlineWithACachedList_showsTheBanner_insteadOfASnackbar() {
+    show(loaded.copy(error = InboxError.Network))
+
+    composeTestRule.onNodeWithTag(InboxTags.OFFLINE_BANNER).assertIsDisplayed()
+    composeTestRule.onNodeWithText("Offline · showing issues from", substring = true).assertIsDisplayed()
+    composeTestRule.waitForIdle()
+    assertTrue(composeTestRule.onAllNodesWithText(NETWORK_ERROR).fetchSemanticsNodes().isEmpty())
+    composeTestRule.onNodeWithText("Retry").performClick()
+
+    assertTrue("refresh" in calls)
+  }
+
+  @Test
+  fun anEmptyUnresolvedTab_isAllClear() {
+    show(InboxUiState(orgName = "Example Org", refreshedAt = now))
+
+    composeTestRule.onNodeWithText("All clear").assertIsDisplayed()
+    composeTestRule.onNodeWithText("No unresolved issues in the last 14 days.").assertIsDisplayed()
+  }
+
+  @Test
+  fun filtersThatHideEverything_offerToClearThem() {
+    show(InboxUiState(orgName = "Example Org", filter = InboxFilter(environment = "staging"), refreshedAt = now))
+
+    composeTestRule.onNodeWithText("No issues match these filters").assertIsDisplayed()
+    composeTestRule.onNodeWithTag(InboxTags.CLEAR_FILTERS).performClick()
+
+    assertEquals(listOf("clearFilters"), calls)
+  }
+
+  @Test
+  fun atTwiceTheFontSize_theChipsScroll_andKeepTheirFullLabels() {
+    show(loaded, fontScale = 2f)
+
+    composeTestRule.onNodeWithTag(InboxTags.SORT_FILTER).performScrollTo().assertIsDisplayed()
+    composeTestRule.onNodeWithText("All environments").assertExists()
   }
 
   @Test
@@ -380,5 +421,7 @@ class InboxContentTest {
 
   private companion object {
     const val NETWORK_ERROR = "Couldn't reach Sentry. Check your connection."
+    const val SERVER_ERROR = "Sentry sent something unexpected. Try again."
+    const val CANT_REACH = "Can't reach Sentry"
   }
 }
