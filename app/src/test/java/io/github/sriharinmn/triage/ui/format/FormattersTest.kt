@@ -46,4 +46,12 @@ class FormattersTest {
     assertEquals("15M", compactCount(15_000_000))
     assertEquals("0", compactCount(-5))
   }
+
+  @Test
+  fun compactCount_goesOnToBillions_soATileNeverShowsFiveCharacters() {
+    assertEquals("999M", compactCount(999_999_999))
+    assertEquals("1B", compactCount(1_000_000_000))
+    assertEquals("1.2B", compactCount(1_299_000_000))
+    assertEquals("15B", compactCount(15_000_000_000))
+  }
 }
