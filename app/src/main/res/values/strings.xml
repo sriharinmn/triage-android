@@ -114,10 +114,6 @@
         <item quantity="one">%1$s user</item>
         <item quantity="other">%1$s users</item>
     </plurals>
-    <plurals name="issue_events_last_24h">
-        <item quantity="one">%1$d event in the last 24 hours</item>
-        <item quantity="other">%1$d events in the last 24 hours</item>
-    </plurals>
     <string name="detail_stack_trace">Stack trace</string>
     <string name="detail_message">Message</string>
     <string name="detail_no_stack_trace">This event has no stack trace.</string>
@@ -158,14 +154,8 @@
     <string name="detail_event_oldest">Oldest</string>
     <string name="detail_event_loading">Loading event…</string>
     <string name="detail_release">release %1$s</string>
-    <string name="detail_first_seen">First seen %1$s ago</string>
-    <string name="detail_last_seen">Last seen %1$s ago</string>
     <string name="detail_trend_24h">24h</string>
     <string name="detail_trend_30d">30d</string>
-    <plurals name="detail_events_last_30d">
-        <item quantity="one">%1$d event in the last 30 days</item>
-        <item quantity="other">%1$d events in the last 30 days</item>
-    </plurals>
     <string name="detail_status_resolved">Resolved</string>
     <string name="detail_status_archived">Archived</string>
     <string name="action_resolve">Resolve</string>
@@ -355,4 +345,13 @@
     <string name="state_rate_limited">Sentry asked us to wait</string>
     <string name="state_server">Something went wrong</string>
     <string name="state_storage">This phone is out of space</string>
+    <string name="detail_stat_events">Events</string>
+    <string name="detail_stat_users">Users</string>
+    <string name="detail_stat_first_seen">First seen</string>
+    <string name="detail_stat_last_seen">Last seen</string>
+    <string name="detail_chart_label">Events</string>
+    <string name="detail_chart_summary_24h">Events, last 24 hours: %1$s, busiest at %2$s</string>
+    <string name="detail_chart_summary_30d">Events, last 30 days: %1$s, busiest on %2$s</string>
+    <string name="detail_chart_none_24h">Events, last 24 hours: none</string>
+    <string name="detail_chart_none_30d">Events, last 30 days: none</string>
 </resources>

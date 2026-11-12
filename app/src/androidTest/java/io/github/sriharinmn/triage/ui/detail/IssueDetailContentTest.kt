@@ -1,8 +1,13 @@
 package io.github.sriharinmn.triage.ui.detail
 
 import androidx.activity.ComponentActivity
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.test.DeviceConfigurationOverride
+import androidx.compose.ui.test.FontScale
+import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
@@ -91,25 +96,53 @@ class IssueDetailContentTest {
       isLoadingEvent = false,
     )
 
-  private fun show(state: IssueDetailUiState, actions: DetailActionHandlers = DetailActionHandlers()) {
+  private fun show(state: IssueDetailUiState, actions: DetailActionHandlers = DetailActionHandlers(), fontScale: Float = 1f) {
     composeTestRule.setContent {
-      TriageTheme {
-        IssueDetailContent(
-          state = state,
-          now = now,
-          onBack = { calls += "back" },
-          onOpenInBrowser = { calls += "open" },
-          onEventKindSelected = { calls += "kind:${it.name}" },
-          onRetry = { calls += "retry" },
-          onFrameToggled = { calls += "frame" },
-          onShowLibraryFrames = { calls += "library" },
-          onShowAllBreadcrumbs = { calls += "crumbs" },
-          onReconnectConfirmed = { calls += "reconnect" },
-          onDisconnectFailureShown = {},
-          actions = actions,
-        )
+      DeviceConfigurationOverride(DeviceConfigurationOverride.FontScale(fontScale)) {
+        TriageTheme {
+          IssueDetailContent(
+            state = state,
+            now = now,
+            onBack = { calls += "back" },
+            onOpenInBrowser = { calls += "open" },
+            onEventKindSelected = { calls += "kind:${it.name}" },
+            onRetry = { calls += "retry" },
+            onFrameToggled = { calls += "frame" },
+            onShowLibraryFrames = { calls += "library" },
+            onShowAllBreadcrumbs = { calls += "crumbs" },
+            onReconnectConfirmed = { calls += "reconnect" },
+            onDisconnectFailureShown = {},
+            actions = actions,
+          )
+        }
       }
     }
+  }
+
+  @Test
+  fun theChart_saysWhatItShows() {
+    show(loaded)
+
+    // 0 + 1 + … + 23 events, the busiest bar being the current hour.
+    composeTestRule.onNodeWithContentDescription("Events, last 24 hours: 276, busiest at", substring = true).assertExists()
+  }
+
+  @Test
+  fun theStatStrip_isOneRowOfFour() {
+    show(loaded)
+
+    val events = composeTestRule.onNodeWithTag(DetailTags.STAT_EVENTS).fetchSemanticsNode().boundsInRoot
+    val firstSeen = composeTestRule.onNodeWithTag(DetailTags.STAT_FIRST_SEEN).fetchSemanticsNode().boundsInRoot
+    assertEquals(events.top, firstSeen.top, 0.5f)
+  }
+
+  @Test
+  fun atTwiceTheFontSize_theStatStripWrapsToTwoByTwo() {
+    show(loaded, fontScale = 2f)
+
+    val events = composeTestRule.onNodeWithTag(DetailTags.STAT_EVENTS).fetchSemanticsNode().boundsInRoot
+    val firstSeen = composeTestRule.onNodeWithTag(DetailTags.STAT_FIRST_SEEN).fetchSemanticsNode().boundsInRoot
+    assertTrue("first seen should start a second row", firstSeen.top >= events.bottom - 0.5f)
   }
 
   @Test
@@ -121,8 +154,12 @@ class IssueDetailContentTest {
     composeTestRule.onNodeWithText("Error").assertIsDisplayed()
     composeTestRule.onNodeWithText("Regressed").assertIsDisplayed()
     composeTestRule.onNodeWithText("Unhandled").assertIsDisplayed()
-    composeTestRule.onNodeWithText("1.2k events · 340 users").assertIsDisplayed()
-    composeTestRule.onNodeWithText("First seen 3d ago · 1.4.0").assertIsDisplayed()
+    composeTestRule.onNodeWithTag(DetailTags.STAT_EVENTS).assert(hasText("1.2k"))
+    composeTestRule.onNodeWithTag(DetailTags.STAT_USERS).assert(hasText("340"))
+    composeTestRule.onNodeWithTag(DetailTags.STAT_FIRST_SEEN).assert(hasText("3d"))
+    composeTestRule.onNodeWithTag(DetailTags.STAT_LAST_SEEN).assert(hasText("2m"))
+    // The last seen event's release, on the right of the eyebrow.
+    composeTestRule.onNodeWithText("1.4.2").assertIsDisplayed()
     composeTestRule.onNodeWithText("2m ago · release 1.4.2 · production").assertIsDisplayed()
     composeTestRule.onNodeWithText("cartTotal").assertIsDisplayed()
   }
@@ -250,7 +287,7 @@ class IssueDetailContentTest {
 
     composeTestRule.onNodeWithTag(DetailTags.TREND_30D).performClick()
 
-    composeTestRule.onNodeWithContentDescription("300 events in the last 30 days").assertExists()
+    composeTestRule.onNodeWithContentDescription("Events, last 30 days: 300, busiest on", substring = true).assertExists()
   }
 
   @Test

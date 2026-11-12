@@ -55,6 +55,7 @@ import io.github.sriharinmn.triage.data.detail.EventKind
 import io.github.sriharinmn.triage.data.detail.IssueEvent
 import io.github.sriharinmn.triage.data.detail.IssueSummary
 import io.github.sriharinmn.triage.data.members.Member
+import io.github.sriharinmn.triage.theme.mono
 import io.github.sriharinmn.triage.ui.common.ActionNoticeEffect
 import io.github.sriharinmn.triage.ui.common.DisconnectDialog
 import io.github.sriharinmn.triage.ui.common.ReconnectBanner
@@ -156,6 +157,8 @@ internal fun IssueDetailContent(
   snackbarHostState: SnackbarHostState = remember { SnackbarHostState() },
 ) {
   var confirmingReconnect by rememberSaveable { mutableStateOf(false) }
+  // The chart's 24h / 30d choice, held above the list so it survives the list being rebuilt (Task 10's tabs).
+  var showDaily by rememberSaveable { mutableStateOf(false) }
   val disconnectFailedText = stringResource(R.string.inbox_disconnect_failed)
   LaunchedEffect(state.disconnectFailed) {
     if (state.disconnectFailed) {
@@ -213,6 +216,8 @@ internal fun IssueDetailContent(
             state = state,
             summary = summary,
             now = now,
+            showDaily = showDaily,
+            onShowDailyChange = { showDaily = it },
             onEventKindSelected = onEventKindSelected,
             onRetry = onRetry,
             onOpenInBrowser = onOpenInBrowser,
@@ -271,7 +276,7 @@ internal fun IssueDetailContent(
 @Composable
 private fun DetailTopBar(title: String, onBack: () -> Unit, onOpenInBrowser: () -> Unit) {
   TopAppBar(
-    title = { Text(title, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+    title = { Text(title, style = MaterialTheme.typography.titleMedium.mono(), maxLines = 1, overflow = TextOverflow.Ellipsis) },
     navigationIcon = {
       IconButton(onClick = onBack, modifier = Modifier.testTag(DetailTags.BACK)) {
         Icon(painterResource(R.drawable.ic_arrow_back), contentDescription = stringResource(R.string.detail_back))
@@ -290,6 +295,8 @@ private fun DetailList(
   state: IssueDetailUiState,
   summary: IssueSummary,
   now: Instant,
+  showDaily: Boolean,
+  onShowDailyChange: (Boolean) -> Unit,
   onEventKindSelected: (EventKind) -> Unit,
   onRetry: () -> Unit,
   onOpenInBrowser: () -> Unit,
@@ -307,7 +314,7 @@ private fun DetailList(
         ReconnectBanner(message = detailErrorMessage(reconnectError), onReconnect = onReconnect, buttonTag = DetailTags.RECONNECT)
       }
     }
-    item(key = "summary") { SummarySection(summary, state.shownAssignee, now) }
+    item(key = "summary") { DetailTop(summary, state.shownAssignee, now, showDaily, onShowDailyChange) }
     item(key = "event_header") { EventHeader(state.selectedKind, event, now, onEventKindSelected) }
     when {
       event != null -> {
