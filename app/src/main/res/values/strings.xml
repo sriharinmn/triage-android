@@ -265,4 +265,14 @@
     <string name="alerts_card_body">Triage checks Sentry in the background. No server involved.</string>
     <string name="alerts_card_not_now">Not now</string>
     <string name="alerts_card_turn_on">Turn on</string>
+    <string name="welcome_wordmark">triage</string>
+    <string name="welcome_lede">Your Sentry issues, on your phone. See what broke, read the trace, resolve it with a swipe.</string>
+    <string name="welcome_alerts_title">Alerts for what matters</string>
+    <string name="welcome_alerts_body">New, regressed and escalating issues, checked in the background.</string>
+    <string name="welcome_swipe_title">Triage in a swipe</string>
+    <string name="welcome_swipe_body">Resolve, archive or assign, with Undo.</string>
+    <string name="welcome_private_title">Private by design</string>
+    <string name="welcome_private_body">Your phone talks only to your Sentry server. No account with us, no tracking.</string>
+    <string name="welcome_get_started">Get started</string>
+    <string name="welcome_token_note">You\'ll need a Sentry personal token (takes a minute).</string>
 </resources>
