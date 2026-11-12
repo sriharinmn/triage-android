@@ -311,7 +311,7 @@
     <string name="about_close">Close</string>
     <string name="inbox_tile_events">events</string>
     <string name="inbox_open_issue">Open issue</string>
-    <string name="inbox_row_users_age">%1$s · %2$s</string>
+    <string name="inbox_row_users_age">%1$s Â· %2$s</string>
     <string name="inbox_row_counts">%1$s, %2$s</string>
     <string name="inbox_row_counts_hot">%1$s, busier than usual, %2$s</string>
     <string name="spoken_under_minute_ago">less than a minute ago</string>
