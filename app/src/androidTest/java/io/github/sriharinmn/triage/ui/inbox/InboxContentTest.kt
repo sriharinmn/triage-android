@@ -86,6 +86,9 @@ class InboxContentTest {
           onNoticeDismissed = { calls += "noticeDismissed:${it.action.id}" },
           onDisconnectConfirmed = { calls += "disconnect" },
           onDisconnectFailureShown = {},
+          onAlertsCardTurnOn = { calls += "alertsTurnOn" },
+          onAlertsCardNotNow = { calls += "alertsNotNow" },
+          onOpenAlerts = { calls += "openAlerts" },
         )
       }
     }
@@ -322,6 +325,34 @@ class InboxContentTest {
     composeTestRule.onNodeWithText("Disconnect").performClick()
 
     assertEquals(listOf("disconnect"), calls)
+  }
+
+  @Test
+  fun theAlertsCard_showsAboveTheList_andItsButtonsCallBack() {
+    show(loaded.copy(showAlertsCard = true))
+
+    composeTestRule.onNodeWithText("Get alerts for new, regressed and escalating issues?").assertIsDisplayed()
+    composeTestRule.onNodeWithTag(InboxTags.ALERTS_CARD_TURN_ON).performClick()
+    composeTestRule.onNodeWithTag(InboxTags.ALERTS_CARD_NOT_NOW).performClick()
+
+    assertEquals(listOf("alertsTurnOn", "alertsNotNow"), calls)
+  }
+
+  @Test
+  fun withoutTheFlag_thereIsNoCard() {
+    show(loaded)
+
+    composeTestRule.onNodeWithTag(InboxTags.ALERTS_CARD).assertDoesNotExist()
+  }
+
+  @Test
+  fun theMenu_opensAlerts() {
+    show(loaded)
+
+    composeTestRule.onNodeWithTag(InboxTags.MENU).performClick()
+    composeTestRule.onNodeWithTag(InboxTags.MENU_ALERTS).performClick()
+
+    assertEquals(listOf("openAlerts"), calls)
   }
 
   private fun waitForText(text: String, present: Boolean) {

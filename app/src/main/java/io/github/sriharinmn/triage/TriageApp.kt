@@ -5,7 +5,9 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelStore
 import androidx.lifecycle.ViewModelStoreOwner
@@ -14,20 +16,27 @@ import androidx.lifecycle.viewmodel.compose.LocalViewModelStoreOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
 import io.github.sriharinmn.triage.data.account.Account
 import io.github.sriharinmn.triage.data.account.AccountState
+import io.github.sriharinmn.triage.ui.alerts.DeepLink
 import io.github.sriharinmn.triage.ui.connect.ConnectScreen
 import io.github.sriharinmn.triage.ui.connect.ConnectViewModel
 
-/** Shows Connect until an account is stored, then the main navigation. */
+/** Shows Connect until an account is stored, then the main navigation, opened where a tapped notification points. */
 @Composable
-fun TriageApp(container: AppContainer) {
+fun TriageApp(container: AppContainer, deepLink: DeepLink? = null) {
   val accountState by container.accountState.collectAsStateWithLifecycle()
+  // A notification's link is used once: after the first signed-in composition has taken it, a Disconnect and Connect in
+  // the same activity starts on the plain inbox instead of replaying it.
+  var pending by remember { mutableStateOf(deepLink) }
   AccountGate(
     state = accountState,
     signedOut = {
       val connectViewModel: ConnectViewModel = viewModel { ConnectViewModel(container.accountRepository) }
       ConnectScreen(connectViewModel)
     },
-    signedIn = { account -> TriageNavigation(account = account, container = container) },
+    signedIn = { account ->
+      TriageNavigation(account = account, container = container, deepLink = pending)
+      SideEffect { pending = null }
+    },
   )
 }
 

@@ -37,7 +37,7 @@ data class InboxFilter(
 
   /** The request parameters for this filter's first page. */
   fun toParams(): IssueListParams =
-    IssueListParams(query = tab.query, projectId = projectId, environment = environment, sort = sort.apiValue)
+    IssueListParams(query = tab.query, projectIds = listOfNotNull(projectId), environment = environment, sort = sort.apiValue)
 
   private fun String?.keyPart(): String = if (this == null) "*" else "=" + URLEncoder.encode(this, "UTF-8")
 }

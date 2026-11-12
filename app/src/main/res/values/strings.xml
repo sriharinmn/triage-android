@@ -186,4 +186,83 @@
     <string name="assign_no_members">No one in this organization can be assigned yet.</string>
     <string name="detail_assigned_to">Assigned to %1$s</string>
     <string name="detail_unassigned">Unassigned</string>
+    <string name="alerts_channel_new">New issues</string>
+    <string name="alerts_channel_regressed">Regressed issues</string>
+    <string name="alerts_channel_escalating">Escalating issues</string>
+    <string name="alerts_channel_status">Alert status</string>
+    <string name="alerts_channel_status_description">Undo, failed actions and connection problems</string>
+    <string name="alerts_single_title">%1$s · %2$s</string>
+    <string name="alerts_open">Open</string>
+    <string name="alerts_summary_text">Tap to open the inbox</string>
+    <string name="alerts_summary_in_project">%1$s in %2$s</string>
+    <plurals name="alerts_count_new">
+        <item quantity="one">%1$d new issue</item>
+        <item quantity="other">%1$d new issues</item>
+    </plurals>
+    <plurals name="alerts_count_regressed">
+        <item quantity="one">%1$d regressed issue</item>
+        <item quantity="other">%1$d regressed issues</item>
+    </plurals>
+    <plurals name="alerts_count_escalating">
+        <item quantity="one">%1$d escalating issue</item>
+        <item quantity="other">%1$d escalating issues</item>
+    </plurals>
+    <plurals name="alerts_count_new_short">
+        <item quantity="one">%1$d new</item>
+        <item quantity="other">%1$d new</item>
+    </plurals>
+    <plurals name="alerts_count_regressed_short">
+        <item quantity="one">%1$d regressed</item>
+        <item quantity="other">%1$d regressed</item>
+    </plurals>
+    <plurals name="alerts_count_escalating_short">
+        <item quantity="one">%1$d escalating</item>
+        <item quantity="other">%1$d escalating</item>
+    </plurals>
+    <string name="alerts_resolving">Resolving %1$s…</string>
+    <string name="alerts_archiving">Archiving %1$s…</string>
+    <string name="alerts_auth_title">Triage can\'t check Sentry</string>
+    <string name="alerts_auth_text">Open Triage to reconnect.</string>
+    <string name="alerts_group_title">Issue alerts</string>
+    <string name="alerts_title">Alerts</string>
+    <string name="alerts_master">Alerts on</string>
+    <string name="alerts_last_checked">Last checked %1$s</string>
+    <string name="alerts_not_checked_yet">Not checked yet</string>
+    <string name="alerts_last_attempt_failed">%1$s · last attempt failed</string>
+    <string name="alerts_battery_row">Alerts may arrive late on this phone</string>
+    <string name="alerts_notifications_off_row">Notifications are off for Triage</string>
+    <string name="alerts_check_every">Check every</string>
+    <string name="alerts_interval_15">15 min</string>
+    <string name="alerts_interval_30">30 min</string>
+    <string name="alerts_interval_60">1 hour</string>
+    <string name="alerts_kinds">Alert me about</string>
+    <string name="alerts_kind_new">New issues</string>
+    <string name="alerts_kind_regressed">Regressed issues</string>
+    <string name="alerts_kind_escalating">Escalating issues</string>
+    <string name="alerts_projects">Projects</string>
+    <string name="alerts_projects_empty">Your projects show here once the inbox has loaded them.</string>
+    <string name="alerts_quiet_hours">Quiet hours</string>
+    <string name="alerts_quiet_hours_hint">Checks keep running. What they find waits for one summary when quiet hours end.</string>
+    <string name="alerts_quiet_from">From %1$s</string>
+    <string name="alerts_quiet_to">To %1$s</string>
+    <string name="alerts_quiet_from_title">Quiet from</string>
+    <string name="alerts_quiet_to_title">Quiet until</string>
+    <string name="alerts_time_ok">OK</string>
+    <string name="alerts_time_cancel">Cancel</string>
+    <string name="battery_title">Why alerts can be late</string>
+    <string name="battery_why">Android holds back background checks while your phone sleeps, and some phones stop them to save battery. Letting Triage run in the background keeps alerts on time.</string>
+    <string name="battery_tip_oneplus">On OnePlus phones: open Triage\'s App info, then Battery usage, and turn on Allow background activity.</string>
+    <string name="battery_tip_samsung">On Samsung phones: open Triage\'s App info, then Battery, and choose Unrestricted. Also check that Triage isn\'t in Sleeping apps.</string>
+    <string name="battery_tip_xiaomi">On Xiaomi, Redmi and POCO phones: open Triage\'s App info, then Battery saver, choose No restrictions, and turn on Autostart.</string>
+    <string name="battery_tip_oppo">On Oppo and Realme phones: open Triage\'s App info, then Battery usage, and allow background activity and auto launch.</string>
+    <string name="battery_tip_vivo">On vivo phones: open Settings, then Battery, then Background power consumption management, and allow Triage.</string>
+    <string name="battery_tip_huawei">On Huawei and Honor phones: open Settings, then Battery, then App launch, find Triage and switch it to Manage manually with every option on.</string>
+    <string name="battery_tip_generic">In the list that opens, choose All apps, find Triage and choose Don\'t optimize (or Unrestricted).</string>
+    <string name="battery_open_settings">Open battery settings</string>
+
+    <string name="inbox_alerts">Alerts</string>
+    <string name="alerts_card_title">Get alerts for new, regressed and escalating issues?</string>
+    <string name="alerts_card_body">Triage checks Sentry in the background. No server involved.</string>
+    <string name="alerts_card_not_now">Not now</string>
+    <string name="alerts_card_turn_on">Turn on</string>
 </resources>

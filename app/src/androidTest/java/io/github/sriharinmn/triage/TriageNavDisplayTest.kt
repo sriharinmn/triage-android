@@ -20,6 +20,7 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.navigation3.runtime.NavKey
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -31,6 +32,7 @@ class TriageNavDisplayTest {
   @get:Rule val composeTestRule = createAndroidComposeRule<ComponentActivity>()
 
   private fun showStandIns(
+    initialStack: List<NavKey> = listOf(Inbox),
     issueDetail: @Composable (issueId: String, onBack: () -> Unit) -> Unit = { issueId, onBack ->
       Column {
         Text("Detail of $issueId")
@@ -40,12 +42,22 @@ class TriageNavDisplayTest {
   ) {
     composeTestRule.setContent {
       TriageNavDisplay(
-        inbox = { onOpenIssue ->
-          LazyColumn(Modifier.testTag("inbox_list")) {
-            items(100) { i -> Text("Issue $i", Modifier.fillMaxWidth().clickable { onOpenIssue("$i") }.padding(16.dp)) }
+        initialStack = initialStack,
+        inbox = { onOpenIssue, onOpenAlerts ->
+          Column {
+            Button(onClick = onOpenAlerts) { Text("Open alerts") }
+            LazyColumn(Modifier.testTag("inbox_list")) {
+              items(100) { i -> Text("Issue $i", Modifier.fillMaxWidth().clickable { onOpenIssue("$i") }.padding(16.dp)) }
+            }
           }
         },
         issueDetail = issueDetail,
+        alerts = { onBack ->
+          Column {
+            Text("Alerts screen")
+            Button(onClick = onBack) { Text("Back") }
+          }
+        },
       )
     }
   }
@@ -73,6 +85,29 @@ class TriageNavDisplayTest {
 
     composeTestRule.onNodeWithText("Issue 3").assertIsDisplayed()
     composeTestRule.onNodeWithText("Detail of 3").assertDoesNotExist()
+  }
+
+  @Test
+  fun alerts_opensFromTheInbox_andBackReturnsToIt() {
+    showStandIns()
+    composeTestRule.onNodeWithText("Open alerts").performClick()
+    composeTestRule.onNodeWithText("Alerts screen").assertIsDisplayed()
+
+    composeTestRule.onNodeWithText("Back").performClick()
+
+    composeTestRule.onNodeWithText("Open alerts").assertIsDisplayed()
+    composeTestRule.onNodeWithText("Alerts screen").assertDoesNotExist()
+  }
+
+  @Test
+  fun aNotificationsIssue_opensOnTopOfTheInbox_andBackGoesToTheInbox() {
+    showStandIns(initialStack = listOf(Inbox, IssueDetail("7")))
+    composeTestRule.onNodeWithText("Detail of 7").assertIsDisplayed()
+
+    composeTestRule.onNodeWithText("Back").performClick()
+
+    composeTestRule.onNodeWithText("Issue 0").assertIsDisplayed()
+    composeTestRule.onNodeWithText("Detail of 7").assertDoesNotExist()
   }
 
   @Test

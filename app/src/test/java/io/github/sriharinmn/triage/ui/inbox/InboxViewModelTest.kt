@@ -4,6 +4,9 @@ import io.github.sriharinmn.triage.data.AccountDataCleaner
 import io.github.sriharinmn.triage.data.Disconnector
 import io.github.sriharinmn.triage.data.RateLimitGate
 import io.github.sriharinmn.triage.data.account.AccountRepository
+import io.github.sriharinmn.triage.data.alerts.AlertState
+import io.github.sriharinmn.triage.data.alerts.DataStoreAlertSettingsStore
+import io.github.sriharinmn.triage.data.alerts.DataStoreAlertStateStore
 import io.github.sriharinmn.triage.data.actions.ActionNotice
 import io.github.sriharinmn.triage.data.actions.IssueAction
 import io.github.sriharinmn.triage.data.actions.IssueActionRepository
@@ -22,6 +25,7 @@ import io.github.sriharinmn.triage.testing.FakeSentryApi
 import io.github.sriharinmn.triage.testing.InMemoryAccountStore
 import io.github.sriharinmn.triage.testing.InMemoryInboxSettingsStore
 import io.github.sriharinmn.triage.testing.InMemoryIssueCache
+import io.github.sriharinmn.triage.testing.InMemoryPreferencesDataStore
 import io.github.sriharinmn.triage.testing.MainDispatcherRule
 import io.github.sriharinmn.triage.testing.TEST_ACCOUNT
 import io.github.sriharinmn.triage.testing.TestClock
@@ -60,11 +64,24 @@ class InboxViewModelTest {
   private val disconnector =
     Disconnector(AccountRepository(api, accountStore), AccountDataCleaner(repository, settings))
 
+  private val alertSettings = DataStoreAlertSettingsStore(InMemoryPreferencesDataStore())
+  private val alertState = DataStoreAlertStateStore(InMemoryPreferencesDataStore())
+
   private lateinit var pendingActions: PendingActions
 
-  private fun TestScope.viewModel(): InboxViewModel {
+  private fun TestScope.viewModel(opening: InboxOpening? = null): InboxViewModel {
     pendingActions = PendingActions(IssueActionRepository(api, RateLimitGate(clock::now)), repository, backgroundScope)
-    return InboxViewModel(TEST_ACCOUNT, repository, settings, disconnector, pendingActions, clock::now)
+    return InboxViewModel(
+      TEST_ACCOUNT,
+      repository,
+      settings,
+      disconnector,
+      pendingActions,
+      alertSettings,
+      alertState,
+      opening = opening,
+      clock = clock::now,
+    )
   }
 
   private fun page(vararg ids: String, next: String? = null): ApiResult<Page<IssueDto>> =
@@ -504,7 +521,7 @@ class InboxViewModelTest {
     val vm = viewModel()
 
     assertNull(vm.state.value.filter.projectId)
-    assertNull(api.issueCalls.last().params.projectId)
+    assertEquals(emptyList<String>(), api.issueCalls.last().params.projectIds)
     assertNull(settings.current.projectId)
   }
 
@@ -611,5 +628,84 @@ class InboxViewModelTest {
     assertNotNull(accountStore.current)
     vm.onDisconnectFailureShown()
     assertFalse(vm.state.value.disconnectFailed)
+  }
+
+  @Test
+  fun theAlertsCard_showsUntilAlertsAreOn() = runTest {
+    val vm = viewModel()
+    assertTrue(vm.state.value.showAlertsCard)
+
+    alertSettings.setEnabled(true)
+
+    assertFalse(vm.state.value.showAlertsCard)
+  }
+
+  @Test
+  fun turnOn_whenNotificationsAreAllowed_switchesAlertsOn_andClosesTheCard() = runTest {
+    val vm = viewModel()
+
+    vm.onAlertsCardTurnOn(allowed = true)
+
+    val saved = alertSettings.settings.first()
+    assertTrue(saved.enabled)
+    assertTrue(saved.cardDismissed)
+    assertFalse(vm.state.value.showAlertsCard)
+  }
+
+  @Test
+  fun turnOn_whenNotificationsAreDenied_onlyClosesTheCard() = runTest {
+    val vm = viewModel()
+
+    vm.onAlertsCardTurnOn(allowed = false)
+
+    val saved = alertSettings.settings.first()
+    assertFalse(saved.enabled)
+    assertTrue(saved.cardDismissed)
+    assertFalse(vm.state.value.showAlertsCard)
+  }
+
+  @Test
+  fun notNow_closesTheCardForGood() = runTest {
+    val vm = viewModel()
+
+    vm.onAlertsCardNotNow()
+
+    assertTrue(alertSettings.settings.first().cardDismissed)
+    assertFalse(vm.state.value.showAlertsCard)
+  }
+
+  @Test
+  fun aSuccessfulRefresh_letsPausedAlertChecksRunAgain_butAFailedOneDoesNot() = runTest {
+    alertState.save(AlertState(authProblemNotified = true))
+    api.issuesHandler = { ApiResult.Failure(ApiError.Unauthorized) }
+    val vm = viewModel()
+    assertTrue(alertState.state.first().authProblemNotified)
+
+    api.issuesHandler = { page("1") }
+    vm.onRefresh()
+
+    assertFalse(alertState.state.first().authProblemNotified)
+  }
+
+  @Test
+  fun aSummaryNotification_opensItsTabAndProject_withoutChangingTheRememberedFilter() = runTest {
+    api.projectsResult = ApiResult.Success(listOf(projectDto("101", listOf("production")), projectDto("102")))
+    val saved = InboxFilter(tab = InboxTab.Regressed, projectId = "101", environment = "production")
+    settings.save(saved)
+
+    val vm = viewModel(InboxOpening(InboxTab.Escalating, "102"))
+
+    assertEquals(InboxFilter(tab = InboxTab.Escalating, projectId = "102", environment = null), vm.state.value.filter)
+    assertEquals(saved, settings.current)
+  }
+
+  @Test
+  fun aSummaryWithoutAProject_opensOnAllProjects() = runTest {
+    api.projectsResult = ApiResult.Success(listOf(projectDto("101", listOf("production"))))
+    settings.save(InboxFilter(projectId = "101", environment = "production"))
+
+    val vm = viewModel(InboxOpening(InboxTab.Escalating, null))
+
+    assertEquals(InboxFilter(tab = InboxTab.Escalating, projectId = null, environment = null), vm.state.value.filter)
   }
 }

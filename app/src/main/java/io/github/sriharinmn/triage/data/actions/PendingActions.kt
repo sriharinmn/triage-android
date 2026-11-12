@@ -64,6 +64,11 @@ class PendingActions(
   private val issues: IssueRepository,
   private val scope: CoroutineScope,
   private val undoWindow: Duration = UNDO_WINDOW,
+  /**
+   * Called once a resolve or archive went through, or an action found the issue gone, so the app can take down that
+   * issue's alert notification. Called off the main thread.
+   */
+  private val onIssueClosed: (issueId: String) -> Unit = {},
 ) {
   private class Entry(val submitted: SubmittedAction, val account: Account, var previousAssignment: Assignment?) {
     var job: Job? = null
@@ -228,6 +233,7 @@ class PendingActions(
           IssueAction.Archive -> {
             issues.forget(issueId)
             synchronized(lock) { if (clears == clearsBefore) showAgain(issueId) }
+            closeNotification(issueId)
           }
           IssueAction.MarkReviewed -> issues.forget(issueId, InboxTab.ForReview)
           is IssueAction.Assign -> Unit
@@ -236,12 +242,19 @@ class PendingActions(
         // Merged or deleted in Sentry: it won't come back on a refresh, so stop showing it now.
         issues.forget(issueId)
         synchronized(lock) {
-          if (clears != clearsBefore) return
-          revert(entry)
-          showFailure(ActionNotice.Failed(entry.submitted, DetailError.NotFound))
+          if (clears == clearsBefore) {
+            revert(entry)
+            showFailure(ActionNotice.Failed(entry.submitted, DetailError.NotFound))
+          }
         }
+        closeNotification(issueId)
       }
     }
+  }
+
+  /** After the locked updates, and guarded: a throwing hook (a binder call) must not leave a row hidden or crash the app. */
+  private fun closeNotification(issueId: String) {
+    runCatching { onIssueClosed(issueId) }
   }
 
   /** Shows [failed], or holds it back while a newer action's Undo shows: it must not take that. Call under [lock]. */

@@ -5,6 +5,7 @@
 //   node send.mjs shop --scenario <name> send just one scenario, as in the full batch
 //   node send.mjs shop --only <name>     send one scenario now, from a newer release (use it to regress a resolved issue)
 //   node send.mjs shop --burst <name>    send 60 events of one scenario now (use it to escalate an archived issue)
+//   node send.mjs shop --fresh <name>    send one event now as a brand-new issue (use it to test "new issue" alerts)
 //   add --dry-run                        print the events instead of sending them
 //
 // DSNs come from TRIAGE_DEMO_DSN / TRIAGE_DEMO_ANDROID_DSN or from dsn.local.json (gitignored).
@@ -83,12 +84,13 @@ function randomBetween(min, max) {
 
 function parseArgs(argv) {
   const [targetName, ...rest] = argv;
-  const options = { targetName, scenario: null, only: null, burst: null, dryRun: false };
+  const options = { targetName, scenario: null, only: null, burst: null, fresh: null, dryRun: false };
   for (let i = 0; i < rest.length; i++) {
     if (rest[i] === "--dry-run") options.dryRun = true;
     else if (rest[i] === "--scenario") options.scenario = rest[++i];
     else if (rest[i] === "--only") options.only = rest[++i];
     else if (rest[i] === "--burst") options.burst = rest[++i];
+    else if (rest[i] === "--fresh") options.fresh = rest[++i];
     else throw new Error(`Unknown option ${rest[i]}`);
   }
   return options;
@@ -116,22 +118,26 @@ async function main() {
   });
 
   const now = Date.now() / 1000;
+  // A fingerprint no earlier event had, so Sentry opens a brand-new issue for --fresh instead of adding to the old one.
+  const freshFingerprint = options.fresh
+    ? [options.fresh, "fresh", `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`]
+    : null;
   let scenarios = target.scenarios;
-  if (options.scenario || options.only || options.burst) {
-    const name = options.scenario ?? options.only ?? options.burst;
+  if (options.scenario || options.only || options.burst || options.fresh) {
+    const name = options.scenario ?? options.only ?? options.burst ?? options.fresh;
     scenarios = scenarios.filter((scenario) => scenario.name === name);
     if (scenarios.length === 0) throw new Error(`No scenario named ${name}`);
   }
 
   let sent = 0;
   for (const scenario of scenarios) {
-    const count = options.burst ? 60 : options.only ? 1 : scenario.count;
+    const count = options.burst ? 60 : options.only || options.fresh ? 1 : scenario.count;
     const users = Array.from({ length: scenario.users }, (_, i) => `user-${scenario.userSeed + i}`);
     for (let i = 0; i < count; i++) {
       // Spread events between newestHoursAgo and oldestDaysAgo so first/last seen differ per issue.
       // The first event sits at the newest bound, so a rerun always gives each issue a fresh latest event.
       const ageSeconds =
-        options.only || options.burst
+        options.only || options.burst || options.fresh
           ? 0
           : i === 0
             ? scenario.newestHoursAgo * HOUR
@@ -149,6 +155,8 @@ async function main() {
           event.timestamp = now - ageSeconds;
           event.environment = environment;
           if (options.only || options.burst) event.release = target.newerRelease;
+          // Set here, after the scope's own fingerprint, so it wins (webhook-failures sets one per partner).
+          if (freshFingerprint) event.fingerprint = freshFingerprint;
           // Breadcrumbs lead up to the error a few seconds apart.
           const crumbs = event.breadcrumbs ?? [];
           crumbs.forEach((crumb, index) => {

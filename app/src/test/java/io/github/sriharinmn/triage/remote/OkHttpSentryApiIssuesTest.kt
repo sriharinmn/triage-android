@@ -17,7 +17,7 @@ class OkHttpSentryApiIssuesTest {
   private lateinit var server: MockWebServer
   // MockWebServer serves plain http.
   private val api = OkHttpSentryApi(OkHttpClient(), userAgent = "Triage-Test", requireHttps = false)
-  private val unresolved = IssueListParams(query = "is:unresolved", projectId = null, environment = null, sort = "date")
+  private val unresolved = IssueListParams(query = "is:unresolved", projectIds = emptyList(), environment = null, sort = "date")
 
   @Before
   fun setUp() {
@@ -44,7 +44,7 @@ class OkHttpSentryApiIssuesTest {
       baseUrl(),
       "sntryu_abc",
       "demo-org",
-      unresolved.copy(projectId = "102", environment = "production", sort = "freq"),
+      unresolved.copy(projectIds = listOf("102"), environment = "production", sort = "freq"),
       cursor = "0:25:0",
     )
 
@@ -61,6 +61,17 @@ class OkHttpSentryApiIssuesTest {
     assertEquals("25", url.queryParameter("limit"))
     assertEquals(listOf("lifetime", "filtered"), url.queryParameterValues("collapse"))
     assertEquals("0:25:0", url.queryParameter("cursor"))
+  }
+
+  @Test
+  fun listIssues_asksForEachChosenProject_andAWholePage() = runTest {
+    server.enqueue(MockResponse().setResponseCode(200).setBody("[]"))
+
+    api.listIssues(baseUrl(), "t", "demo-org", unresolved.copy(projectIds = listOf("101", "103"), limit = 100), cursor = null)
+
+    val url = server.takeRequest().requestUrl!!
+    assertEquals(listOf("101", "103"), url.queryParameterValues("project"))
+    assertEquals("100", url.queryParameter("limit"))
   }
 
   @Test

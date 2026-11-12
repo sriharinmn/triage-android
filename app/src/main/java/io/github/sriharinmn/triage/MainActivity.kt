@@ -9,6 +9,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.ui.Modifier
 import io.github.sriharinmn.triage.theme.TriageTheme
+import io.github.sriharinmn.triage.ui.alerts.toDeepLink
 
 class MainActivity : ComponentActivity() {
   override fun onCreate(savedInstanceState: Bundle?) {
@@ -16,9 +17,15 @@ class MainActivity : ComponentActivity() {
 
     enableEdgeToEdge()
     val container = (application as TriageApplication).container
+    // A tapped notification opens its issue or inbox tab, only on a fresh start: after a rotation or process death the
+    // saved back stack already shows where the user went from there. Notifications open a fresh task, so they always
+    // arrive here, never in onNewIntent.
+    val deepLink = if (savedInstanceState == null) intent.toDeepLink() else null
     setContent {
       TriageTheme {
-        Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) { TriageApp(container) }
+        Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+          TriageApp(container, deepLink)
+        }
       }
     }
   }
