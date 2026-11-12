@@ -7,10 +7,14 @@
     <string name="connect_host_self_hosted">Self-hosted</string>
     <string name="connect_server_url">Server URL</string>
     <string name="connect_server_url_error">Enter your server\'s https:// address</string>
-    <string name="connect_step1_title">1. Create a personal token</string>
-    <string name="connect_step1_body">On the token page, create a Personal Token with: Organization Read, Project Read, Issue &amp; Event Read &amp; Write, Member Read.</string>
+    <string name="connect_step1_title">Create a personal token</string>
+    <string name="connect_step1_body">On the token page, create a Personal Token with these permissions:</string>
+    <string name="connect_scope_org">Organization: Read</string>
+    <string name="connect_scope_project">Project: Read</string>
+    <string name="connect_scope_issue">Issue &amp; Event: Read &amp; Write</string>
+    <string name="connect_scope_member">Member: Read</string>
     <string name="connect_open_token_page">Open token page</string>
-    <string name="connect_step2_title">2. Paste it here</string>
+    <string name="connect_step2_title">Paste it here</string>
     <string name="connect_token_label">Personal token</string>
     <string name="connect_paste">Paste</string>
     <string name="connect_button">Connect</string>
@@ -275,4 +279,11 @@
     <string name="welcome_private_body">Your phone talks only to your Sentry server. No account with us, no tracking.</string>
     <string name="welcome_get_started">Get started</string>
     <string name="welcome_token_note">You\'ll need a Sentry personal token (takes a minute).</string>
+    <string name="connect_error_insecure">Couldn\'t connect securely. The server\'s certificate isn\'t trusted by this phone, or doesn\'t match the address.</string>
+    <string name="connect_error_server_not_found">Couldn\'t find this server. Check the address and that you\'re online.</string>
+    <string name="connect_error_not_sentry">No Sentry answered at this address. Use the address you open Sentry at, like https://sentry.example.com.</string>
+    <string name="connect_paste_empty">Nothing to paste: copy the token first.</string>
+    <string name="connect_open_failed">Couldn\'t open a browser. Copy this address into one:</string>
+    <string name="connect_copy_address">Copy address</string>
+    <string name="connect_connecting">Connecting…</string>
 </resources>

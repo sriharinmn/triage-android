@@ -191,14 +191,14 @@ class OkHttpSentryApi(
             try {
               continuation.resume(response.use { it.toApiResult(decode) })
             } catch (e: IOException) {
-              continuation.resume(ApiResult.Failure(ApiError.Network(e.message)))
+              continuation.resume(ApiResult.Failure(ApiError.Network(e.message, e.networkCause())))
             } catch (e: Exception) {
               continuation.resumeWithException(e)
             }
           }
 
           override fun onFailure(call: Call, e: IOException) {
-            continuation.resume(ApiResult.Failure(ApiError.Network(e.message)))
+            continuation.resume(ApiResult.Failure(ApiError.Network(e.message, e.networkCause())))
           }
         },
       )

@@ -2,6 +2,7 @@ package io.github.sriharinmn.triage.data.account
 
 import io.github.sriharinmn.triage.remote.ApiError
 import io.github.sriharinmn.triage.remote.ApiResult
+import io.github.sriharinmn.triage.remote.NetworkCause
 import io.github.sriharinmn.triage.remote.OrganizationLinksDto
 import io.github.sriharinmn.triage.testing.EU_ORG
 import io.github.sriharinmn.triage.testing.FakeSentryApi
@@ -73,6 +74,38 @@ class AccountRepositoryTest {
         ApiError.Network("timeout") to ConnectError.Network,
         ApiError.Http(500) to ConnectError.Unknown,
         ApiError.Parse to ConnectError.Unknown,
+      )
+    for ((apiError, expected) in cases) {
+      api.organizationsResult = ApiResult.Failure(apiError)
+      assertEquals(ConnectResult.Error(expected), repository.fetchOrganizations(SentryHost.Cloud, "sntryu_abc"))
+    }
+  }
+
+  @Test
+  fun onASelfHostedServer_addressProblemsSayWhatIsWrong() = runTest {
+    val selfHosted = SentryHost.SelfHosted("https://sentry.example.com")
+    val cases =
+      mapOf(
+        ApiError.Network("handshake", NetworkCause.Tls) to ConnectError.InsecureConnection,
+        ApiError.Network("no such host", NetworkCause.UnknownHost) to ConnectError.ServerNotFound,
+        ApiError.Network("timeout") to ConnectError.Network,
+        ApiError.Http(404) to ConnectError.NotSentryServer,
+        ApiError.Parse to ConnectError.NotSentryServer,
+        ApiError.Http(502) to ConnectError.Unknown,
+      )
+    for ((apiError, expected) in cases) {
+      api.organizationsResult = ApiResult.Failure(apiError)
+      assertEquals(ConnectResult.Error(expected), repository.fetchOrganizations(selfHosted, "sntryu_abc"))
+    }
+  }
+
+  @Test
+  fun onSentryIo_anUnknownHostOnlyMeansOffline() = runTest {
+    val cases =
+      mapOf(
+        ApiError.Network("no such host", NetworkCause.UnknownHost) to ConnectError.Network,
+        ApiError.Network("handshake", NetworkCause.Tls) to ConnectError.InsecureConnection,
+        ApiError.Http(404) to ConnectError.Unknown,
       )
     for ((apiError, expected) in cases) {
       api.organizationsResult = ApiResult.Failure(apiError)

@@ -4,6 +4,7 @@ import io.github.sriharinmn.triage.data.account.AccountRepository
 import io.github.sriharinmn.triage.data.account.ConnectError
 import io.github.sriharinmn.triage.remote.ApiError
 import io.github.sriharinmn.triage.remote.ApiResult
+import io.github.sriharinmn.triage.remote.NetworkCause
 import io.github.sriharinmn.triage.testing.EU_ORG
 import io.github.sriharinmn.triage.testing.FakeSentryApi
 import io.github.sriharinmn.triage.testing.InMemoryAccountStore
@@ -48,7 +49,7 @@ class ConnectViewModelTest {
   }
 
   @Test
-  fun submit_withSingleOrganization_connectsAndResets() {
+  fun submit_withSingleOrganization_connects_andKeepsShowingProgress() {
     api.organizationsResult = ApiResult.Success(listOf(US_ORG))
     viewModel.onTokenChange("sntryu_abc")
 
@@ -56,7 +57,10 @@ class ConnectViewModelTest {
 
     assertEquals("acme", store.current?.orgSlug)
     assertEquals("sntryu_abc", store.current?.token)
-    assertEquals(ConnectUiState(), viewModel.state.value)
+    // No reset to an empty form first: the inbox replaces the screen, and AccountGate drops this ViewModel.
+    assertEquals(Step.Validating, viewModel.state.value.step)
+    assertFalse(viewModel.state.value.canCancel)
+    assertNull(viewModel.state.value.error)
   }
 
   @Test
@@ -74,7 +78,9 @@ class ConnectViewModelTest {
 
     assertEquals("beta-gmbh", store.current?.orgSlug)
     assertEquals("https://de.sentry.io", store.current?.apiBaseUrl)
-    assertEquals(ConnectUiState(), viewModel.state.value)
+    // The list stays on screen, with progress, until the inbox replaces it.
+    assertEquals(Step.Saving, viewModel.state.value.step)
+    assertEquals(listOf(US_ORG, EU_ORG), viewModel.state.value.organizations)
   }
 
   @Test
@@ -196,13 +202,13 @@ class ConnectViewModelTest {
     viewModel.onOrganizationChosen(EU_ORG)
     viewModel.onOrganizationChosen(US_ORG)
 
-    assertEquals(Step.Validating, viewModel.state.value.step)
+    assertEquals(Step.Saving, viewModel.state.value.step)
 
     gate.complete(Unit)
 
     assertEquals("beta-gmbh", store.current?.orgSlug)
     assertEquals(1, store.saveCount)
-    assertEquals(ConnectUiState(), viewModel.state.value)
+    assertEquals(Step.Saving, viewModel.state.value.step)
   }
 
   @Test
@@ -216,12 +222,12 @@ class ConnectViewModelTest {
 
     viewModel.onBackFromOrganizations()
 
-    assertEquals(Step.Validating, viewModel.state.value.step)
+    assertEquals(Step.Saving, viewModel.state.value.step)
 
     gate.complete(Unit)
 
     assertEquals("beta-gmbh", store.current?.orgSlug)
-    assertEquals(ConnectUiState(), viewModel.state.value)
+    assertEquals(Step.Saving, viewModel.state.value.step)
   }
 
   @Test
@@ -324,6 +330,86 @@ class ConnectViewModelTest {
 
     assertNull(viewModel.requestTokenPageUrl())
     assertTrue(viewModel.state.value.urlError)
+  }
+
+  @Test
+  fun aNetworkError_showsUnderTheButton_notOnTheTokenField() {
+    api.organizationsResult = ApiResult.Failure(ApiError.Network("timeout"))
+    viewModel.onTokenChange("sntryu_abc")
+
+    viewModel.onSubmit()
+
+    val state = viewModel.state.value
+    assertEquals(ConnectError.Network, state.formError)
+    assertNull(state.tokenError)
+    assertNull(state.serverUrlError)
+  }
+
+  @Test
+  fun aRejectedToken_marksTheTokenField() {
+    api.organizationsResult = ApiResult.Failure(ApiError.Unauthorized)
+    viewModel.onTokenChange("sntryu_bad")
+
+    viewModel.onSubmit()
+
+    assertEquals(ConnectError.InvalidToken, viewModel.state.value.tokenError)
+    assertNull(viewModel.state.value.formError)
+  }
+
+  @Test
+  fun aSelfHostedCertificateProblem_marksTheUrlField_untilTheUrlChanges() {
+    api.organizationsResult = ApiResult.Failure(ApiError.Network("handshake", NetworkCause.Tls))
+    viewModel.onHostChoiceChange(HostChoice.SelfHosted)
+    viewModel.onSelfHostedUrlChange("sentry.example.com")
+    viewModel.onTokenChange("sntryu_abc")
+
+    viewModel.onSubmit()
+
+    assertEquals(ConnectError.InsecureConnection, viewModel.state.value.serverUrlError)
+    assertNull(viewModel.state.value.tokenError)
+    viewModel.onSelfHostedUrlChange("sentry.example.org")
+    assertNull(viewModel.state.value.error)
+  }
+
+  @Test
+  fun onSentryIo_aCertificateProblemShowsUnderTheButton() {
+    api.organizationsResult = ApiResult.Failure(ApiError.Network("handshake", NetworkCause.Tls))
+    viewModel.onTokenChange("sntryu_abc")
+
+    viewModel.onSubmit()
+
+    assertEquals(ConnectError.InsecureConnection, viewModel.state.value.formError)
+  }
+
+  @Test
+  fun pasteWithNothingCopied_saysSo_untilTheTokenChanges() {
+    viewModel.onPasteToken(null)
+    assertTrue(viewModel.state.value.pasteEmpty)
+
+    viewModel.onPasteToken("   ")
+    assertTrue(viewModel.state.value.pasteEmpty)
+
+    viewModel.onTokenChange("s")
+    assertFalse(viewModel.state.value.pasteEmpty)
+  }
+
+  @Test
+  fun paste_trimsTheToken() {
+    viewModel.onPasteToken("  sntryu_abc\n")
+
+    assertEquals("sntryu_abc", viewModel.state.value.token)
+    assertFalse(viewModel.state.value.pasteEmpty)
+  }
+
+  @Test
+  fun aTokenPageThatCannotOpen_showsItsAddress_untilTheServerChanges() {
+    val url = "https://sentry.io/settings/account/api/auth-tokens/"
+
+    viewModel.onTokenPageUnavailable(url)
+    assertEquals(url, viewModel.state.value.tokenPageUrlToCopy)
+
+    viewModel.onHostChoiceChange(HostChoice.SelfHosted)
+    assertNull(viewModel.state.value.tokenPageUrlToCopy)
   }
 
   @Test

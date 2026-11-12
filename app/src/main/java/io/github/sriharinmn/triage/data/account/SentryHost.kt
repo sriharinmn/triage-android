@@ -19,10 +19,14 @@ sealed interface SentryHost {
 
 private val MALFORMED_SCHEME = Regex("(?i)^https?[:/]")
 
+/** Path segments of Sentry's web app; a pasted page address keeps only the part before the first of them. */
+private val WEB_APP_SECTIONS = setOf("organizations", "settings")
+
 /**
- * Turns whatever the user typed into `https://host[:port][/path]` with no trailing slash, or null
- * if it isn't a usable https URL. A pasted `/api/0` suffix is removed. A scheme typed without its
- * `://` (such as `https:/host`) is rejected rather than read as a host name.
+ * Turns whatever the user typed into `https://host[:port][/path]` with no trailing slash, or null if it isn't a usable
+ * https URL. A pasted `/api/0` suffix is removed, and so is a page of Sentry's web app (an issue list, the token page), so
+ * pasting any Sentry address works. A scheme typed without its `://` (such as `https:/host`) is rejected rather than read
+ * as a host name. The host comes out lowercased; credentials, query and fragment are dropped.
  */
 fun normalizeBaseUrl(input: String): String? {
   var text = input.trim()
@@ -35,6 +39,8 @@ fun normalizeBaseUrl(input: String): String? {
   if (url.scheme != "https") return null
 
   val segments = url.pathSegments.filter { it.isNotEmpty() }.toMutableList()
+  val section = segments.indexOfFirst { it in WEB_APP_SECTIONS }
+  if (section >= 0) segments.subList(section, segments.size).clear()
   if (segments.takeLast(2) == listOf("api", "0")) {
     segments.removeAt(segments.lastIndex)
     segments.removeAt(segments.lastIndex)
