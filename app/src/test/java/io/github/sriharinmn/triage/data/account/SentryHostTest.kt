@@ -90,6 +90,18 @@ class SentryHostTest {
   }
 
   @Test
+  fun normalize_cutsAPastedApiAddressAtItsApiRoot() {
+    assertEquals("https://example.com/sentry", normalizeBaseUrl("https://example.com/sentry/api/0/projects/acme/"))
+    assertEquals("https://sentry.example.com", normalizeBaseUrl("https://sentry.example.com/api/0/projects/acme/backend/issues/"))
+  }
+
+  @Test
+  fun normalize_keepsOnlyTheServerOfTheLoginPage() {
+    assertEquals("https://sentry.example.com", normalizeBaseUrl("https://sentry.example.com/auth/login/"))
+    assertEquals("https://example.com:8443/sentry", normalizeBaseUrl("https://example.com:8443/sentry/auth/login/acme/"))
+  }
+
+  @Test
   fun normalize_rejectsOtherSchemes() {
     assertNull(normalizeBaseUrl("ftp://sentry.example.com"))
     assertNull(normalizeBaseUrl("file:///etc/hosts"))

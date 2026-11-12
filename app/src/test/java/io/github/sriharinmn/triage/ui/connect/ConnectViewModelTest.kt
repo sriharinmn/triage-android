@@ -413,6 +413,31 @@ class ConnectViewModelTest {
   }
 
   @Test
+  fun everyError_hasItsPlace_onSentryIoAndSelfHosted() {
+    // Each ConnectError, with where it shows on sentry.io and on a self-hosted server.
+    val table =
+      listOf(
+        Triple(ConnectError.EmptyToken, ErrorPlace.Token, ErrorPlace.Token),
+        Triple(ConnectError.OrgTokenNotSupported, ErrorPlace.Token, ErrorPlace.Token),
+        Triple(ConnectError.InvalidToken, ErrorPlace.Token, ErrorPlace.Token),
+        Triple(ConnectError.MissingScopes, ErrorPlace.Token, ErrorPlace.Token),
+        Triple(ConnectError.InsecureConnection, ErrorPlace.Form, ErrorPlace.ServerUrl),
+        Triple(ConnectError.ServerNotFound, ErrorPlace.Form, ErrorPlace.ServerUrl),
+        Triple(ConnectError.NotSentryServer, ErrorPlace.Form, ErrorPlace.ServerUrl),
+        Triple(ConnectError.NoOrganizations, ErrorPlace.Form, ErrorPlace.Form),
+        Triple(ConnectError.RateLimited(42), ErrorPlace.Form, ErrorPlace.Form),
+        Triple(ConnectError.RateLimited(null), ErrorPlace.Form, ErrorPlace.Form),
+        Triple(ConnectError.Network, ErrorPlace.Form, ErrorPlace.Form),
+        Triple(ConnectError.Unknown, ErrorPlace.Form, ErrorPlace.Form),
+        Triple(ConnectError.SaveFailed, ErrorPlace.Form, ErrorPlace.Form),
+      )
+    for ((error, onSentryIo, onSelfHosted) in table) {
+      assertEquals("$error on sentry.io", onSentryIo, error.place(HostChoice.Cloud))
+      assertEquals("$error on a self-hosted server", onSelfHosted, error.place(HostChoice.SelfHosted))
+    }
+  }
+
+  @Test
   fun stateToString_redactsToken() {
     viewModel.onTokenChange("sntryu_secret")
     assertFalse(viewModel.state.value.toString().contains("sntryu_secret"))

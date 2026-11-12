@@ -1,10 +1,12 @@
 package io.github.sriharinmn.triage.remote
 
 import java.net.UnknownHostException
+import java.security.cert.CertificateException
 import java.time.ZoneOffset
 import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
 import java.util.concurrent.TimeUnit
+import javax.net.ssl.SSLException
 import javax.net.ssl.SSLHandshakeException
 import kotlin.system.measureTimeMillis
 import kotlinx.coroutines.Dispatchers
@@ -117,11 +119,30 @@ class OkHttpSentryApiTest {
 
   @Test
   fun aFailedSecureConnection_isReportedAsATlsProblem() = runTest {
-    val untrusted = OkHttpClient.Builder().addInterceptor(Interceptor { throw SSLHandshakeException("certificate not trusted") }).build()
+    val untrusted =
+      OkHttpClient.Builder()
+        .addInterceptor(
+          Interceptor {
+            throw SSLHandshakeException("certificate not trusted").apply {
+              initCause(CertificateException("Trust anchor for certification path not found."))
+            }
+          }
+        )
+        .build()
 
     val result = OkHttpSentryApi(untrusted, userAgent = "Triage-Test", requireHttps = false).listOrganizations(baseUrl(), "t")
 
     assertEquals(NetworkCause.Tls, ((result as ApiResult.Failure).error as ApiError.Network).cause)
+  }
+
+  @Test
+  fun aSecureConnectionThatDropped_isNotReportedAsATlsProblem() = runTest {
+    val reset = SSLException("Read error: ssl=0x0: I/O error during system call, Connection reset by peer")
+    val dropping = OkHttpClient.Builder().addInterceptor(Interceptor { throw reset }).build()
+
+    val result = OkHttpSentryApi(dropping, userAgent = "Triage-Test", requireHttps = false).listOrganizations(baseUrl(), "t")
+
+    assertEquals(NetworkCause.Other, ((result as ApiResult.Failure).error as ApiError.Network).cause)
   }
 
   @Test

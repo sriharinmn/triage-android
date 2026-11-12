@@ -93,6 +93,8 @@ fun ConnectScreen(viewModel: ConnectViewModel, modifier: Modifier = Modifier) {
   BackHandler(enabled = state.step == Step.ChooseOrganization) { viewModel.onBackFromOrganizations() }
   // Back while a token is being checked cancels the check instead of leaving the app.
   BackHandler(enabled = state.canCancel) { viewModel.onCancelValidation() }
+  // Back while the account saves does nothing: the save can't be stopped, and leaving would hide whether it worked.
+  BackHandler(enabled = state.step == Step.Saving || (state.step == Step.Validating && !state.canCancel)) {}
 
   ConnectContent(
     state = state,

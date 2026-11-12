@@ -2,7 +2,9 @@ package io.github.sriharinmn.triage.remote
 
 import java.io.IOException
 import java.net.UnknownHostException
-import javax.net.ssl.SSLException
+import java.security.cert.CertificateException
+import javax.net.ssl.SSLHandshakeException
+import javax.net.ssl.SSLPeerUnverifiedException
 
 /** Outcome of a Sentry API call. HTTP and network problems are values, not exceptions. */
 sealed interface ApiResult<out T> {
@@ -35,17 +37,32 @@ sealed interface ApiError {
 
 /** Why a request got no answer, as far as the connection can tell. */
 enum class NetworkCause {
-  /** The secure connection failed: a certificate the phone doesn't trust, an expired one, or one for another name. */
+  /**
+   * The server's certificate was refused: one the phone doesn't trust, an expired one, or one for another name. Not a
+   * secure connection that merely dropped: that is [Other].
+   */
   Tls,
   /** The server's name didn't resolve: a mistyped address, or no connection at all. */
   UnknownHost,
   Other,
 }
 
-/** Sorts a connection failure into a [NetworkCause]. */
+/**
+ * Sorts a connection failure into a [NetworkCause]. Only a certificate problem is [NetworkCause.Tls], by OkHttp's own
+ * rule for what retrying can't fix (`RetryAndFollowUpInterceptor.isRecoverable`): a peer that failed verification, or a
+ * handshake that failed over a [CertificateException]. Android reports ordinary drops (a reset, an abort, a handshake
+ * closed by the peer) as other `SSLException`s; those are [NetworkCause.Other].
+ */
 internal fun IOException.networkCause(): NetworkCause =
-  when (this) {
-    is SSLException -> NetworkCause.Tls
-    is UnknownHostException -> NetworkCause.UnknownHost
+  when {
+    this is SSLPeerUnverifiedException -> NetworkCause.Tls
+    this is SSLHandshakeException && causedByCertificate() -> NetworkCause.Tls
+    this is UnknownHostException -> NetworkCause.UnknownHost
     else -> NetworkCause.Other
   }
+
+/** True if a [CertificateException] is somewhere in this exception's causes, looking only so deep in case they loop. */
+private fun Throwable.causedByCertificate(): Boolean =
+  generateSequence(cause) { it.cause }.take(MAX_CAUSE_DEPTH).any { it is CertificateException }
+
+private const val MAX_CAUSE_DEPTH = 8
