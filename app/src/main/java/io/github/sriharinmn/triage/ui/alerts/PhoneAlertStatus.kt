@@ -73,7 +73,8 @@ fun rememberNotificationPermissionRequest(onResult: (allowed: Boolean) -> Unit, 
   val launcher =
     rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
       // After a no, Android shows its popup again only while it would show a rationale; otherwise that no was final.
-      deliver(notificationAnswer(allowed = granted, canAskAgain = activity?.mayAskForNotificationsAgain() == true))
+      // Without an activity we can't tell, so we never jump to Android's settings.
+      deliver(notificationAnswer(allowed = granted, canAskAgain = activity?.mayAskForNotificationsAgain() ?: true))
     }
   return {
     val allowed = NotificationManagerCompat.from(context).areNotificationsEnabled()

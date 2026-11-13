@@ -1,5 +1,6 @@
 package io.github.sriharinmn.triage.ui.common
 
+import androidx.annotation.StringRes
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.material3.MaterialTheme
@@ -14,9 +15,9 @@ import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import io.github.sriharinmn.triage.R
 import io.github.sriharinmn.triage.data.issues.IssueBadge
 import io.github.sriharinmn.triage.theme.semanticColors
-import io.github.sriharinmn.triage.ui.inbox.labelRes
 
 /** The mark before a status word: ● new, ↺ regressed, ↗ escalating. */
 val IssueBadge.symbol: String
@@ -26,6 +27,14 @@ val IssueBadge.symbol: String
       IssueBadge.Regressed -> "↺"
       IssueBadge.Escalating -> "↗"
     }
+
+@StringRes
+internal fun IssueBadge.labelRes(): Int =
+  when (this) {
+    IssueBadge.New -> R.string.issue_badge_new
+    IssueBadge.Regressed -> R.string.issue_badge_regressed
+    IssueBadge.Escalating -> R.string.issue_badge_escalating
+  }
 
 @Composable
 @ReadOnlyComposable

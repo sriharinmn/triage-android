@@ -69,7 +69,7 @@ internal fun SwipeableIssueRow(
       issue = issue,
       now = now,
       onClick = onClick,
-      // On the row itself, which merges its texts into one TalkBack item, so the actions belong to that item.
+      // On the row itself, which is one cleared TalkBack sentence, so the actions belong to that item.
       modifier =
         modifier.semantics {
           customActions =

@@ -3,7 +3,6 @@ package io.github.sriharinmn.triage.ui.inbox
 import androidx.annotation.StringRes
 import io.github.sriharinmn.triage.R
 import io.github.sriharinmn.triage.data.issues.InboxTab
-import io.github.sriharinmn.triage.data.issues.IssueBadge
 import io.github.sriharinmn.triage.data.issues.IssueSort
 
 @StringRes
@@ -42,12 +41,4 @@ internal fun IssueSort.labelRes(): Int =
     IssueSort.FirstSeen -> R.string.inbox_sort_first_seen
     IssueSort.Events -> R.string.inbox_sort_events
     IssueSort.Users -> R.string.inbox_sort_users
-  }
-
-@StringRes
-internal fun IssueBadge.labelRes(): Int =
-  when (this) {
-    IssueBadge.New -> R.string.issue_badge_new
-    IssueBadge.Regressed -> R.string.issue_badge_regressed
-    IssueBadge.Escalating -> R.string.issue_badge_escalating
   }
