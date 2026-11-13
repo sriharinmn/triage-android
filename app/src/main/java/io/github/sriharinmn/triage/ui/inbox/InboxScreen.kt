@@ -45,6 +45,7 @@ import io.github.sriharinmn.triage.data.issues.InboxError
 import io.github.sriharinmn.triage.data.issues.InboxTab
 import io.github.sriharinmn.triage.data.issues.Issue
 import io.github.sriharinmn.triage.data.issues.IssueSort
+import io.github.sriharinmn.triage.ui.alerts.openNotificationSettings
 import io.github.sriharinmn.triage.ui.alerts.rememberNotificationPermissionRequest
 import io.github.sriharinmn.triage.ui.common.ActionNoticeEffect
 import io.github.sriharinmn.triage.ui.common.DisconnectDialog
@@ -84,8 +85,12 @@ fun InboxScreen(
   modifier: Modifier = Modifier,
 ) {
   val state by viewModel.state.collectAsStateWithLifecycle()
-  // The card's Turn on shows Android's notification popup first (Android 13+); alerts go on only if it's allowed.
-  val requestNotifications = rememberNotificationPermissionRequest(viewModel::onAlertsCardTurnOn)
+  val context = LocalContext.current
+  // The card's Turn on shows Android's notification popup first (Android 13+); alerts go on only if it's allowed. When
+  // notifications are blocked (no popup can show), it opens Android's notification settings for Triage like the Alerts
+  // switch does, and the card stays so Turn on works after the user allows them.
+  val requestNotifications =
+    rememberNotificationPermissionRequest(viewModel::onAlertsCardTurnOn, onBlocked = context::openNotificationSettings)
   val snackbarHostState = remember { SnackbarHostState() }
   // "3m" labels tick every minute and catch up whenever fresh data arrives.
   val now by
