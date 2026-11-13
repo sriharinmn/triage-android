@@ -226,6 +226,8 @@ class IssueDetailContentTest {
     scrollTo("This event is too large to show here.")
 
     composeTestRule.onNodeWithText("This event is too large to show here.").assertIsDisplayed()
+    // The button sits below the help line; a tap off the list's edge would land on the action bar instead.
+    scrollTo("Open in browser")
     composeTestRule.onNodeWithText("Open in browser").performClick()
     assertEquals(listOf("open"), calls)
   }
