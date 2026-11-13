@@ -349,11 +349,13 @@ private fun DetailBody(
       // The layout the state holds from before this list was shown (it outlives the list) or its content last changed.
       // Until the list has been measured since, the filler is a whole viewport, so neither a requested scroll nor
       // content that shrinks under a pinned tab row gets clamped; it settles to its real height on the next frame.
-      // Only what can change the content's height counts: a notice, the assign sheet or the minute tick doesn't.
+      // Only what can change the content's height counts: a notice or the assign sheet doesn't. The minute tick counts
+      // only when it changes the event line's "Xm ago", which can wrap differently ("59m ago" to "1h ago").
       val contentKey =
         listOf(
           listTab,
           state.event,
+          state.event?.dateCreated?.let { elapsedSince(it, now).label() },
           state.isLoadingEvent,
           state.eventError,
           state.expandedFrames,
