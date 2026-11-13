@@ -4,10 +4,12 @@ import androidx.activity.ComponentActivity
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.isDialog
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performScrollToNode
 import io.github.sriharinmn.triage.theme.TriageTheme
 import org.junit.Rule
@@ -41,11 +43,17 @@ class AboutContentTest {
   @Test
   fun aLibrary_opensItsLicensesText() {
     show()
-    composeTestRule.onNodeWithTag(AboutTags.LIST).performScrollToNode(hasTestTag(AboutTags.library("JetBrains Mono")))
+    val jetBrainsMono = AboutTags.library("JetBrains Mono")
+    composeTestRule.onNodeWithTag(AboutTags.LIST).performScrollToNode(hasTestTag(jetBrainsMono))
 
-    composeTestRule.onNodeWithTag(AboutTags.library("JetBrains Mono")).performClick()
+    // performScrollToNode can stop with the row only partly on screen, where a tap at its centre misses it.
+    composeTestRule.onNodeWithTag(jetBrainsMono).performScrollTo().performClick()
 
-    composeTestRule.waitUntil(timeoutMillis = 5_000) {
+    // In two steps, so a failure says whether the tap missed or the license text didn't load.
+    composeTestRule.waitUntil("the license dialog opens", timeoutMillis = 5_000) {
+      composeTestRule.onAllNodes(isDialog()).fetchSemanticsNodes().isNotEmpty()
+    }
+    composeTestRule.waitUntil("the OFL text is read and shown", timeoutMillis = 5_000) {
       composeTestRule
         .onAllNodes(hasText("licensed under the SIL Open Font License", substring = true))
         .fetchSemanticsNodes()
