@@ -7,12 +7,15 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertHeightIsAtLeast
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onChildren
+import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
@@ -148,10 +151,22 @@ class EventSectionsTest {
   }
 
   @Test
-  fun aSingleLineFrameRow_isAtLeast48dpTall() {
+  fun aFrameRowWithItsPlace_isAtLeast48dpTall() {
     show(event())
 
     composeTestRule.onNodeWithTag(DetailTags.frame(FrameRef(0, 0))).assertHeightIsAtLeast(48.dp)
+  }
+
+  @Test
+  fun aFrameWithoutAPlace_isOneLine_andAtLeast48dpTall() {
+    val nowhere =
+      StackFrame(function = "anonymous", module = null, file = null, lineNo = null, colNo = null, inApp = true, context = emptyList())
+    show(event(stacks = listOf(crash.copy(frames = listOf(nowhere)))))
+
+    val row = composeTestRule.onNodeWithTag(DetailTags.frame(FrameRef(0, 0)), useUnmergedTree = true)
+    row.assertHeightIsAtLeast(48.dp)
+    // The name is the row's only text: there's no place line under it.
+    row.onChildren().assertCountEquals(1).onFirst().assert(hasText("anonymous"))
   }
 
   @Test
