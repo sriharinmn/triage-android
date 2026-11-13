@@ -353,6 +353,7 @@
     <string name="detail_stat_first_seen">First seen</string>
     <string name="detail_stat_last_seen">Last seen</string>
     <string name="detail_stat_first_seen_spoken">First seen %1$s</string>
+    <string name="detail_stat_first_seen_release_spoken">First seen %1$s, in release %2$s</string>
     <string name="detail_stat_last_seen_spoken">Last seen %1$s</string>
     <string name="detail_chart_label">Events</string>
     <string name="detail_chart_summary_24h">Events, last 24 hours: %1$s, busiest at %2$s</string>

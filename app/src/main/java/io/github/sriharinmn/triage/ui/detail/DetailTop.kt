@@ -113,9 +113,15 @@ private fun Eyebrow(summary: IssueSummary) {
 }
 
 /** [spoken] is what TalkBack reads for the cell ("3 events", "Last seen 2 hours ago"); null when the value is unknown. */
-private class StatCell(val value: String, val label: String, val tag: String, val spoken: String?)
+private class StatCell(val value: String, val label: String, val tag: String, val spoken: String?, val note: StatNote? = null)
 
-/** Events, users, first and last seen in one rounded tile: four across, or two rows of two at large font sizes. */
+/** An optional third line under a cell's label (the release an issue was first seen in), with its own test tag. */
+private class StatNote(val text: String, val tag: String)
+
+/**
+ * Events, users, first and last seen in one rounded tile: four across, or two rows of two at large font sizes. The first
+ * seen cell adds the release the issue was first seen in as a third line when Sentry says.
+ */
 @Composable
 private fun StatStrip(summary: IssueSummary, now: Instant, modifier: Modifier = Modifier) {
   val locale = LocalConfiguration.current.locales[0]
@@ -138,7 +144,13 @@ private fun StatStrip(summary: IssueSummary, now: Instant, modifier: Modifier = 
         summary.firstSeen?.let { elapsedSince(it, now).label() } ?: NO_VALUE,
         stringResource(R.string.detail_stat_first_seen),
         DetailTags.STAT_FIRST_SEEN,
-        summary.firstSeen?.let { stringResource(R.string.detail_stat_first_seen_spoken, elapsedSince(it, now).spokenAgo()) },
+        summary.firstSeen?.let {
+          val ago = elapsedSince(it, now).spokenAgo()
+          val release = summary.firstRelease
+          if (release != null) stringResource(R.string.detail_stat_first_seen_release_spoken, ago, release)
+          else stringResource(R.string.detail_stat_first_seen_spoken, ago)
+        },
+        note = summary.firstRelease?.let { StatNote(it, DetailTags.STAT_FIRST_RELEASE) },
       ),
       StatCell(
         summary.lastSeen?.let { elapsedSince(it, now).label() } ?: NO_VALUE,
@@ -163,6 +175,16 @@ private fun StatStrip(summary: IssueSummary, now: Instant, modifier: Modifier = 
             ) {
               Text(cell.value, style = MaterialTheme.typography.titleMedium.tabular(), maxLines = 1, overflow = TextOverflow.Ellipsis)
               SmallCapsText(cell.label)
+              cell.note?.let {
+                Text(
+                  it.text,
+                  style = MaterialTheme.typography.labelSmall.mono(),
+                  color = MaterialTheme.colorScheme.onSurfaceVariant,
+                  maxLines = 1,
+                  overflow = TextOverflow.Ellipsis,
+                  modifier = Modifier.testTag(it.tag),
+                )
+              }
             }
           }
         }

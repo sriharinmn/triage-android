@@ -5,12 +5,14 @@ import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.test.DeviceConfigurationOverride
 import androidx.compose.ui.test.FontScale
 import androidx.compose.ui.test.assert
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
@@ -169,7 +171,7 @@ class IssueDetailContentTest {
     composeTestRule.onNodeWithTag(DetailTags.STAT_FIRST_SEEN).assert(hasText("3d"))
     composeTestRule.onNodeWithTag(DetailTags.STAT_LAST_SEEN).assert(hasText("2m"))
     // TalkBack reads words, not "3d".
-    composeTestRule.onNodeWithTag(DetailTags.STAT_FIRST_SEEN).assert(hasContentDescription("First seen 3 days ago"))
+    composeTestRule.onNodeWithTag(DetailTags.STAT_FIRST_SEEN).assert(hasContentDescription("First seen 3 days ago, in release 1.4.0"))
     // The last seen event's release, on the right of the eyebrow.
     composeTestRule.onNodeWithText("1.4.2").assertIsDisplayed()
     scrollTo("2m ago · release 1.4.2")
@@ -505,5 +507,42 @@ class IssueDetailContentTest {
 
     composeTestRule.onNodeWithText("fn39").assertIsDisplayed()
     composeTestRule.onNodeWithText("fn0").assertDoesNotExist()
+  }
+
+  @Test
+  fun aTabNotYetScrolled_opensWithTheTabRowPinnedWhenTheOldTabHadItPinned() {
+    val frames = (0 until 40).map { StackFrame("fn$it", null, "shop/f$it.js", it, null, true, emptyList()) }
+    val longTrace = event.copy(stacks = listOf(event.stacks.single().copy(frames = frames)))
+    show(loaded.copy(events = mapOf(EventKind.Recommended to longTrace)))
+    scrollTo("fn39")
+
+    composeTestRule.onNodeWithTag(DetailTags.tab(DetailTab.Tags)).performClick()
+
+    // The tab row sits at the top of the list and the issue header is scrolled away.
+    val list = composeTestRule.onNodeWithTag(DetailTags.LIST).fetchSemanticsNode().boundsInRoot
+    val tabRow = composeTestRule.onNodeWithTag(DetailTags.tab(DetailTab.Tags)).fetchSemanticsNode().boundsInRoot
+    assertEquals(list.top, tabRow.top, 0.5f)
+    composeTestRule.onNodeWithTag(DetailTags.tab(DetailTab.Tags)).assertIsDisplayed()
+    val strip = composeTestRule.onAllNodesWithTag(DetailTags.STAT_EVENTS).fetchSemanticsNodes()
+    assertTrue("the stat strip should be scrolled away", strip.all { it.boundsInRoot.bottom <= list.top + 0.5f })
+
+    composeTestRule.onNodeWithTag(DetailTags.tab(DetailTab.Trace)).performClick()
+    composeTestRule.onNodeWithText("fn39").assertIsDisplayed()
+  }
+
+  @Test
+  fun theFirstSeenCell_showsTheReleaseTheIssueWasFirstSeenIn() {
+    show(loaded)
+
+    composeTestRule.onNodeWithTag(DetailTags.STAT_FIRST_RELEASE, useUnmergedTree = true).assertIsDisplayed().assert(hasText("1.4.0"))
+    composeTestRule.onNodeWithTag(DetailTags.STAT_FIRST_SEEN).assert(hasContentDescription("First seen 3 days ago, in release 1.4.0"))
+  }
+
+  @Test
+  fun withoutAFirstRelease_theFirstSeenCellHasNoReleaseLine() {
+    show(loaded.copy(summary = loaded.summary!!.copy(firstRelease = null)))
+
+    composeTestRule.onAllNodesWithTag(DetailTags.STAT_FIRST_RELEASE, useUnmergedTree = true).assertCountEquals(0)
+    composeTestRule.onNodeWithTag(DetailTags.STAT_FIRST_SEEN).assert(hasContentDescription("First seen 3 days ago"))
   }
 }

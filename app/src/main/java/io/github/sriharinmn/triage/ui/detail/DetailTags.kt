@@ -16,6 +16,7 @@ object DetailTags {
   const val STAT_EVENTS = "detail_stat_events"
   const val STAT_USERS = "detail_stat_users"
   const val STAT_FIRST_SEEN = "detail_stat_first_seen"
+  const val STAT_FIRST_RELEASE = "detail_stat_first_release"
   const val STAT_LAST_SEEN = "detail_stat_last_seen"
   const val RESOLVE = "detail_resolve"
   const val ARCHIVE = "detail_archive"
