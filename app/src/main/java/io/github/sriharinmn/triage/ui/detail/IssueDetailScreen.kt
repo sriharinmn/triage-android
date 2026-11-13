@@ -340,12 +340,7 @@ private fun DetailBody(
             breadcrumbsSection(event.breadcrumbs, state.showAllBreadcrumbs, onShowAllBreadcrumbs)
           }
         // The issue's tags across all its events, so no event selector here.
-        DetailTab.Tags ->
-          tagsSection(
-            state.tags,
-            state.event?.tags.orEmpty(),
-            isLoading = state.tags == null && state.event == null && (state.isLoadingSummary || state.isLoadingEvent),
-          )
+        DetailTab.Tags -> tagsSection(state.tagsTabContent(), onRetry, onOpenInBrowser)
         DetailTab.Details ->
           eventTab(state, now, onEventKindSelected, onRetry, onOpenInBrowser) { event -> detailsSection(event.context) }
       }
@@ -371,7 +366,7 @@ private fun LazyListScope.eventTab(
     state.isLoadingEvent -> item(key = "event_loading") { SectionLoading(stringResource(R.string.detail_event_loading)) }
     // The banner above already explains a rejected token.
     eventError != null && !eventError.needsReconnect() ->
-      item(key = "event_error") { EventErrorPanel(eventError, onRetry, onOpenInBrowser) }
+      item(key = "event_error") { TabErrorPanel(eventError, onRetry, onOpenInBrowser) }
   }
 }
 
@@ -418,37 +413,6 @@ private fun EventMetaLine(event: IssueEvent, now: Instant) {
     color = MaterialTheme.colorScheme.onSurfaceVariant,
     modifier = Modifier.semantics { contentDescription = spoken },
   )
-}
-
-/** Why the event couldn't load, with the one action that can help, in the empty pattern. */
-@Composable
-private fun EventErrorPanel(error: DetailError, onRetry: () -> Unit, onOpenInBrowser: () -> Unit) {
-  when (error) {
-    DetailError.TooLarge ->
-      EmptyState(
-        icon = R.drawable.ic_info,
-        headline = stringResource(R.string.state_too_large),
-        help = stringResource(R.string.detail_error_too_large),
-        actionLabel = stringResource(R.string.detail_open_in_browser),
-        onAction = onOpenInBrowser,
-      )
-    // Sentry has no event of this kind; another one in the selector may still have one.
-    DetailError.NotFound ->
-      EmptyState(
-        icon = R.drawable.ic_info,
-        headline = detailErrorHeadline(error),
-        help = detailErrorMessage(error),
-      )
-    else ->
-      EmptyState(
-        icon = error.iconRes(),
-        headline = detailErrorHeadline(error),
-        help = detailErrorMessage(error),
-        actionLabel = stringResource(R.string.inbox_retry),
-        onAction = onRetry,
-        actionTag = DetailTags.RETRY,
-      )
-  }
 }
 
 @Composable

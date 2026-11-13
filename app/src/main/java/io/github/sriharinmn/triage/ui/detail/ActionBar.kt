@@ -56,7 +56,7 @@ internal fun DetailActionBar(
 @Composable
 private fun RowScope.ActionButton(@DrawableRes icon: Int, @StringRes label: Int, onClick: () -> Unit, tag: String) {
   TextButton(onClick = onClick, modifier = Modifier.weight(1f).heightIn(min = 56.dp).testTag(tag)) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(2.dp)) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
       // The text below names the button; the icon is decoration.
       Icon(painterResource(icon), contentDescription = null)
       Text(stringResource(label), style = MaterialTheme.typography.labelMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)

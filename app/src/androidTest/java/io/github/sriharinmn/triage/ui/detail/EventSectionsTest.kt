@@ -9,6 +9,7 @@ import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasContentDescription
+import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
@@ -18,6 +19,7 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToNode
 import io.github.sriharinmn.triage.data.detail.Breadcrumb
 import io.github.sriharinmn.triage.data.detail.ContextLine
+import io.github.sriharinmn.triage.data.detail.DetailError
 import io.github.sriharinmn.triage.data.detail.EventContext
 import io.github.sriharinmn.triage.data.detail.EventRequest
 import io.github.sriharinmn.triage.data.detail.EventStack
@@ -81,6 +83,7 @@ class EventSectionsTest {
     showAllBreadcrumbs: Boolean = false,
     tags: List<TagSummary>? = null,
     tagsLoading: Boolean = false,
+    tagsError: DetailError? = null,
   ) {
     composeTestRule.setContent {
       TriageTheme {
@@ -93,7 +96,7 @@ class EventSectionsTest {
             onShowLibraryFrames = { calls += "library:$it" },
           )
           breadcrumbsSection(event.breadcrumbs, showAllBreadcrumbs, onShowAll = { calls += "crumbs" })
-          tagsSection(tags, event.tags, isLoading = tagsLoading)
+          tagsSection(tagsContent(tags, event.tags, isLoading = tagsLoading, error = tagsError), onRetry = { calls += "retry" })
           detailsSection(event.context)
         }
       }
@@ -261,10 +264,21 @@ class EventSectionsTest {
 
   @Test
   fun anIssueWithoutTags_saysSo_onceTheyAreLoaded() {
-    show(event(stacks = emptyList()))
+    show(event(stacks = emptyList()), tags = emptyList())
 
     scrollTo("No tags for this issue")
     composeTestRule.onNodeWithText("No tags for this issue").assertIsDisplayed()
+  }
+
+  @Test
+  fun tagsThatCouldNotLoad_sayWhy_andOfferRetry() {
+    show(event(stacks = emptyList()), tagsError = DetailError.Network)
+
+    composeTestRule.onNodeWithTag(DetailTags.LIST).performScrollToNode(hasTestTag(DetailTags.RETRY))
+    composeTestRule.onNodeWithText("Can't reach Sentry").assertIsDisplayed()
+    composeTestRule.onNodeWithText("No tags for this issue").assertDoesNotExist()
+    composeTestRule.onNodeWithTag(DetailTags.RETRY).performClick()
+    assertEquals(listOf("retry"), calls)
   }
 
   @Test

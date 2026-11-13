@@ -172,7 +172,7 @@ class IssueDetailContentTest {
     composeTestRule.onNodeWithText("1.4.2").assertIsDisplayed()
     scrollTo("2m ago · release 1.4.2")
     composeTestRule.onNodeWithText("2m ago · release 1.4.2 · production").assertIsDisplayed()
-    scrollTo("cartTotal")
+    scrollToTag(DetailTags.frame(FrameRef(0, 0)))
     composeTestRule.onNodeWithText("cartTotal").assertIsDisplayed()
   }
 
@@ -217,6 +217,18 @@ class IssueDetailContentTest {
     scrollToTag(DetailTags.RETRY)
     composeTestRule.onNodeWithText("Couldn't reach Sentry. Check your connection.").assertIsDisplayed()
     composeTestRule.onNodeWithTag(DetailTags.RETRY).performClick()
+    assertEquals(listOf("retry"), calls)
+  }
+
+  @Test
+  fun offline_theTagsTab_saysWhy_andRetries() {
+    show(loaded.copy(events = emptyMap(), eventError = DetailError.Network, summaryError = DetailError.Network))
+
+    composeTestRule.onNodeWithTag(DetailTags.tab(DetailTab.Tags)).performClick()
+    scrollToTag(DetailTags.RETRY)
+    composeTestRule.onNodeWithText("No tags for this issue").assertDoesNotExist()
+    composeTestRule.onNodeWithTag(DetailTags.RETRY).performClick()
+
     assertEquals(listOf("retry"), calls)
   }
 
@@ -440,7 +452,7 @@ class IssueDetailContentTest {
   @Test
   fun theTabs_showEachPartOfTheEvent() {
     show(loaded.copy(events = mapOf(EventKind.Recommended to richEvent)))
-    scrollTo("cartTotal")
+    scrollToTag(DetailTags.frame(FrameRef(0, 0)))
     composeTestRule.onNodeWithText("cartTotal").assertIsDisplayed()
 
     composeTestRule.onNodeWithTag(DetailTags.tab(DetailTab.Breadcrumbs)).performClick()

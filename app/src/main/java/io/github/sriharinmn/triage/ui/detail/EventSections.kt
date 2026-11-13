@@ -40,9 +40,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import io.github.sriharinmn.triage.R
 import io.github.sriharinmn.triage.data.detail.Breadcrumb
+import io.github.sriharinmn.triage.data.detail.DetailError
 import io.github.sriharinmn.triage.data.detail.EventContext
 import io.github.sriharinmn.triage.data.detail.EventStack
-import io.github.sriharinmn.triage.data.detail.EventTag
 import io.github.sriharinmn.triage.data.detail.EventUser
 import io.github.sriharinmn.triage.data.detail.IssueEvent
 import io.github.sriharinmn.triage.data.detail.StackFrame
@@ -134,26 +134,20 @@ internal fun LazyListScope.breadcrumbsSection(breadcrumbs: List<Breadcrumb>, sho
 }
 
 /**
- * The Tags tab: the issue's main tags with their most common value. While those are missing (loading, or Sentry couldn't
- * give them), the event's own tags show instead; with neither, a spinner while [isLoading], else the empty pattern.
+ * The Tags tab, as [tagsContent] decided it: the issue's main tags with their most common value, the event's own tags,
+ * a spinner, why they couldn't load (with [onRetry], or [onOpenInBrowser] for a too-large response), or the empty pattern.
  */
-internal fun LazyListScope.tagsSection(tags: List<TagSummary>?, eventTags: List<EventTag>, isLoading: Boolean = false) {
-  val distribution = tags.orEmpty()
-  if (distribution.isEmpty() && eventTags.isEmpty()) {
-    if (isLoading) {
-      item(key = "tags_loading") { SectionLoading(stringResource(R.string.detail_tags_loading)) }
-    } else {
-      item(key = "tags_none") {
-        EmptyState(icon = R.drawable.ic_info, headline = stringResource(R.string.detail_no_tags), help = null)
-      }
-    }
-    return
-  }
-  if (distribution.isNotEmpty()) {
+internal fun LazyListScope.tagsSection(content: TagsContent, onRetry: () -> Unit = {}, onOpenInBrowser: () -> Unit = {}) {
+  when (content) {
     // Keyed by position: a key repeated in Sentry's response would crash the list.
-    distribution.forEachIndexed { index, tag -> item(key = "tag_$index") { TagDistributionRow(tag) } }
-  } else {
-    eventTags.forEachIndexed { index, tag -> item(key = "event_tag_$index") { KeyValueRow(tag.key, tag.value) } }
+    is TagsContent.Distribution -> content.tags.forEachIndexed { index, tag -> item(key = "tag_$index") { TagDistributionRow(tag) } }
+    is TagsContent.EventTags ->
+      content.tags.forEachIndexed { index, tag -> item(key = "event_tag_$index") { KeyValueRow(tag.key, tag.value) } }
+    TagsContent.Loading -> item(key = "tags_loading") { SectionLoading(stringResource(R.string.detail_tags_loading)) }
+    is TagsContent.Failed -> item(key = "tags_error") { TabErrorPanel(content.error, onRetry, onOpenInBrowser) }
+    TagsContent.Empty ->
+      item(key = "tags_none") { EmptyState(icon = R.drawable.ic_info, headline = stringResource(R.string.detail_no_tags), help = null) }
+    TagsContent.Hidden -> Unit
   }
 }
 
@@ -189,6 +183,37 @@ internal fun LazyListScope.detailsSection(context: EventContext) {
 internal fun SectionLoading(description: String) {
   Box(Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) {
     CircularProgressIndicator(Modifier.size(32.dp).semantics { contentDescription = description })
+  }
+}
+
+/** Why a tab's part couldn't load, with the one action that can help, in the empty pattern. */
+@Composable
+internal fun TabErrorPanel(error: DetailError, onRetry: () -> Unit, onOpenInBrowser: () -> Unit) {
+  when (error) {
+    DetailError.TooLarge ->
+      EmptyState(
+        icon = R.drawable.ic_info,
+        headline = stringResource(R.string.state_too_large),
+        help = stringResource(R.string.detail_error_too_large),
+        actionLabel = stringResource(R.string.detail_open_in_browser),
+        onAction = onOpenInBrowser,
+      )
+    // Sentry has no event of this kind; another one in the selector may still have one.
+    DetailError.NotFound ->
+      EmptyState(
+        icon = R.drawable.ic_info,
+        headline = detailErrorHeadline(error),
+        help = detailErrorMessage(error),
+      )
+    else ->
+      EmptyState(
+        icon = error.iconRes(),
+        headline = detailErrorHeadline(error),
+        help = detailErrorMessage(error),
+        actionLabel = stringResource(R.string.inbox_retry),
+        onAction = onRetry,
+        actionTag = DetailTags.RETRY,
+      )
   }
 }
 
@@ -291,7 +316,7 @@ private fun BreadcrumbRow(crumb: Breadcrumb) {
   val timeFormatter = rememberTimeWithSecondsFormatter()
   val muted = MaterialTheme.colorScheme.onSurfaceVariant
   Row(
-    Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp).semantics(mergeDescendants = true) {},
+    Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp).semantics(mergeDescendants = true) {},
     horizontalArrangement = Arrangement.spacedBy(8.dp),
   ) {
     LevelGlyph(crumb.level, Modifier.padding(top = 4.dp))
@@ -308,7 +333,7 @@ private fun BreadcrumbRow(crumb: Breadcrumb) {
 @Composable
 private fun TagDistributionRow(tag: TagSummary) {
   Row(
-    Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp).semantics(mergeDescendants = true) {},
+    Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp).semantics(mergeDescendants = true) {},
     verticalAlignment = Alignment.CenterVertically,
   ) {
     Text(
