@@ -25,6 +25,10 @@ internal fun tabFillerPx(viewport: Int, tabRow: Int, contentTop: Int?, contentBo
  * [tabFillerPx] for a tab's list as this layout shows it: the tab row is item [tabsIndex], the filler is the last item
  * and the tab's content is everything in between. [layoutBefore] is the layout the list's state held before the list
  * was shown or its content last changed; until a newer one arrives, the list hasn't been laid out with its content.
+ *
+ * The content's height is known only while its first and last items are both on screen. If the content shrinks below
+ * a screen while its first item is scrolled away (closing a big code block near the end of a trace, say), the filler
+ * can't know in time and stays at its minimum, so the list clamps and the tab row drops, as it did before the filler.
  */
 internal fun LazyListLayoutInfo.tabFillerPx(layoutBefore: LazyListLayoutInfo, viewport: Int, tabsIndex: Int, minPx: Int): Int {
   val items = visibleItemsInfo

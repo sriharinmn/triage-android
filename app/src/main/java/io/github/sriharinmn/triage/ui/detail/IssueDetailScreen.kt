@@ -349,7 +349,20 @@ private fun DetailBody(
       // The layout the state holds from before this list was shown (it outlives the list) or its content last changed.
       // Until the list has been measured since, the filler is a whole viewport, so neither a requested scroll nor
       // content that shrinks under a pinned tab row gets clamped; it settles to its real height on the next frame.
-      val layoutBefore = remember(state, now) { Snapshot.withoutReadObservation { listState.layoutInfo } }
+      // Only what can change the content's height counts: a notice, the assign sheet or the minute tick doesn't.
+      val contentKey =
+        listOf(
+          listTab,
+          state.event,
+          state.isLoadingEvent,
+          state.eventError,
+          state.expandedFrames,
+          state.revealedStacks,
+          state.showAllBreadcrumbs,
+          state.tagsTabContent(),
+          reconnectError,
+        )
+      val layoutBefore = remember(contentKey) { Snapshot.withoutReadObservation { listState.layoutInfo } }
       val fillerPx by
         remember(listState, layoutBefore, viewport, tabsIndex, minFillerPx) {
           derivedStateOf { listState.layoutInfo.tabFillerPx(layoutBefore, viewport, tabsIndex, minFillerPx) }

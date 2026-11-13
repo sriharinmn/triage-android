@@ -524,8 +524,8 @@ class IssueDetailContentTest {
     event.copy(
       stacks =
         listOf(
-          event.stacks.single().copy(frames = (0 until 40).map { StackFrame("fn$it", null, "shop/f$it.js", it, null, true, emptyList()) })
-        )
+          event.stacks.single().copy(frames = (0 until 40).map { StackFrame("fn$it", null, "shop/f$it.js", it, null, true, emptyList()) }),
+        ),
     )
 
   @Test
@@ -595,9 +595,9 @@ class IssueDetailContentTest {
         stacks =
           listOf(
             event.stacks.single().copy(
-              frames = listOf(StackFrame("cartTotal", null, "shop/cart.js", 42, null, true, (38..46).map { ContextLine(it, "line $it") }))
-            )
-          )
+              frames = listOf(StackFrame("cartTotal", null, "shop/cart.js", 42, null, true, (38..46).map { ContextLine(it, "line $it") })),
+            ),
+          ),
       )
     val ui = show(loaded.copy(events = emptyMap(), isLoadingEvent = true))
     composeTestRule.onNodeWithTag(DetailTags.LIST).performTouchInput { swipeUp() }
