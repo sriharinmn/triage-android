@@ -1,6 +1,7 @@
 package io.github.sriharinmn.triage.ui.about
 
 import androidx.activity.ComponentActivity
+import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
@@ -8,9 +9,8 @@ import androidx.compose.ui.test.isDialog
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
-import androidx.compose.ui.test.performClick
-import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performScrollToNode
+import androidx.compose.ui.test.performSemanticsAction
 import io.github.sriharinmn.triage.theme.TriageTheme
 import org.junit.Rule
 import org.junit.Test
@@ -46,10 +46,11 @@ class AboutContentTest {
     val jetBrainsMono = AboutTags.library("JetBrains Mono")
     composeTestRule.onNodeWithTag(AboutTags.LIST).performScrollToNode(hasTestTag(jetBrainsMono))
 
-    // performScrollToNode can stop with the row only partly on screen, where a tap at its centre misses it.
-    composeTestRule.onNodeWithTag(jetBrainsMono).performScrollTo().performClick()
+    // A semantics click rather than a tap: this test is about the license text, not gestures, and the tap version timed
+    // out once in a full phone run without a known cause.
+    composeTestRule.onNodeWithTag(jetBrainsMono).performSemanticsAction(SemanticsActions.OnClick)
 
-    // In two steps, so a failure says whether the tap missed or the license text didn't load.
+    // In two steps, so a failure says whether the dialog never opened or its text never loaded.
     composeTestRule.waitUntil("the license dialog opens", timeoutMillis = 5_000) {
       composeTestRule.onAllNodes(isDialog()).fetchSemanticsNodes().isNotEmpty()
     }
