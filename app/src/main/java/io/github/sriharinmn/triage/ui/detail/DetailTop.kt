@@ -84,7 +84,10 @@ internal fun DetailTop(
   }
 }
 
-/** "■ Error  ↺ Regressed  Unhandled          1.4.2" in mono: the level, the status and tags, the last release on the right. */
+/**
+ * "■ Error  ↺ Regressed  Unhandled          1.4.2" in mono: the level, the status and tags, the last release on the right,
+ * shortened to its version; TalkBack hears the full release name.
+ */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun Eyebrow(summary: IssueSummary) {
@@ -107,7 +110,15 @@ private fun Eyebrow(summary: IssueSummary) {
       if (summary.isUnhandled) StatusLabel(stringResource(R.string.issue_badge_unhandled))
     }
     summary.lastRelease?.let {
-      Text(it, style = style, color = muted, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.widthIn(max = 160.dp))
+      val spoken = stringResource(R.string.detail_release, it)
+      Text(
+        shortRelease(it),
+        style = style,
+        color = muted,
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
+        modifier = Modifier.widthIn(max = 160.dp).semantics { contentDescription = spoken },
+      )
     }
   }
 }
@@ -150,7 +161,8 @@ private fun StatStrip(summary: IssueSummary, now: Instant, modifier: Modifier = 
           if (release != null) stringResource(R.string.detail_stat_first_seen_release_spoken, ago, release)
           else stringResource(R.string.detail_stat_first_seen_spoken, ago)
         },
-        note = summary.firstRelease?.let { StatNote(it, DetailTags.STAT_FIRST_RELEASE) },
+        // Only the version fits under the label; the spoken text above keeps the full release name.
+        note = summary.firstRelease?.let { StatNote(shortRelease(it), DetailTags.STAT_FIRST_RELEASE) },
       ),
       StatCell(
         summary.lastSeen?.let { elapsedSince(it, now).label() } ?: NO_VALUE,

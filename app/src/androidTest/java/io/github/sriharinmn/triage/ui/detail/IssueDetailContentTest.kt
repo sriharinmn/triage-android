@@ -632,4 +632,16 @@ class IssueDetailContentTest {
     composeTestRule.onAllNodesWithTag(DetailTags.STAT_FIRST_RELEASE, useUnmergedTree = true).assertCountEquals(0)
     composeTestRule.onNodeWithTag(DetailTags.STAT_FIRST_SEEN).assert(hasContentDescription("First seen 3 days ago"))
   }
+
+  @Test
+  fun packageReleaseNames_showTheirVersion_andTalkBackHearsTheFullName() {
+    show(loaded.copy(summary = summary.copy(firstRelease = "shop-api@1.4.0", lastRelease = "com.example.shop@2.4.0+240")))
+
+    composeTestRule.onNodeWithTag(DetailTags.STAT_FIRST_RELEASE, useUnmergedTree = true).assertIsDisplayed().assert(hasText("1.4.0"))
+    composeTestRule
+      .onNodeWithTag(DetailTags.STAT_FIRST_SEEN)
+      .assert(hasContentDescription("First seen 3 days ago, in release shop-api@1.4.0"))
+    // The eyebrow's release, on the right.
+    composeTestRule.onNodeWithText("2.4.0+240").assertIsDisplayed().assert(hasContentDescription("release com.example.shop@2.4.0+240"))
+  }
 }
