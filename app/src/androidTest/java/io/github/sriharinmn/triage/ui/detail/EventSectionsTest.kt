@@ -8,6 +8,7 @@ import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
@@ -79,6 +80,7 @@ class EventSectionsTest {
     revealed: Set<Int> = emptySet(),
     showAllBreadcrumbs: Boolean = false,
     tags: List<TagSummary>? = null,
+    tagsLoading: Boolean = false,
   ) {
     composeTestRule.setContent {
       TriageTheme {
@@ -91,7 +93,7 @@ class EventSectionsTest {
             onShowLibraryFrames = { calls += "library:$it" },
           )
           breadcrumbsSection(event.breadcrumbs, showAllBreadcrumbs, onShowAll = { calls += "crumbs" })
-          tagsSection(tags, event.tags)
+          tagsSection(tags, event.tags, isLoading = tagsLoading)
           detailsSection(event.context)
         }
       }
@@ -176,7 +178,7 @@ class EventSectionsTest {
   fun anEventWithoutAStackOrMessage_saysSo() {
     show(event(stacks = emptyList()))
 
-    composeTestRule.onNodeWithText("This event has no stack trace.").assertIsDisplayed()
+    composeTestRule.onNodeWithText("No stack trace in this event").assertIsDisplayed()
   }
 
   @Test
@@ -247,5 +249,37 @@ class EventSectionsTest {
     scrollTo("Google Pixel 8")
     composeTestRule.onNodeWithText("id 4821 · user@example.com · 203.0.113.7").assertIsDisplayed()
     composeTestRule.onNodeWithText("POST https://shop.example.test/api/checkout").assertIsDisplayed()
+  }
+
+  @Test
+  fun anEventWithoutBreadcrumbs_saysSo() {
+    show(event())
+
+    scrollTo("No breadcrumbs in this event")
+    composeTestRule.onNodeWithText("No breadcrumbs in this event").assertIsDisplayed()
+  }
+
+  @Test
+  fun anIssueWithoutTags_saysSo_onceTheyAreLoaded() {
+    show(event(stacks = emptyList()))
+
+    scrollTo("No tags for this issue")
+    composeTestRule.onNodeWithText("No tags for this issue").assertIsDisplayed()
+  }
+
+  @Test
+  fun tagsStillLoading_showProgress_notTheEmptyState() {
+    show(event(stacks = emptyList()), tagsLoading = true)
+
+    composeTestRule.onNodeWithTag(DetailTags.LIST).performScrollToNode(hasContentDescription("Loading tags…"))
+    composeTestRule.onNodeWithText("No tags for this issue").assertDoesNotExist()
+  }
+
+  @Test
+  fun anEventWithoutContext_saysSo() {
+    show(event(stacks = emptyList()))
+
+    scrollTo("No device, user or request details")
+    composeTestRule.onNodeWithText("No device, user or request details").assertIsDisplayed()
   }
 }

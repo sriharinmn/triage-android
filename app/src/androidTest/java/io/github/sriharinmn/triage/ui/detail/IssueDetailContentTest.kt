@@ -7,21 +7,26 @@ import androidx.compose.ui.test.FontScale
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.hasContentDescription
+import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollToNode
 import io.github.sriharinmn.triage.data.actions.ActionNotice
 import io.github.sriharinmn.triage.data.actions.Assignment
 import io.github.sriharinmn.triage.data.actions.IssueAction
 import io.github.sriharinmn.triage.data.actions.IssueOverlay
 import io.github.sriharinmn.triage.data.actions.SubmittedAction
+import io.github.sriharinmn.triage.data.detail.Breadcrumb
 import io.github.sriharinmn.triage.data.detail.DetailError
 import io.github.sriharinmn.triage.data.detail.EventContext
 import io.github.sriharinmn.triage.data.detail.EventKind
 import io.github.sriharinmn.triage.data.detail.EventStack
+import io.github.sriharinmn.triage.data.detail.EventTag
 import io.github.sriharinmn.triage.data.detail.IssueEvent
 import io.github.sriharinmn.triage.data.detail.IssueStatus
 import io.github.sriharinmn.triage.data.detail.IssueSummary
@@ -119,6 +124,11 @@ class IssueDetailContentTest {
     }
   }
 
+  private fun scrollTo(text: String) =
+    composeTestRule.onNodeWithTag(DetailTags.LIST).performScrollToNode(hasText(text, substring = true))
+
+  private fun scrollToTag(tag: String) = composeTestRule.onNodeWithTag(DetailTags.LIST).performScrollToNode(hasTestTag(tag))
+
   @Test
   fun theChart_saysWhatItShows() {
     show(loaded)
@@ -160,7 +170,9 @@ class IssueDetailContentTest {
     composeTestRule.onNodeWithTag(DetailTags.STAT_LAST_SEEN).assert(hasText("2m"))
     // The last seen event's release, on the right of the eyebrow.
     composeTestRule.onNodeWithText("1.4.2").assertIsDisplayed()
+    scrollTo("2m ago · release 1.4.2")
     composeTestRule.onNodeWithText("2m ago · release 1.4.2 · production").assertIsDisplayed()
+    scrollTo("cartTotal")
     composeTestRule.onNodeWithText("cartTotal").assertIsDisplayed()
   }
 
@@ -169,7 +181,7 @@ class IssueDetailContentTest {
     show(loaded.copy(isLoadingSummary = true, events = emptyMap(), isLoadingEvent = true))
 
     composeTestRule.onNodeWithText("TypeError: Cannot read 'price'").assertIsDisplayed()
-    composeTestRule.onNodeWithContentDescription("Loading event…").assertExists()
+    composeTestRule.onNodeWithTag(DetailTags.LIST).performScrollToNode(hasContentDescription("Loading event…"))
   }
 
   @Test
@@ -202,6 +214,7 @@ class IssueDetailContentTest {
     show(loaded.copy(events = emptyMap(), eventError = DetailError.Network, summaryError = DetailError.Network))
 
     composeTestRule.onNodeWithText("TypeError: Cannot read 'price'").assertIsDisplayed()
+    scrollToTag(DetailTags.RETRY)
     composeTestRule.onNodeWithText("Couldn't reach Sentry. Check your connection.").assertIsDisplayed()
     composeTestRule.onNodeWithTag(DetailTags.RETRY).performClick()
     assertEquals(listOf("retry"), calls)
@@ -210,6 +223,7 @@ class IssueDetailContentTest {
   @Test
   fun aTooLargeEvent_offersTheBrowser() {
     show(loaded.copy(events = emptyMap(), eventError = DetailError.TooLarge))
+    scrollTo("This event is too large to show here.")
 
     composeTestRule.onNodeWithText("This event is too large to show here.").assertIsDisplayed()
     composeTestRule.onNodeWithText("Open in browser").performClick()
@@ -229,6 +243,7 @@ class IssueDetailContentTest {
   @Test
   fun aMissingEvent_hasNoRetry() {
     show(loaded.copy(events = emptyMap(), eventError = DetailError.NotFound))
+    scrollTo("Sentry has no event of this kind any more.")
 
     composeTestRule.onNodeWithText("Sentry has no event of this kind any more.").assertIsDisplayed()
     composeTestRule.onNodeWithTag(DetailTags.RETRY).assertDoesNotExist()
@@ -237,6 +252,7 @@ class IssueDetailContentTest {
   @Test
   fun aRateLimit_saysHowLongToWait() {
     show(loaded.copy(events = emptyMap(), eventError = DetailError.RateLimited(30)))
+    scrollTo("Try again in 30 s.")
 
     composeTestRule.onNodeWithText("Sentry asked us to slow down. Try again in 30 s.").assertIsDisplayed()
   }
@@ -245,6 +261,7 @@ class IssueDetailContentTest {
   fun eventChips_switchKinds() {
     show(loaded)
 
+    scrollToTag(DetailTags.eventChip(EventKind.Latest))
     composeTestRule.onNodeWithTag(DetailTags.eventChip(EventKind.Latest)).performClick()
 
     assertEquals(listOf("kind:Latest"), calls)
@@ -409,5 +426,68 @@ class IssueDetailContentTest {
     composeTestRule.onNodeWithText("Undo").performClick()
 
     assertTrue("undo:5" in calls)
+  }
+
+  private val richEvent =
+    event.copy(
+      breadcrumbs = listOf(Breadcrumb(timestamp = null, category = "ui.click", level = IssueLevel.Info, text = "tapped Checkout")),
+      tags = listOf(EventTag("route", "POST /api/checkout")),
+      context = EventContext(device = "Google Pixel 8"),
+    )
+
+  @Test
+  fun theTabs_showEachPartOfTheEvent() {
+    show(loaded.copy(events = mapOf(EventKind.Recommended to richEvent)))
+    scrollTo("cartTotal")
+    composeTestRule.onNodeWithText("cartTotal").assertIsDisplayed()
+
+    composeTestRule.onNodeWithTag(DetailTags.tab(DetailTab.Breadcrumbs)).performClick()
+    scrollTo("tapped Checkout")
+    composeTestRule.onNodeWithText("tapped Checkout", substring = true).assertIsDisplayed()
+
+    composeTestRule.onNodeWithTag(DetailTags.tab(DetailTab.Tags)).performClick()
+    scrollTo("POST /api/checkout")
+    composeTestRule.onNodeWithText("POST /api/checkout", substring = true).assertIsDisplayed()
+
+    composeTestRule.onNodeWithTag(DetailTags.tab(DetailTab.Details)).performClick()
+    scrollTo("Google Pixel 8")
+    composeTestRule.onNodeWithText("Google Pixel 8", substring = true).assertIsDisplayed()
+  }
+
+  @Test
+  fun theEventSelector_sitsOnTheEventTabs_butNotOnTags() {
+    show(loaded)
+    scrollToTag(DetailTags.eventChip(EventKind.Latest))
+
+    composeTestRule.onNodeWithTag(DetailTags.tab(DetailTab.Tags)).performClick()
+    composeTestRule.onNodeWithTag(DetailTags.eventChip(EventKind.Latest)).assertDoesNotExist()
+
+    composeTestRule.onNodeWithTag(DetailTags.tab(DetailTab.Details)).performClick()
+    scrollToTag(DetailTags.eventChip(EventKind.Latest))
+  }
+
+  @Test
+  fun aTabWithNothingInIt_saysSo() {
+    show(loaded)
+
+    composeTestRule.onNodeWithTag(DetailTags.tab(DetailTab.Breadcrumbs)).performClick()
+    scrollTo("No breadcrumbs in this event")
+
+    composeTestRule.onNodeWithText("No breadcrumbs in this event").assertIsDisplayed()
+  }
+
+  @Test
+  fun eachTab_keepsItsOwnScrollPosition() {
+    val frames = (0 until 40).map { StackFrame("fn$it", null, "shop/f$it.js", it, null, true, emptyList()) }
+    val longTrace = event.copy(stacks = listOf(event.stacks.single().copy(frames = frames)))
+    show(loaded.copy(events = mapOf(EventKind.Recommended to longTrace)))
+    scrollTo("fn39")
+
+    composeTestRule.onNodeWithTag(DetailTags.tab(DetailTab.Tags)).performClick()
+    composeTestRule.onNodeWithText("fn39").assertDoesNotExist()
+    composeTestRule.onNodeWithTag(DetailTags.tab(DetailTab.Trace)).performClick()
+
+    composeTestRule.onNodeWithText("fn39").assertIsDisplayed()
+    composeTestRule.onNodeWithText("fn0").assertDoesNotExist()
   }
 }

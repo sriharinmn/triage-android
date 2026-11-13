@@ -16,8 +16,8 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -35,7 +35,6 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -48,16 +47,17 @@ import io.github.sriharinmn.triage.data.detail.EventUser
 import io.github.sriharinmn.triage.data.detail.IssueEvent
 import io.github.sriharinmn.triage.data.detail.StackFrame
 import io.github.sriharinmn.triage.data.detail.TagSummary
-import io.github.sriharinmn.triage.ui.common.labelRes
-import io.github.sriharinmn.triage.ui.common.levelColor
+import io.github.sriharinmn.triage.theme.mono
+import io.github.sriharinmn.triage.ui.common.EmptyState
+import io.github.sriharinmn.triage.ui.common.LevelGlyph
 import io.github.sriharinmn.triage.ui.format.rememberTimeWithSecondsFormatter
 
 /** How many breadcrumbs show before "Show all". */
 internal const val BREADCRUMBS_PREVIEW = 5
 
 /**
- * The event's stacks: each exception's (or thread's) heading, then its visible frames, which can be tapped to show
- * their code. An event without a stack shows its message instead, if it has one.
+ * The Trace tab: each exception's (or thread's) heading, then its visible frames, which can be tapped to show their code.
+ * An event without a stack shows its message instead, or says it has neither.
  */
 internal fun LazyListScope.stackTraceSection(
   event: IssueEvent,
@@ -68,13 +68,20 @@ internal fun LazyListScope.stackTraceSection(
 ) {
   if (event.stacks.isEmpty()) {
     val message = event.message
-    item(key = "stack_title") {
-      SectionTitle(stringResource(if (message != null) R.string.detail_message else R.string.detail_stack_trace))
+    if (message != null) {
+      item(key = "message_title") { SectionTitle(stringResource(R.string.detail_message)) }
+      item(key = "message") { SectionText(message) }
+    } else {
+      item(key = "stack_none") {
+        EmptyState(
+          icon = R.drawable.ic_info,
+          headline = stringResource(R.string.detail_no_stack_trace),
+          help = stringResource(R.string.detail_no_stack_trace_help),
+        )
+      }
     }
-    item(key = "stack_none") { SectionText(message ?: stringResource(R.string.detail_no_stack_trace)) }
     return
   }
-  item(key = "stack_title") { SectionTitle(stringResource(R.string.detail_stack_trace)) }
   event.stacks.forEachIndexed { stackIndex, stack ->
     item(key = "stack_$stackIndex") { StackHeading(stack, isCause = stackIndex > 0) }
     val revealed = stackIndex in revealedStacks
@@ -103,10 +110,18 @@ internal fun LazyListScope.stackTraceSection(
   }
 }
 
-/** What happened before the event, newest first: the first [BREADCRUMBS_PREVIEW], or all of them once asked. */
+/** The Breadcrumbs tab: what happened before the event, newest first: the first [BREADCRUMBS_PREVIEW], or all once asked. */
 internal fun LazyListScope.breadcrumbsSection(breadcrumbs: List<Breadcrumb>, showAll: Boolean, onShowAll: () -> Unit) {
-  if (breadcrumbs.isEmpty()) return
-  item(key = "crumbs_title") { SectionTitle(stringResource(R.string.detail_breadcrumbs)) }
+  if (breadcrumbs.isEmpty()) {
+    item(key = "crumbs_none") {
+      EmptyState(
+        icon = R.drawable.ic_info,
+        headline = stringResource(R.string.detail_no_breadcrumbs),
+        help = stringResource(R.string.detail_no_breadcrumbs_help),
+      )
+    }
+    return
+  }
   val shown = if (showAll) breadcrumbs else breadcrumbs.take(BREADCRUMBS_PREVIEW)
   shown.forEachIndexed { index, crumb -> item(key = "crumb_$index") { BreadcrumbRow(crumb) } }
   if (shown.size < breadcrumbs.size) {
@@ -119,13 +134,21 @@ internal fun LazyListScope.breadcrumbsSection(breadcrumbs: List<Breadcrumb>, sho
 }
 
 /**
- * The issue's main tags with their most common value. While those are missing (loading, or Sentry couldn't give
- * them), the event's own tags show instead.
+ * The Tags tab: the issue's main tags with their most common value. While those are missing (loading, or Sentry couldn't
+ * give them), the event's own tags show instead; with neither, a spinner while [isLoading], else the empty pattern.
  */
-internal fun LazyListScope.tagsSection(tags: List<TagSummary>?, eventTags: List<EventTag>) {
+internal fun LazyListScope.tagsSection(tags: List<TagSummary>?, eventTags: List<EventTag>, isLoading: Boolean = false) {
   val distribution = tags.orEmpty()
-  if (distribution.isEmpty() && eventTags.isEmpty()) return
-  item(key = "tags_title") { SectionTitle(stringResource(R.string.detail_tags)) }
+  if (distribution.isEmpty() && eventTags.isEmpty()) {
+    if (isLoading) {
+      item(key = "tags_loading") { SectionLoading(stringResource(R.string.detail_tags_loading)) }
+    } else {
+      item(key = "tags_none") {
+        EmptyState(icon = R.drawable.ic_info, headline = stringResource(R.string.detail_no_tags), help = null)
+      }
+    }
+    return
+  }
   if (distribution.isNotEmpty()) {
     // Keyed by position: a key repeated in Sentry's response would crash the list.
     distribution.forEachIndexed { index, tag -> item(key = "tag_$index") { TagDistributionRow(tag) } }
@@ -134,12 +157,20 @@ internal fun LazyListScope.tagsSection(tags: List<TagSummary>?, eventTags: List<
   }
 }
 
-/** Device, OS, runtime, browser, app, user and request: only the lines the event has. */
+/** The Details tab: device, OS, runtime, browser, app, user and request; only the lines the event has. */
 internal fun LazyListScope.detailsSection(context: EventContext) {
-  if (context == EventContext()) return
-  item(key = "details_title") { SectionTitle(stringResource(R.string.detail_details)) }
+  if (context == EventContext()) {
+    item(key = "details_none") {
+      EmptyState(
+        icon = R.drawable.ic_info,
+        headline = stringResource(R.string.detail_no_details),
+        help = stringResource(R.string.detail_no_details_help),
+      )
+    }
+    return
+  }
   item(key = "details") {
-    Column {
+    Column(Modifier.padding(top = 8.dp)) {
       context.device?.let { KeyValueRow(stringResource(R.string.detail_device), it) }
       context.os?.let { KeyValueRow(stringResource(R.string.detail_os), it) }
       context.runtime?.let { KeyValueRow(stringResource(R.string.detail_runtime), it) }
@@ -153,6 +184,14 @@ internal fun LazyListScope.detailsSection(context: EventContext) {
   }
 }
 
+/** A small spinner inside a tab while its part loads, named for TalkBack. */
+@Composable
+internal fun SectionLoading(description: String) {
+  Box(Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) {
+    CircularProgressIndicator(Modifier.size(32.dp).semantics { contentDescription = description })
+  }
+}
+
 @Composable
 private fun StackHeading(stack: EventStack, isCause: Boolean) {
   val heading =
@@ -161,7 +200,7 @@ private fun StackHeading(stack: EventStack, isCause: Boolean) {
       stack.threadName != null -> stringResource(R.string.detail_thread, stack.threadName)
       else -> stack.value ?: stringResource(R.string.detail_unknown_error)
     }
-  Column(Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 4.dp)) {
+  Column(Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 4.dp)) {
     if (isCause) {
       Text(
         stringResource(R.string.detail_caused_by),
@@ -173,7 +212,7 @@ private fun StackHeading(stack: EventStack, isCause: Boolean) {
   }
 }
 
-/** One frame: its name and place, the app's own frames in bold. Tapping a frame with code shows or hides that code. */
+/** One frame, in mono: its name and place, the app's own frames in SemiBold. Tapping a frame with code shows or hides it. */
 @Composable
 private fun FrameRow(frame: StackFrame, expanded: Boolean, onToggle: () -> Unit, modifier: Modifier = Modifier) {
   val hasCode = frame.context.isNotEmpty()
@@ -181,9 +220,7 @@ private fun FrameRow(frame: StackFrame, expanded: Boolean, onToggle: () -> Unit,
   Column(
     modifier
       .fillMaxWidth()
-      .then(
-        if (hasCode) Modifier.clickable(onClickLabel = toggleLabel, role = Role.Button, onClick = onToggle) else Modifier
-      )
+      .then(if (hasCode) Modifier.clickable(onClickLabel = toggleLabel, role = Role.Button, onClick = onToggle) else Modifier)
       .padding(start = 8.dp, end = 16.dp, top = 6.dp, bottom = 6.dp)
   ) {
     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -198,7 +235,7 @@ private fun FrameRow(frame: StackFrame, expanded: Boolean, onToggle: () -> Unit,
       }
       Text(
         frame.title(),
-        style = MaterialTheme.typography.bodyMedium,
+        style = MaterialTheme.typography.bodyMedium.mono(),
         fontWeight = if (frame.inApp) FontWeight.SemiBold else FontWeight.Normal,
         maxLines = 2,
         overflow = TextOverflow.Ellipsis,
@@ -207,7 +244,7 @@ private fun FrameRow(frame: StackFrame, expanded: Boolean, onToggle: () -> Unit,
       frame.location()?.let {
         Text(
           it,
-          style = MaterialTheme.typography.labelSmall,
+          style = MaterialTheme.typography.labelSmall.mono(),
           color = MaterialTheme.colorScheme.onSurfaceVariant,
           maxLines = 1,
           // The end ("cart.js:42") matters more than the start of a long path.
@@ -227,7 +264,7 @@ private fun CodeBlock(frame: StackFrame, modifier: Modifier = Modifier) {
   val highlight = MaterialTheme.colorScheme.errorContainer
   Surface(
     color = MaterialTheme.colorScheme.surfaceContainerHigh,
-    shape = RoundedCornerShape(6.dp),
+    shape = RoundedCornerShape(10.dp),
     modifier = modifier.fillMaxWidth(),
   ) {
     Column(Modifier.horizontalScroll(rememberScrollState()).width(IntrinsicSize.Max).padding(vertical = 6.dp)) {
@@ -236,8 +273,7 @@ private fun CodeBlock(frame: StackFrame, modifier: Modifier = Modifier) {
           if (line.lineNo == frame.lineNo) stringResource(R.string.detail_error_line, line.lineNo, line.text) else null
         Text(
           text = line.lineNo.toString().padStart(numberWidth) + "  " + line.text,
-          fontFamily = FontFamily.Monospace,
-          style = MaterialTheme.typography.bodySmall,
+          style = MaterialTheme.typography.bodySmall.mono(),
           softWrap = false,
           modifier =
             Modifier.fillMaxWidth()
@@ -249,27 +285,19 @@ private fun CodeBlock(frame: StackFrame, modifier: Modifier = Modifier) {
   }
 }
 
-/** Time, category and what happened, with a level mark that TalkBack reads out. */
+/** Time, category and what happened, with the level's glyph (which TalkBack reads out). */
 @Composable
 private fun BreadcrumbRow(crumb: Breadcrumb) {
   val timeFormatter = rememberTimeWithSecondsFormatter()
-  val levelName = stringResource(crumb.level.labelRes())
   val muted = MaterialTheme.colorScheme.onSurfaceVariant
   Row(
-    Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp).semantics(mergeDescendants = true) {},
+    Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp).semantics(mergeDescendants = true) {},
     horizontalArrangement = Arrangement.spacedBy(8.dp),
   ) {
-    Box(
-      Modifier.padding(top = 6.dp)
-        .size(8.dp)
-        .background(levelColor(crumb.level), CircleShape)
-        .semantics { contentDescription = levelName }
-    )
+    LevelGlyph(crumb.level, Modifier.padding(top = 4.dp))
     Column(Modifier.weight(1f)) {
       Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        crumb.timestamp?.let {
-          Text(timeFormatter.format(it), style = MaterialTheme.typography.labelSmall, color = muted, fontFamily = FontFamily.Monospace)
-        }
+        crumb.timestamp?.let { Text(timeFormatter.format(it), style = MaterialTheme.typography.labelSmall.mono(), color = muted) }
         crumb.category?.let { Text(it, style = MaterialTheme.typography.labelMedium) }
       }
       crumb.text?.let { Text(it, style = MaterialTheme.typography.bodySmall, maxLines = 4, overflow = TextOverflow.Ellipsis) }
@@ -280,7 +308,7 @@ private fun BreadcrumbRow(crumb: Breadcrumb) {
 @Composable
 private fun TagDistributionRow(tag: TagSummary) {
   Row(
-    Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp).semantics(mergeDescendants = true) {},
+    Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp).semantics(mergeDescendants = true) {},
     verticalAlignment = Alignment.CenterVertically,
   ) {
     Text(

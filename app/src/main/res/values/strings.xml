@@ -114,9 +114,9 @@
         <item quantity="one">%1$s user</item>
         <item quantity="other">%1$s users</item>
     </plurals>
-    <string name="detail_stack_trace">Stack trace</string>
     <string name="detail_message">Message</string>
-    <string name="detail_no_stack_trace">This event has no stack trace.</string>
+    <string name="detail_no_stack_trace">No stack trace in this event</string>
+    <string name="detail_no_stack_trace_help">Sentry recorded this event without one.</string>
     <string name="detail_caused_by">Caused by</string>
     <string name="detail_thread">Thread %1$s</string>
     <string name="detail_unknown_error">Unknown error</string>
@@ -354,4 +354,14 @@
     <string name="detail_chart_summary_30d">Events, last 30 days: %1$s, busiest on %2$s</string>
     <string name="detail_chart_none_24h">Events, last 24 hours: none</string>
     <string name="detail_chart_none_30d">Events, last 30 days: none</string>
+    <string name="detail_tab_trace">Trace</string>
+    <string name="detail_no_breadcrumbs">No breadcrumbs in this event</string>
+    <string name="detail_no_breadcrumbs_help">The SDK sent none with it.</string>
+    <string name="detail_no_tags">No tags for this issue</string>
+    <string name="detail_tags_loading">Loading tags…</string>
+    <string name="detail_no_details">No device, user or request details</string>
+    <string name="detail_no_details_help">This event didn\'t include any.</string>
+    <string name="state_issue_gone">Issue not found</string>
+    <string name="state_no_event">No event of this kind</string>
+    <string name="state_too_large">Too large to show here</string>
 </resources>

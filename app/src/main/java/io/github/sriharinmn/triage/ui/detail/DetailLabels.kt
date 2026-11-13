@@ -1,5 +1,6 @@
 package io.github.sriharinmn.triage.ui.detail
 
+import androidx.annotation.DrawableRes
 import androidx.annotation.StringRes
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.res.stringResource
@@ -40,3 +41,20 @@ internal fun detailErrorMessage(error: DetailError): String =
     DetailError.Server -> stringResource(R.string.inbox_error_server)
     DetailError.TooLarge -> stringResource(R.string.detail_error_too_large)
   }
+
+/** The empty pattern's headline for an error; [detailErrorMessage] is its line of help. */
+@Composable
+internal fun detailErrorHeadline(error: DetailError): String =
+  when (error) {
+    DetailError.NotFound -> stringResource(R.string.state_no_event)
+    DetailError.Unauthorized -> stringResource(R.string.state_reconnect)
+    DetailError.Forbidden -> stringResource(R.string.state_missing_permissions)
+    is DetailError.RateLimited -> stringResource(R.string.state_rate_limited)
+    DetailError.Network -> stringResource(R.string.state_cant_reach)
+    DetailError.Server -> stringResource(R.string.state_server)
+    DetailError.TooLarge -> stringResource(R.string.state_too_large)
+  }
+
+/** A cloud for "can't reach Sentry", a warning for the rest. */
+@DrawableRes
+internal fun DetailError.iconRes(): Int = if (this == DetailError.Network) R.drawable.ic_cloud_off else R.drawable.ic_warning

@@ -25,6 +25,8 @@ object DetailTags {
 
   fun eventChip(kind: EventKind) = "detail_event_${kind.name}"
 
+  fun tab(tab: DetailTab) = "detail_tab_${tab.name}"
+
   fun frame(ref: FrameRef) = "detail_frame_${ref.stack}_${ref.frame}"
 
   fun showLibraryFrames(stack: Int) = "detail_show_library_$stack"
