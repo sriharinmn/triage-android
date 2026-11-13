@@ -73,7 +73,8 @@ fun rememberNotificationPermissionRequest(onResult: (allowed: Boolean) -> Unit, 
   }
   // Whether Android would have shown a rationale before the popup: if so, the popup is certainly shown, so a no from it
   // is respected even when the rationale is gone afterwards (the user's last chance).
-  var askedJustNow by remember { mutableStateOf(false) }
+  // A plain holder: written when asking, read in the result callback, never drawn, so no state write or recomposition.
+  val askedJustNow = remember { BooleanArray(1) }
   val launcher =
     rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
       // After a no, Android shows its popup again only while it would show a rationale. Without an activity we can't
@@ -81,7 +82,7 @@ fun rememberNotificationPermissionRequest(onResult: (allowed: Boolean) -> Unit, 
       deliver(
         notificationAnswer(
           allowed = granted,
-          askedJustNow = askedJustNow,
+          askedJustNow = askedJustNow[0],
           canAskAgain = activity?.mayAskForNotificationsAgain() ?: true,
         )
       )
@@ -92,10 +93,11 @@ fun rememberNotificationPermissionRequest(onResult: (allowed: Boolean) -> Unit, 
       Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
         ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
     if (!allowed && canShowPopup) {
-      askedJustNow = activity?.mayAskForNotificationsAgain() ?: false
+      askedJustNow[0] = activity?.mayAskForNotificationsAgain() ?: false
       launcher.launch(Manifest.permission.POST_NOTIFICATIONS)
+    } else {
+      deliver(notificationAnswer(allowed = allowed, askedJustNow = false, canAskAgain = false))
     }
-    else deliver(notificationAnswer(allowed = allowed, askedJustNow = false, canAskAgain = false))
   }
 }
 

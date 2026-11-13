@@ -62,7 +62,6 @@ import io.github.sriharinmn.triage.ui.common.ReconnectBanner
 import io.github.sriharinmn.triage.ui.format.elapsedSince
 import io.github.sriharinmn.triage.ui.format.label
 import java.time.Instant
-import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -325,13 +324,12 @@ private fun DetailBody(
   val reconnectError = state.reconnectError
   // The sticky tab row's index in the list: after "top", which itself follows the reconnect banner when that shows.
   val tabsIndex = if (reconnectError != null) 2 else 1
-  val scope = rememberCoroutineScope()
   fun selectTab(next: DetailTab) {
     val target =
       tabSwitchScrollTarget(listStates[tab.ordinal].firstVisibleItemIndex, listStates[next.ordinal].firstVisibleItemIndex, tabsIndex)
-    // Set the new tab's position before it is shown: UNDISPATCHED runs it right now, and its list isn't composed yet, so
-    // the first frame already has the tab row pinned instead of showing the top and then jumping.
-    if (target != null) scope.launch(start = CoroutineStart.UNDISPATCHED) { listStates[next.ordinal].scrollToItem(target) }
+    // The new tab's list isn't composed yet (key(tab) rebuilds it). requestScrollToItem doesn't suspend or wait for a layout:
+    // it stores the position, which that list applies at its first measure, so its first frame is already pinned.
+    if (target != null) listStates[next.ordinal].requestScrollToItem(target)
     tab = next
   }
   key(tab) {
