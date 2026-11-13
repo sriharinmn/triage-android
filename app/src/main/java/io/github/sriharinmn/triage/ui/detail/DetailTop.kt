@@ -17,13 +17,16 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.VerticalDivider
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -39,10 +42,13 @@ import io.github.sriharinmn.triage.ui.common.labelRes
 import io.github.sriharinmn.triage.ui.format.compactCount
 import io.github.sriharinmn.triage.ui.format.elapsedSince
 import io.github.sriharinmn.triage.ui.format.label
+import io.github.sriharinmn.triage.ui.format.spokenAgo
+import io.github.sriharinmn.triage.ui.format.toQuantity
+import java.text.NumberFormat
 import java.time.Instant
 
 /** From this font scale on, the stat strip goes to two rows of two so no number is squeezed. */
-private const val LARGE_FONT_SCALE = 1.5f
+private const val LARGE_FONT_SCALE = 1.3f
 
 /** Shown in a stat cell when Sentry didn't say. */
 private const val NO_VALUE = "–"
@@ -91,7 +97,7 @@ private fun Eyebrow(summary: IssueSummary) {
       verticalArrangement = Arrangement.spacedBy(4.dp),
       itemVerticalAlignment = Alignment.CenterVertically,
     ) {
-      Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+      Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         // The word next to it names the level, so the glyph isn't read out as well.
         LevelGlyph(summary.level, Modifier.clearAndSetSemantics {})
         Text(stringResource(summary.level.labelRes()), style = style, color = muted)
@@ -106,24 +112,39 @@ private fun Eyebrow(summary: IssueSummary) {
   }
 }
 
-private class StatCell(val value: String, val label: String, val tag: String)
+/** [spoken] is what TalkBack reads for the cell ("3 events", "Last seen 2 hours ago"); null when the value is unknown. */
+private class StatCell(val value: String, val label: String, val tag: String, val spoken: String?)
 
 /** Events, users, first and last seen in one rounded tile: four across, or two rows of two at large font sizes. */
 @Composable
 private fun StatStrip(summary: IssueSummary, now: Instant, modifier: Modifier = Modifier) {
+  val locale = LocalConfiguration.current.locales[0]
+  val number = remember(locale) { NumberFormat.getIntegerInstance(locale) }
   val cells =
     listOf(
-      StatCell(compactCount(summary.eventCount), stringResource(R.string.detail_stat_events), DetailTags.STAT_EVENTS),
-      StatCell(compactCount(summary.userCount), stringResource(R.string.detail_stat_users), DetailTags.STAT_USERS),
+      StatCell(
+        compactCount(summary.eventCount),
+        stringResource(R.string.detail_stat_events),
+        DetailTags.STAT_EVENTS,
+        pluralStringResource(R.plurals.issue_events, summary.eventCount.toQuantity(), number.format(summary.eventCount)),
+      ),
+      StatCell(
+        compactCount(summary.userCount),
+        stringResource(R.string.detail_stat_users),
+        DetailTags.STAT_USERS,
+        pluralStringResource(R.plurals.issue_users, summary.userCount.toQuantity(), number.format(summary.userCount)),
+      ),
       StatCell(
         summary.firstSeen?.let { elapsedSince(it, now).label() } ?: NO_VALUE,
         stringResource(R.string.detail_stat_first_seen),
         DetailTags.STAT_FIRST_SEEN,
+        summary.firstSeen?.let { stringResource(R.string.detail_stat_first_seen_spoken, elapsedSince(it, now).spokenAgo()) },
       ),
       StatCell(
         summary.lastSeen?.let { elapsedSince(it, now).label() } ?: NO_VALUE,
         stringResource(R.string.detail_stat_last_seen),
         DetailTags.STAT_LAST_SEEN,
+        summary.lastSeen?.let { stringResource(R.string.detail_stat_last_seen_spoken, elapsedSince(it, now).spokenAgo()) },
       ),
     )
   val perRow = if (LocalDensity.current.fontScale >= LARGE_FONT_SCALE) 2 else 4
@@ -136,9 +157,11 @@ private fun StatStrip(summary: IssueSummary, now: Instant, modifier: Modifier = 
           row.forEachIndexed { index, cell ->
             if (index > 0) VerticalDivider(color = hairline)
             Column(
-              Modifier.weight(1f).padding(horizontal = 12.dp, vertical = 8.dp).testTag(cell.tag).semantics(mergeDescendants = true) {}
+              Modifier.weight(1f).padding(horizontal = 12.dp, vertical = 8.dp).testTag(cell.tag).semantics(mergeDescendants = true) {
+                cell.spoken?.let { contentDescription = it }
+              }
             ) {
-              Text(cell.value, style = MaterialTheme.typography.titleMedium.tabular(), maxLines = 1)
+              Text(cell.value, style = MaterialTheme.typography.titleMedium.tabular(), maxLines = 1, overflow = TextOverflow.Ellipsis)
               SmallCapsText(cell.label)
             }
           }

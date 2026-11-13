@@ -168,6 +168,8 @@ class IssueDetailContentTest {
     composeTestRule.onNodeWithTag(DetailTags.STAT_USERS).assert(hasText("340"))
     composeTestRule.onNodeWithTag(DetailTags.STAT_FIRST_SEEN).assert(hasText("3d"))
     composeTestRule.onNodeWithTag(DetailTags.STAT_LAST_SEEN).assert(hasText("2m"))
+    // TalkBack reads words, not "3d".
+    composeTestRule.onNodeWithTag(DetailTags.STAT_FIRST_SEEN).assert(hasContentDescription("First seen 3 days ago"))
     // The last seen event's release, on the right of the eyebrow.
     composeTestRule.onNodeWithText("1.4.2").assertIsDisplayed()
     scrollTo("2m ago · release 1.4.2")

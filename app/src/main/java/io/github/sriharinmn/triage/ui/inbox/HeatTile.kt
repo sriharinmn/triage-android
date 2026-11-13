@@ -12,13 +12,14 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
-import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.github.sriharinmn.triage.R
 import io.github.sriharinmn.triage.theme.tabular
 import io.github.sriharinmn.triage.ui.format.compactCount
+import io.github.sriharinmn.triage.ui.format.toQuantity
 
 /** At least this big; with large text the tile grows rather than clipping its count. */
 private val TILE_SIZE = 50.dp
@@ -38,7 +39,7 @@ internal fun HeatTile(count: Long, tier: HeatTier, modifier: Modifier = Modifier
     modifier
       .defaultMinSize(minWidth = TILE_SIZE, minHeight = TILE_SIZE)
       .background(background, RoundedCornerShape(14.dp))
-      .padding(horizontal = 6.dp, vertical = 4.dp),
+      .padding(horizontal = 4.dp, vertical = 4.dp),
     horizontalAlignment = Alignment.CenterHorizontally,
     verticalArrangement = Arrangement.Center,
   ) {
@@ -49,7 +50,7 @@ internal fun HeatTile(count: Long, tier: HeatTier, modifier: Modifier = Modifier
       maxLines = 1,
     )
     Text(
-      stringResource(R.string.inbox_tile_events).uppercase(locale),
+      pluralStringResource(R.plurals.inbox_tile_events, count.toQuantity()).uppercase(locale),
       style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp, letterSpacing = 0.5.sp),
       color = content,
       maxLines = 1,

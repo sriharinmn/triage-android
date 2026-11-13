@@ -7,6 +7,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
+import androidx.compose.ui.test.assertHeightIsAtLeast
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasTestTag
@@ -17,6 +18,7 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToNode
+import androidx.compose.ui.unit.dp
 import io.github.sriharinmn.triage.data.detail.Breadcrumb
 import io.github.sriharinmn.triage.data.detail.ContextLine
 import io.github.sriharinmn.triage.data.detail.DetailError
@@ -142,6 +144,13 @@ class EventSectionsTest {
     composeTestRule.onNodeWithContentDescription("Line 42, where the error happened: total += item.price").assertExists()
     composeTestRule.onNodeWithTag(DetailTags.frame(FrameRef(0, 0))).performClick()
     assertEquals(listOf("frame:0:0"), calls)
+  }
+
+  @Test
+  fun aSingleLineFrameRow_isAtLeast48dpTall() {
+    show(event())
+
+    composeTestRule.onNodeWithTag(DetailTags.frame(FrameRef(0, 0))).assertHeightIsAtLeast(48.dp)
   }
 
   @Test
