@@ -3,6 +3,7 @@ package io.github.sriharinmn.triage.ui.detail
 import android.text.format.DateUtils
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
@@ -27,6 +28,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
@@ -35,9 +37,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshots.Snapshot
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
@@ -302,7 +306,8 @@ private fun DetailTopBar(title: String, onBack: () -> Unit, onOpenInBrowser: () 
 /**
  * The shared top, then the tabs (sticky, so they stay at hand deep in a long trace), then the selected tab's content.
  * Each tab has its own list and scroll position, so coming back to a tab returns to where the user was in it. A tab not
- * yet scrolled opens with the tab row pinned when the tab being left had it pinned ([tabSwitchScrollTarget]).
+ * yet scrolled opens with the tab row pinned when the tab being left had it pinned ([tabSwitchScrollTarget]). Each list
+ * ends in a filler that makes even a short tab tall enough to keep the tab row pinned ([tabFillerPx]).
  */
 @Composable
 private fun DetailBody(
@@ -332,34 +337,48 @@ private fun DetailBody(
     if (target != null) listStates[next.ordinal].requestScrollToItem(target)
     tab = next
   }
-  key(tab) {
-    // This list's own tab as a plain value. Reading the `tab` state inside the list's content would let a layout pass that
-    // runs between a tab tap and the recomposition (which removes this list) measure this tab's scroll state against the
-    // new tab's items, which clamps it to the top and loses the user's place.
-    val listTab = tab
-    LazyColumn(state = listStates[listTab.ordinal], modifier = Modifier.fillMaxSize().testTag(DetailTags.LIST)) {
-      if (reconnectError != null) {
-        item(key = "reconnect") {
-          ReconnectBanner(message = detailErrorMessage(reconnectError), onReconnect = onReconnect, buttonTag = DetailTags.RECONNECT)
+  val minFillerPx = with(LocalDensity.current) { 24.dp.roundToPx() }
+  BoxWithConstraints(Modifier.fillMaxSize()) {
+    val viewport = constraints.maxHeight
+    key(tab) {
+      // This list's own tab as a plain value. Reading the `tab` state inside the list's content would let a layout pass
+      // that runs between a tab tap and the recomposition (which removes this list) measure this tab's scroll state
+      // against the new tab's items, which clamps it to the top and loses the user's place.
+      val listTab = tab
+      val listState = listStates[listTab.ordinal]
+      // The layout the state holds from before this list was shown (it outlives the list) or its content last changed.
+      // Until the list has been measured since, the filler is a whole viewport, so neither a requested scroll nor
+      // content that shrinks under a pinned tab row gets clamped; it settles to its real height on the next frame.
+      val layoutBefore = remember(state, now) { Snapshot.withoutReadObservation { listState.layoutInfo } }
+      val fillerPx by
+        remember(listState, layoutBefore, viewport, tabsIndex, minFillerPx) {
+          derivedStateOf { listState.layoutInfo.tabFillerPx(layoutBefore, viewport, tabsIndex, minFillerPx) }
         }
-      }
-      item(key = "top") { DetailTop(summary, state.shownAssignee, now, showDaily, onShowDailyChange) }
-      stickyHeader(key = "tabs") { _ -> DetailTabRow(selected = listTab, onSelected = ::selectTab) }
-      when (listTab) {
-        DetailTab.Trace ->
-          eventTab(state, now, onEventKindSelected, onRetry, onOpenInBrowser) { event ->
-            stackTraceSection(event, state.expandedFrames, state.revealedStacks, onFrameToggled, onShowLibraryFrames)
+      LazyColumn(state = listState, modifier = Modifier.fillMaxSize().testTag(DetailTags.LIST)) {
+        if (reconnectError != null) {
+          item(key = "reconnect") {
+            ReconnectBanner(message = detailErrorMessage(reconnectError), onReconnect = onReconnect, buttonTag = DetailTags.RECONNECT)
           }
-        DetailTab.Breadcrumbs ->
-          eventTab(state, now, onEventKindSelected, onRetry, onOpenInBrowser) { event ->
-            breadcrumbsSection(event.breadcrumbs, state.showAllBreadcrumbs, onShowAllBreadcrumbs)
-          }
-        // The issue's tags across all its events, so no event selector here.
-        DetailTab.Tags -> tagsSection(state.tagsTabContent(), onRetry, onOpenInBrowser)
-        DetailTab.Details ->
-          eventTab(state, now, onEventKindSelected, onRetry, onOpenInBrowser) { event -> detailsSection(event.context) }
+        }
+        item(key = "top") { DetailTop(summary, state.shownAssignee, now, showDaily, onShowDailyChange) }
+        stickyHeader(key = "tabs") { _ -> DetailTabRow(selected = listTab, onSelected = ::selectTab) }
+        when (listTab) {
+          DetailTab.Trace ->
+            eventTab(state, now, onEventKindSelected, onRetry, onOpenInBrowser) { event ->
+              stackTraceSection(event, state.expandedFrames, state.revealedStacks, onFrameToggled, onShowLibraryFrames)
+            }
+          DetailTab.Breadcrumbs ->
+            eventTab(state, now, onEventKindSelected, onRetry, onOpenInBrowser) { event ->
+              breadcrumbsSection(event.breadcrumbs, state.showAllBreadcrumbs, onShowAllBreadcrumbs)
+            }
+          // The issue's tags across all its events, so no event selector here.
+          DetailTab.Tags -> tagsSection(state.tagsTabContent(), onRetry, onOpenInBrowser)
+          DetailTab.Details ->
+            eventTab(state, now, onEventKindSelected, onRetry, onOpenInBrowser) { event -> detailsSection(event.context) }
+        }
+        // Must stay the last item: tabFillerPx takes everything between the tab row and it as the tab's content.
+        item(key = "bottom_space") { Spacer(Modifier.height(with(LocalDensity.current) { fillerPx.toDp() })) }
       }
-      item(key = "bottom_space") { Spacer(Modifier.height(24.dp)) }
     }
   }
 }

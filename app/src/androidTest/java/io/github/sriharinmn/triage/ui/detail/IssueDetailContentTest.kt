@@ -1,6 +1,8 @@
 package io.github.sriharinmn.triage.ui.detail
 
 import androidx.activity.ComponentActivity
+import androidx.compose.runtime.MutableState
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.test.DeviceConfigurationOverride
 import androidx.compose.ui.test.FontScale
@@ -13,17 +15,21 @@ import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToNode
+import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.swipeUp
 import io.github.sriharinmn.triage.data.actions.ActionNotice
 import io.github.sriharinmn.triage.data.actions.Assignment
 import io.github.sriharinmn.triage.data.actions.IssueAction
 import io.github.sriharinmn.triage.data.actions.IssueOverlay
 import io.github.sriharinmn.triage.data.actions.SubmittedAction
 import io.github.sriharinmn.triage.data.detail.Breadcrumb
+import io.github.sriharinmn.triage.data.detail.ContextLine
 import io.github.sriharinmn.triage.data.detail.DetailError
 import io.github.sriharinmn.triage.data.detail.EventContext
 import io.github.sriharinmn.triage.data.detail.EventKind
@@ -33,6 +39,7 @@ import io.github.sriharinmn.triage.data.detail.IssueEvent
 import io.github.sriharinmn.triage.data.detail.IssueStatus
 import io.github.sriharinmn.triage.data.detail.IssueSummary
 import io.github.sriharinmn.triage.data.detail.StackFrame
+import io.github.sriharinmn.triage.data.detail.TagSummary
 import io.github.sriharinmn.triage.data.issues.IssueBadge
 import io.github.sriharinmn.triage.data.issues.IssueLevel
 import io.github.sriharinmn.triage.data.members.Member
@@ -103,12 +110,18 @@ class IssueDetailContentTest {
       isLoadingEvent = false,
     )
 
-  private fun show(state: IssueDetailUiState, actions: DetailActionHandlers = DetailActionHandlers(), fontScale: Float = 1f) {
+  /** Shows [state]; setting the returned holder's value changes what the screen shows, as the ViewModel would. */
+  private fun show(
+    state: IssueDetailUiState,
+    actions: DetailActionHandlers = DetailActionHandlers(),
+    fontScale: Float = 1f,
+  ): MutableState<IssueDetailUiState> {
+    val shown = mutableStateOf(state)
     composeTestRule.setContent {
       DeviceConfigurationOverride(DeviceConfigurationOverride.FontScale(fontScale)) {
         TriageTheme {
           IssueDetailContent(
-            state = state,
+            state = shown.value,
             now = now,
             onBack = { calls += "back" },
             onOpenInBrowser = { calls += "open" },
@@ -124,12 +137,25 @@ class IssueDetailContentTest {
         }
       }
     }
+    return shown
   }
 
   private fun scrollTo(text: String) =
     composeTestRule.onNodeWithTag(DetailTags.LIST).performScrollToNode(hasText(text, substring = true))
 
   private fun scrollToTag(tag: String) = composeTestRule.onNodeWithTag(DetailTags.LIST).performScrollToNode(hasTestTag(tag))
+
+  /** The tab row sits at the top of the list, and the issue's title and stat strip are scrolled away above it. */
+  private fun assertTabRowPinned() {
+    val list = composeTestRule.onNodeWithTag(DetailTags.LIST).fetchSemanticsNode().boundsInRoot
+    val tabRow = composeTestRule.onNodeWithTag(DetailTags.tab(DetailTab.Trace)).fetchSemanticsNode().boundsInRoot
+    assertEquals(list.top, tabRow.top, 0.5f)
+    composeTestRule.onNodeWithTag(DetailTags.tab(DetailTab.Trace)).assertIsDisplayed()
+    val top =
+      composeTestRule.onAllNodesWithTag(DetailTags.STAT_EVENTS).fetchSemanticsNodes() +
+        composeTestRule.onAllNodesWithText(summary.title).fetchSemanticsNodes()
+    assertTrue("the title and stat strip should be scrolled away", top.all { it.boundsInRoot.bottom <= list.top + 0.5f })
+  }
 
   @Test
   fun theChart_saysWhatItShows() {
@@ -494,10 +520,16 @@ class IssueDetailContentTest {
     composeTestRule.onNodeWithText("No breadcrumbs in this event").assertIsDisplayed()
   }
 
+  private val longTrace =
+    event.copy(
+      stacks =
+        listOf(
+          event.stacks.single().copy(frames = (0 until 40).map { StackFrame("fn$it", null, "shop/f$it.js", it, null, true, emptyList()) })
+        )
+    )
+
   @Test
   fun eachTab_keepsItsOwnScrollPosition() {
-    val frames = (0 until 40).map { StackFrame("fn$it", null, "shop/f$it.js", it, null, true, emptyList()) }
-    val longTrace = event.copy(stacks = listOf(event.stacks.single().copy(frames = frames)))
     show(loaded.copy(events = mapOf(EventKind.Recommended to longTrace)))
     scrollTo("fn39")
 
@@ -511,8 +543,6 @@ class IssueDetailContentTest {
 
   @Test
   fun aTabNotYetScrolled_opensWithTheTabRowPinnedWhenTheOldTabHadItPinned() {
-    val frames = (0 until 40).map { StackFrame("fn$it", null, "shop/f$it.js", it, null, true, emptyList()) }
-    val longTrace = event.copy(stacks = listOf(event.stacks.single().copy(frames = frames)))
     show(loaded.copy(events = mapOf(EventKind.Recommended to longTrace)))
     scrollTo("fn39")
 
@@ -528,6 +558,63 @@ class IssueDetailContentTest {
 
     composeTestRule.onNodeWithTag(DetailTags.tab(DetailTab.Trace)).performClick()
     composeTestRule.onNodeWithText("fn39").assertIsDisplayed()
+  }
+
+  @Test
+  fun aShortTab_keepsTheTabRowPinnedWhenTheOldTabHadItPinned() {
+    val fewTags =
+      listOf(TagSummary("browser", "Chrome 130", 8, 10), TagSummary("os", "Android 16", 6, 10), TagSummary("release", "1.4.2", 10, 10))
+    show(loaded.copy(events = mapOf(EventKind.Recommended to longTrace), tags = fewTags))
+    scrollTo("fn39")
+    assertTabRowPinned()
+
+    composeTestRule.onNodeWithTag(DetailTags.tab(DetailTab.Tags)).performClick()
+
+    composeTestRule.onNodeWithText("Chrome 130").assertIsDisplayed()
+    assertTabRowPinned()
+  }
+
+  @Test
+  fun aShortTrace_canStillPinTheTabRow() {
+    show(loaded)
+
+    composeTestRule.onNodeWithTag(DetailTags.LIST).performTouchInput { swipeUp() }
+
+    assertTabRowPinned()
+    composeTestRule.onNodeWithText("cartTotal").assertIsDisplayed()
+    // The list ends there: the space under the trace is only enough to pin the tab row, not to scroll it all away.
+    val frameTop = composeTestRule.onNodeWithText("cartTotal").fetchSemanticsNode().boundsInRoot.top
+    composeTestRule.onNodeWithTag(DetailTags.LIST).performTouchInput { swipeUp() }
+    assertEquals(frameTop, composeTestRule.onNodeWithText("cartTotal").fetchSemanticsNode().boundsInRoot.top, 0.5f)
+  }
+
+  @Test
+  fun aPinnedTabRow_staysPinnedWhileTheTabsContentGrowsAndShrinks() {
+    val withCode =
+      event.copy(
+        stacks =
+          listOf(
+            event.stacks.single().copy(
+              frames = listOf(StackFrame("cartTotal", null, "shop/cart.js", 42, null, true, (38..46).map { ContextLine(it, "line $it") }))
+            )
+          )
+      )
+    val ui = show(loaded.copy(events = emptyMap(), isLoadingEvent = true))
+    composeTestRule.onNodeWithTag(DetailTags.LIST).performTouchInput { swipeUp() }
+    assertTabRowPinned()
+
+    // The event loads: the spinner gives way to the stack.
+    composeTestRule.runOnIdle { ui.value = loaded.copy(events = mapOf(EventKind.Recommended to withCode)) }
+    composeTestRule.onNodeWithText("cartTotal").assertIsDisplayed()
+    assertTabRowPinned()
+
+    // The frame's code opens, then closes again.
+    composeTestRule.runOnIdle { ui.value = ui.value.copy(expandedFrames = setOf(FrameRef(0, 0))) }
+    composeTestRule.onNodeWithText("line 46", substring = true).assertIsDisplayed()
+    assertTabRowPinned()
+    composeTestRule.runOnIdle { ui.value = ui.value.copy(expandedFrames = emptySet()) }
+    composeTestRule.onNodeWithText("line 46", substring = true).assertDoesNotExist()
+    assertTabRowPinned()
   }
 
   @Test
