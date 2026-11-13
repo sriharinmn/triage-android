@@ -62,6 +62,7 @@ import io.github.sriharinmn.triage.ui.common.ReconnectBanner
 import io.github.sriharinmn.triage.ui.format.elapsedSince
 import io.github.sriharinmn.triage.ui.format.label
 import java.time.Instant
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -301,7 +302,8 @@ private fun DetailTopBar(title: String, onBack: () -> Unit, onOpenInBrowser: () 
 
 /**
  * The shared top, then the tabs (sticky, so they stay at hand deep in a long trace), then the selected tab's content.
- * Each tab has its own list and scroll position, so coming back to a tab returns to where the user was in it.
+ * Each tab has its own list and scroll position, so coming back to a tab returns to where the user was in it. A tab not
+ * yet scrolled opens with the tab row pinned when the tab being left had it pinned ([tabSwitchScrollTarget]).
  */
 @Composable
 private fun DetailBody(
@@ -321,6 +323,17 @@ private fun DetailBody(
   var tab by rememberSaveable { mutableStateOf(DetailTab.Trace) }
   val listStates = DetailTab.entries.map { rememberLazyListState() }
   val reconnectError = state.reconnectError
+  // The sticky tab row's index in the list: after "top", which itself follows the reconnect banner when that shows.
+  val tabsIndex = if (reconnectError != null) 2 else 1
+  val scope = rememberCoroutineScope()
+  fun selectTab(next: DetailTab) {
+    val target =
+      tabSwitchScrollTarget(listStates[tab.ordinal].firstVisibleItemIndex, listStates[next.ordinal].firstVisibleItemIndex, tabsIndex)
+    // Set the new tab's position before it is shown: UNDISPATCHED runs it right now, and its list isn't composed yet, so
+    // the first frame already has the tab row pinned instead of showing the top and then jumping.
+    if (target != null) scope.launch(start = CoroutineStart.UNDISPATCHED) { listStates[next.ordinal].scrollToItem(target) }
+    tab = next
+  }
   key(tab) {
     LazyColumn(state = listStates[tab.ordinal], modifier = Modifier.fillMaxSize().testTag(DetailTags.LIST)) {
       if (reconnectError != null) {
@@ -329,7 +342,7 @@ private fun DetailBody(
         }
       }
       item(key = "top") { DetailTop(summary, state.shownAssignee, now, showDaily, onShowDailyChange) }
-      stickyHeader(key = "tabs") { _ -> DetailTabRow(selected = tab, onSelected = { tab = it }) }
+      stickyHeader(key = "tabs") { _ -> DetailTabRow(selected = tab, onSelected = ::selectTab) }
       when (tab) {
         DetailTab.Trace ->
           eventTab(state, now, onEventKindSelected, onRetry, onOpenInBrowser) { event ->
