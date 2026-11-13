@@ -15,7 +15,6 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -245,7 +244,11 @@ private fun StackHeading(stack: EventStack, isCause: Boolean) {
   }
 }
 
-/** One frame, in mono: its name and place, the app's own frames in SemiBold. Tapping a frame with code shows or hides it. */
+/**
+ * One frame, in mono: its name, with its place under it, the app's own frames in SemiBold. The name has the row's whole
+ * width rather than sharing it with the place, which broke long Java names mid-word. Tapping a frame with code shows or
+ * hides it.
+ */
 @Composable
 private fun FrameRow(frame: StackFrame, expanded: Boolean, onToggle: () -> Unit, modifier: Modifier = Modifier) {
   val hasCode = frame.context.isNotEmpty()
@@ -256,7 +259,8 @@ private fun FrameRow(frame: StackFrame, expanded: Boolean, onToggle: () -> Unit,
       .then(if (hasCode) Modifier.clickable(onClickLabel = toggleLabel, role = Role.Button, onClick = onToggle) else Modifier)
       .padding(start = 8.dp, end = 16.dp, top = 4.dp, bottom = 4.dp)
   ) {
-    // 40 dp plus the 4 dp above and below makes every frame row a 48 dp tap target.
+    // 40 dp plus the 4 dp above and below makes every frame row a 48 dp tap target. The chevron is centred on the name
+    // and place together, as Material centres a two-line list item's leading icon.
     Row(Modifier.heightIn(min = 40.dp), verticalAlignment = Alignment.CenterVertically) {
       if (hasCode) {
         Icon(
@@ -267,24 +271,24 @@ private fun FrameRow(frame: StackFrame, expanded: Boolean, onToggle: () -> Unit,
       } else {
         Spacer(Modifier.size(24.dp))
       }
-      Text(
-        frame.title(),
-        style = MaterialTheme.typography.bodyMedium.mono(),
-        fontWeight = if (frame.inApp) FontWeight.SemiBold else FontWeight.Normal,
-        maxLines = 2,
-        overflow = TextOverflow.Ellipsis,
-        modifier = Modifier.weight(1f),
-      )
-      frame.location()?.let {
+      Column(Modifier.weight(1f)) {
         Text(
-          it,
-          style = MaterialTheme.typography.labelSmall.mono(),
-          color = MaterialTheme.colorScheme.onSurfaceVariant,
-          maxLines = 1,
-          // The end ("cart.js:42") matters more than the start of a long path.
-          overflow = TextOverflow.StartEllipsis,
-          modifier = Modifier.padding(start = 8.dp).widthIn(max = 160.dp),
+          frame.title(),
+          style = MaterialTheme.typography.bodyMedium.mono(),
+          fontWeight = if (frame.inApp) FontWeight.SemiBold else FontWeight.Normal,
+          maxLines = 2,
+          overflow = TextOverflow.Ellipsis,
         )
+        frame.location()?.let {
+          Text(
+            it,
+            style = MaterialTheme.typography.labelSmall.mono(),
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1,
+            // The end ("cart.js:42") matters more than the start of a long path.
+            overflow = TextOverflow.StartEllipsis,
+          )
+        }
       }
     }
     if (expanded && hasCode) CodeBlock(frame, modifier = Modifier.padding(start = 24.dp, top = 4.dp))

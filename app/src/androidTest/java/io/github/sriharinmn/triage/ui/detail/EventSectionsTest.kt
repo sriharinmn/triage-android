@@ -33,6 +33,7 @@ import io.github.sriharinmn.triage.data.detail.TagSummary
 import io.github.sriharinmn.triage.data.issues.IssueLevel
 import io.github.sriharinmn.triage.theme.TriageTheme
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 
@@ -151,6 +152,18 @@ class EventSectionsTest {
     show(event())
 
     composeTestRule.onNodeWithTag(DetailTags.frame(FrameRef(0, 0))).assertHeightIsAtLeast(48.dp)
+  }
+
+  @Test
+  fun aFramesPlace_sitsUnderItsName_soTheNameHasTheRowsWidth() {
+    show(event())
+
+    for ((function, place) in listOf("cartTotal" to "shop/cartTotal.js:42", "handleCheckout" to "shop/handleCheckout.js:1")) {
+      val name = composeTestRule.onNodeWithText(function, useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
+      val location = composeTestRule.onNodeWithText(place, useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
+      assertTrue("$place should start below $function", location.top >= name.bottom - 0.5f)
+      assertEquals(name.left, location.left, 0.5f)
+    }
   }
 
   @Test
