@@ -1,5 +1,6 @@
 package io.github.sriharinmn.triage.ui.detail
 
+import androidx.annotation.StringRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -10,6 +11,7 @@ import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -144,7 +146,7 @@ internal fun LazyListScope.tagsSection(content: TagsContent, onRetry: () -> Unit
     is TagsContent.EventTags ->
       content.tags.forEachIndexed { index, tag -> item(key = "event_tag_$index") { KeyValueRow(tag.key, tag.value) } }
     TagsContent.Loading -> item(key = "tags_loading") { SectionLoading(stringResource(R.string.detail_tags_loading)) }
-    is TagsContent.Failed -> item(key = "tags_error") { TabErrorPanel(content.error, onRetry, onOpenInBrowser) }
+    is TagsContent.Failed -> item(key = "tags_error") { TabErrorPanel(content.error, onRetry, onOpenInBrowser, tooLargeHelp = R.string.detail_issue_too_large) }
     TagsContent.Empty ->
       item(key = "tags_none") { EmptyState(icon = R.drawable.ic_info, headline = stringResource(R.string.detail_no_tags), help = null) }
     TagsContent.Hidden -> Unit
@@ -188,13 +190,19 @@ internal fun SectionLoading(description: String) {
 
 /** Why a tab's part couldn't load, with the one action that can help, in the empty pattern. */
 @Composable
-internal fun TabErrorPanel(error: DetailError, onRetry: () -> Unit, onOpenInBrowser: () -> Unit) {
+internal fun TabErrorPanel(
+  error: DetailError,
+  onRetry: () -> Unit,
+  onOpenInBrowser: () -> Unit,
+  /** What "too large" is about: the event by default; the Tags tab passes the issue's. */
+  @StringRes tooLargeHelp: Int = R.string.detail_error_too_large,
+) {
   when (error) {
     DetailError.TooLarge ->
       EmptyState(
         icon = R.drawable.ic_info,
         headline = stringResource(R.string.state_too_large),
-        help = stringResource(R.string.detail_error_too_large),
+        help = stringResource(tooLargeHelp),
         actionLabel = stringResource(R.string.detail_open_in_browser),
         onAction = onOpenInBrowser,
       )
@@ -246,9 +254,10 @@ private fun FrameRow(frame: StackFrame, expanded: Boolean, onToggle: () -> Unit,
     modifier
       .fillMaxWidth()
       .then(if (hasCode) Modifier.clickable(onClickLabel = toggleLabel, role = Role.Button, onClick = onToggle) else Modifier)
-      .padding(start = 8.dp, end = 16.dp, top = 6.dp, bottom = 6.dp)
+      .padding(start = 8.dp, end = 16.dp, top = 4.dp, bottom = 4.dp)
   ) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
+    // 40 dp plus the 4 dp above and below makes every frame row a 48 dp tap target.
+    Row(Modifier.heightIn(min = 40.dp), verticalAlignment = Alignment.CenterVertically) {
       if (hasCode) {
         Icon(
           painterResource(R.drawable.ic_arrow_drop_down),
@@ -292,7 +301,7 @@ private fun CodeBlock(frame: StackFrame, modifier: Modifier = Modifier) {
     shape = RoundedCornerShape(10.dp),
     modifier = modifier.fillMaxWidth(),
   ) {
-    Column(Modifier.horizontalScroll(rememberScrollState()).width(IntrinsicSize.Max).padding(vertical = 6.dp)) {
+    Column(Modifier.horizontalScroll(rememberScrollState()).width(IntrinsicSize.Max).padding(vertical = 8.dp)) {
       for (line in frame.context) {
         val errorLine =
           if (line.lineNo == frame.lineNo) stringResource(R.string.detail_error_line, line.lineNo, line.text) else null
@@ -355,7 +364,7 @@ private fun TagDistributionRow(tag: TagSummary) {
         )
         Text(stringResource(R.string.detail_tag_percent, tag.percent), style = MaterialTheme.typography.labelMedium)
       }
-      LinearProgressIndicator(progress = { tag.percent / 100f }, modifier = Modifier.fillMaxWidth().padding(top = 2.dp))
+      LinearProgressIndicator(progress = { tag.percent / 100f }, modifier = Modifier.fillMaxWidth().padding(top = 4.dp))
     }
   }
 }
