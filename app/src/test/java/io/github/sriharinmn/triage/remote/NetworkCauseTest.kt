@@ -51,7 +51,7 @@ class NetworkCauseTest {
     }
   }
 
-  @Test
+  @Test(timeout = 1_000)
   fun aCauseChainThatLoops_isOther() {
     val handshake = SSLHandshakeException("Handshake failed")
     val wrapper = IOException("wrapped")

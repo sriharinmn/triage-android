@@ -43,6 +43,8 @@ class PaletteTest {
       "onErrorContainer on errorContainer (reconnect banner)" to (s.onErrorContainer to s.errorContainer),
       "onSurface on errorContainer (the error line in code)" to (s.onSurface to s.errorContainer),
       "inverseOnSurface on inverseSurface (snackbars)" to (s.inverseOnSurface to s.inverseSurface),
+      "inversePrimary on inverseSurface (the snackbar's Undo)" to (s.inversePrimary to s.inverseSurface),
+      "onSurface on surfaceContainerHigh (code blocks, dialogs)" to (s.onSurface to s.surfaceContainerHigh),
       "status Escalating on surface" to (m.statusEscalating to s.surface),
       "status Regressed on surface" to (m.statusRegressed to s.surface),
       "status New on surface" to (m.statusNew to s.surface),
@@ -94,9 +96,23 @@ class PaletteTest {
     // Sentry's purples sit at HSL 247°–252°; every role of ours stays blue (or teal for the tertiary). Errors are red.
     for (scheme in schemes) {
       for ((role, argb) in scheme.roles.roles()) {
-        if ("error" in role.lowercase()) continue
-        val hue = hue(argb) ?: continue
+        val hue = hue(argb)
+        if ("error" in role.lowercase()) {
+          assertTrue("${scheme.name} $role has hue $hue°, not red", hue == null || hue <= 15.0 || hue >= 345.0)
+          continue
+        }
+        if (hue == null) continue
         assertTrue("${scheme.name} $role ${"#%06X".format(argb and 0xFFFFFF)} has hue $hue°", hue in 180.0..240.0)
+      }
+    }
+  }
+
+  @Test
+  fun noSemanticColor_leansViolet() {
+    for (scheme in schemes) {
+      for ((name, argb) in scheme.semantic.colors()) {
+        val hue = hue(argb) ?: continue
+        assertTrue("${scheme.name} $name ${"#%06X".format(argb and 0xFFFFFF)} has hue $hue°, in Sentry's purple range", hue !in 245.0..300.0)
       }
     }
   }
@@ -109,6 +125,14 @@ class PaletteTest {
   /** Every role by name, read from the data class's fields (no kotlin-reflect needed). */
   private fun SchemeHex.roles(): Map<String, Long> =
     SchemeHex::class.java.declaredFields
+      .filter { it.type == java.lang.Long.TYPE }
+      .associate { field ->
+        field.isAccessible = true
+        field.name to field.getLong(this)
+      }
+
+  private fun SemanticHex.colors(): Map<String, Long> =
+    SemanticHex::class.java.declaredFields
       .filter { it.type == java.lang.Long.TYPE }
       .associate { field ->
         field.isAccessible = true
