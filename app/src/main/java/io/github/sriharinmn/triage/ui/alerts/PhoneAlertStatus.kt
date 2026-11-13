@@ -56,9 +56,10 @@ fun rememberPhoneAlertStatus(): PhoneAlertStatus {
 
 /**
  * Asks Android for permission to post notifications (Android 13+), then calls [onResult] with whether notifications can
- * show. When Android won't ask any more (the user said no for good, notifications are off in its settings, or there is no
- * popup on this Android version) and [onBlocked] is given, that runs instead, typically opening Android's notification
- * settings for Triage. Without [onBlocked], that case is just `onResult(false)`.
+ * show. A no the user just gave in Android's popup is respected: `onResult(false)`, even when it was their last chance.
+ * When Android won't show its popup at all (the user said no for good earlier, notifications are off in its settings, or
+ * there is no popup on this Android version) and [onBlocked] is given, that runs instead, typically opening Android's
+ * notification settings for Triage. Without [onBlocked], that case is just `onResult(false)`.
  */
 @Composable
 fun rememberNotificationPermissionRequest(onResult: (allowed: Boolean) -> Unit, onBlocked: (() -> Unit)? = null): () -> Unit {
@@ -70,19 +71,31 @@ fun rememberNotificationPermissionRequest(onResult: (allowed: Boolean) -> Unit, 
     val blocked = currentOnBlocked
     if (answer == NotificationAnswer.Blocked && blocked != null) blocked() else currentOnResult(answer == NotificationAnswer.Allowed)
   }
+  // Whether Android would have shown a rationale before the popup: if so, the popup is certainly shown, so a no from it
+  // is respected even when the rationale is gone afterwards (the user's last chance).
+  var askedJustNow by remember { mutableStateOf(false) }
   val launcher =
     rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-      // After a no, Android shows its popup again only while it would show a rationale; otherwise that no was final.
-      // Without an activity we can't tell, so we never jump to Android's settings.
-      deliver(notificationAnswer(allowed = granted, canAskAgain = activity?.mayAskForNotificationsAgain() ?: true))
+      // After a no, Android shows its popup again only while it would show a rationale. Without an activity we can't
+      // tell, so we never jump to Android's settings.
+      deliver(
+        notificationAnswer(
+          allowed = granted,
+          askedJustNow = askedJustNow,
+          canAskAgain = activity?.mayAskForNotificationsAgain() ?: true,
+        )
+      )
     }
   return {
     val allowed = NotificationManagerCompat.from(context).areNotificationsEnabled()
     val canShowPopup =
       Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
         ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
-    if (!allowed && canShowPopup) launcher.launch(Manifest.permission.POST_NOTIFICATIONS)
-    else deliver(notificationAnswer(allowed = allowed, canAskAgain = false))
+    if (!allowed && canShowPopup) {
+      askedJustNow = activity?.mayAskForNotificationsAgain() ?: false
+      launcher.launch(Manifest.permission.POST_NOTIFICATIONS)
+    }
+    else deliver(notificationAnswer(allowed = allowed, askedJustNow = false, canAskAgain = false))
   }
 }
 
