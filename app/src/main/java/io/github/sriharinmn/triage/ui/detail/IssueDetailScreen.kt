@@ -333,15 +333,19 @@ private fun DetailBody(
     tab = next
   }
   key(tab) {
-    LazyColumn(state = listStates[tab.ordinal], modifier = Modifier.fillMaxSize().testTag(DetailTags.LIST)) {
+    // This list's own tab as a plain value. Reading the `tab` state inside the list's content would let a layout pass that
+    // runs between a tab tap and the recomposition (which removes this list) measure this tab's scroll state against the
+    // new tab's items, which clamps it to the top and loses the user's place.
+    val listTab = tab
+    LazyColumn(state = listStates[listTab.ordinal], modifier = Modifier.fillMaxSize().testTag(DetailTags.LIST)) {
       if (reconnectError != null) {
         item(key = "reconnect") {
           ReconnectBanner(message = detailErrorMessage(reconnectError), onReconnect = onReconnect, buttonTag = DetailTags.RECONNECT)
         }
       }
       item(key = "top") { DetailTop(summary, state.shownAssignee, now, showDaily, onShowDailyChange) }
-      stickyHeader(key = "tabs") { _ -> DetailTabRow(selected = tab, onSelected = ::selectTab) }
-      when (tab) {
+      stickyHeader(key = "tabs") { _ -> DetailTabRow(selected = listTab, onSelected = ::selectTab) }
+      when (listTab) {
         DetailTab.Trace ->
           eventTab(state, now, onEventKindSelected, onRetry, onOpenInBrowser) { event ->
             stackTraceSection(event, state.expandedFrames, state.revealedStacks, onFrameToggled, onShowLibraryFrames)
