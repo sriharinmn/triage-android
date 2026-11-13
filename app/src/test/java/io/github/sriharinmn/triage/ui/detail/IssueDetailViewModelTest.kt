@@ -175,6 +175,22 @@ class IssueDetailViewModelTest {
   }
 
   @Test
+  fun aFailedTagsRequest_setsTagsError_andRetryLoadsThemAgain() = runTest {
+    api.tagHandler = { ApiResult.Failure(ApiError.Http(500)) }
+    val vm = viewModel()
+    assertEquals(DetailError.Server, vm.state.value.tagsError)
+    assertFalse(vm.state.value.isLoadingTags)
+
+    api.tagHandler = { key ->
+      ApiResult.Success(TagDetailDto(key = key, totalValues = 10, topValues = listOf(TagValueDto(value = "v-$key", count = 5))))
+    }
+    vm.onRetry()
+
+    assertNull(vm.state.value.tagsError)
+    assertEquals(listOf("environment", "release", "os", "browser", "level"), vm.state.value.tags?.map { it.key })
+  }
+
+  @Test
   fun switchingKinds_loadsEachOnceAndKeepsEarlierOnes() = runTest {
     val vm = viewModel()
 

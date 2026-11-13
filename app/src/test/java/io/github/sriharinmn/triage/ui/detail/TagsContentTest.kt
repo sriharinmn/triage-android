@@ -72,7 +72,7 @@ class TagsContentTest {
   @Test
   fun loadedWithoutAny_saysThereAreNoTags() {
     assertEquals(TagsContent.Empty, loaded.copy(tags = emptyList()).tagsTabContent())
-    // An issue without tag keys never asks for them, so they stay null with nothing wrong.
+    // Nothing asked for and nothing wrong (a cached issue whose fresh copy hasn't come): not a failure.
     assertEquals(TagsContent.Empty, loaded.tagsTabContent())
   }
 
@@ -89,5 +89,31 @@ class TagsContentTest {
 
     assertEquals(TagsContent.EventTags(listOf(route)), loaded.copy(events = eventWithTags).tagsTabContent())
     assertEquals(TagsContent.EventTags(listOf(route)), loaded.copy(events = eventWithTags, summaryError = DetailError.Network).tagsTabContent())
+  }
+
+  @Test
+  fun anEventWithoutTags_whileTheIssuesTagsLoad_showsASpinner() {
+    assertEquals(TagsContent.Loading, loaded.copy(isLoadingTags = true).tagsTabContent())
+  }
+
+  @Test
+  fun aRetryOfTheIssue_withATaglessEvent_showsASpinner() {
+    assertEquals(TagsContent.Loading, loaded.copy(isLoadingSummary = true).tagsTabContent())
+  }
+
+  @Test
+  fun tagsThatFailed_withAFreshIssue_saySo() {
+    assertEquals(TagsContent.Failed(DetailError.Network), loaded.copy(tagsError = DetailError.Network).tagsTabContent())
+  }
+
+  @Test
+  fun anEventThatIsMissingOrTooLarge_isNotATagsFailure() {
+    assertEquals(TagsContent.Empty, loaded.copy(eventError = DetailError.NotFound).tagsTabContent())
+    assertEquals(TagsContent.Empty, loaded.copy(eventError = DetailError.TooLarge).tagsTabContent())
+  }
+
+  @Test
+  fun anIssueThatIsTooLarge_failsTheTab() {
+    assertEquals(TagsContent.Failed(DetailError.TooLarge), loaded.copy(summaryError = DetailError.TooLarge).tagsTabContent())
   }
 }

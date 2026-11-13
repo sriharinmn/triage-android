@@ -25,8 +25,9 @@ internal sealed interface TagsContent {
 }
 
 /**
- * The Tags tab's content: the issue's tags, else the event's, else a spinner while [isLoading]. Without any, [tags] being
- * null (never loaded) and an [error] mean the tags couldn't load, so the tab says why instead of "no tags".
+ * The Tags tab's content: the issue's tags, else the event's, else a spinner while [isLoading]. [tags] is null only while
+ * loading or after a failure (an issue without tag keys gives an empty list), so a null with an [error] means the tags
+ * couldn't load and the tab says why instead of "no tags".
  */
 internal fun tagsContent(
   tags: List<TagSummary>?,
@@ -52,6 +53,7 @@ internal fun IssueDetailUiState.tagsTabContent(): TagsContent =
   tagsContent(
     tags = tags,
     eventTags = event?.tags.orEmpty(),
-    isLoading = event == null && (isLoadingSummary || isLoadingEvent),
-    error = summaryError ?: eventError,
+    isLoading = isLoadingSummary || isLoadingTags || (event == null && isLoadingEvent),
+    // A missing or too-large event says nothing about the issue's tags.
+    error = summaryError ?: tagsError ?: eventError?.takeUnless { it == DetailError.NotFound || it == DetailError.TooLarge },
   )
