@@ -103,6 +103,14 @@ class AlertsContentTest {
   }
 
   @Test
+  fun beforeTheStoresAnswer_nothingShows() {
+    show(AlertsUiState(isLoaded = false))
+
+    composeTestRule.onNodeWithTag(AlertsTags.MASTER).assertDoesNotExist()
+    composeTestRule.onNodeWithText("Not checked yet").assertDoesNotExist()
+  }
+
+  @Test
   fun theBatteryRow_showsWhenRestricted_andItsHelpOpensAndroidsList() {
     show(AlertsUiState(), PhoneAlertStatus(batteryRestricted = true))
 

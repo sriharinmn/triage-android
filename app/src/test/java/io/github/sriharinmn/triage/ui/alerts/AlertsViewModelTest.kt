@@ -1,7 +1,11 @@
 package io.github.sriharinmn.triage.ui.alerts
 
+import androidx.datastore.core.DataStore
+import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.emptyPreferences
 import io.github.sriharinmn.triage.data.alerts.AlertKind
 import io.github.sriharinmn.triage.data.alerts.AlertSettings
+import io.github.sriharinmn.triage.data.alerts.AlertSettingsStore
 import io.github.sriharinmn.triage.data.alerts.AlertState
 import io.github.sriharinmn.triage.data.alerts.CheckInterval
 import io.github.sriharinmn.triage.data.alerts.DataStoreAlertSettingsStore
@@ -11,10 +15,16 @@ import io.github.sriharinmn.triage.data.issues.Project
 import io.github.sriharinmn.triage.testing.InMemoryPreferencesDataStore
 import io.github.sriharinmn.triage.testing.MainDispatcherRule
 import java.time.Instant
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -40,6 +50,7 @@ class AlertsViewModelTest {
     alertState.save(AlertState(lastSuccessAt = checkedAt, lastAttemptFailed = true))
 
     val state = viewModel().state.value
+    assertTrue(state.isLoaded)
 
     assertEquals(AlertSettings(), state.settings)
     assertEquals(listOf("101", "102"), state.projects.map { it.id })
@@ -88,5 +99,50 @@ class AlertsViewModelTest {
 
     assertEquals(listOf("101", "102", "103"), vm.state.value.projects.map { it.id })
     assertEquals(setOf("102"), vm.state.value.settings.projectsOff)
+  }
+
+  @Test
+  fun beforeTheStoresAnswer_theScreenIsNotLoaded() {
+    val stored = settings
+    val silent = object : AlertSettingsStore by stored {
+      override val settings: Flow<AlertSettings> = emptyFlow()
+    }
+
+    val state = AlertsViewModel(silent, alertState, projects).state.value
+
+    // The screen shows nothing rather than the defaults ("off", "15 min") for a frame.
+    assertFalse(state.isLoaded)
+  }
+
+  @Test
+  fun twoQuickQuietHourChanges_bothLand() = runTest {
+    val slow = SlowWrites()
+    val store = DataStoreAlertSettingsStore(slow)
+    val vm = AlertsViewModel(store, alertState, projects)
+
+    vm.onQuietHoursChanged(true)
+    // Read-then-write would read the window here, before the first change is written, and so undo it.
+    vm.onQuietStartSelected(23 * 60)
+    slow.open()
+
+    assertEquals(QuietHours(enabled = true, startMinute = 23 * 60, endMinute = 7 * 60), store.settings.first().quietHours)
+  }
+}
+
+/** A preferences file whose writes wait until [open], as on a slow phone, so two edits can be in flight at once. */
+private class SlowWrites : DataStore<Preferences> {
+  private val state = MutableStateFlow(emptyPreferences())
+  private val gate = CompletableDeferred<Unit>()
+  private val writes = Mutex()
+
+  override val data: Flow<Preferences> = state
+
+  override suspend fun updateData(transform: suspend (t: Preferences) -> Preferences): Preferences {
+    gate.await()
+    return writes.withLock { transform(state.value).also { state.value = it } }
+  }
+
+  fun open() {
+    gate.complete(Unit)
   }
 }
