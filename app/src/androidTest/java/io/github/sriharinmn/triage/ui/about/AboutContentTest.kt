@@ -12,6 +12,7 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performSemanticsAction
 import io.github.sriharinmn.triage.theme.TriageTheme
+import kotlin.coroutines.EmptyCoroutineContext
 import org.junit.Rule
 import org.junit.Test
 
@@ -20,7 +21,9 @@ class AboutContentTest {
 
   private fun show(buildType: String = "debug") {
     val state = AboutViewModel(versionName = "1.0", versionCode = 1, buildType = buildType).state
-    composeTestRule.setContent { TriageTheme { AboutContent(state, onBack = {}) } }
+    // The license text is read on the main thread, so the dialog's state isn't set from another thread (see
+    // AboutContent).
+    composeTestRule.setContent { TriageTheme { AboutContent(state, onBack = {}, licenseReadContext = EmptyCoroutineContext) } }
   }
 
   @Test

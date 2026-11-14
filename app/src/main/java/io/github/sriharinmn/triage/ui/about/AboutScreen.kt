@@ -40,6 +40,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import io.github.sriharinmn.triage.R
 import io.github.sriharinmn.triage.ui.common.SectionLabel
+import kotlin.coroutines.CoroutineContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -65,9 +66,19 @@ fun AboutScreen(viewModel: AboutViewModel, onBack: () -> Unit, modifier: Modifie
   AboutContent(viewModel.state, onBack, modifier)
 }
 
+/**
+ * [licenseReadContext] is where a license's text is read: off the main thread by default. A test passes
+ * EmptyCoroutineContext so the text is read and shown on the main thread. Under Compose's test dispatcher, a read off
+ * the main thread sets the dialog's state from that thread, and twice in full phone runs the text never showed.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-internal fun AboutContent(state: AboutUiState, onBack: () -> Unit, modifier: Modifier = Modifier) {
+internal fun AboutContent(
+  state: AboutUiState,
+  onBack: () -> Unit,
+  modifier: Modifier = Modifier,
+  licenseReadContext: CoroutineContext = Dispatchers.IO,
+) {
   var shownLicense by rememberSaveable { mutableStateOf<OpenSourceLicense?>(null) }
   val muted = MaterialTheme.colorScheme.onSurfaceVariant
   Scaffold(
@@ -120,7 +131,7 @@ internal fun AboutContent(state: AboutUiState, onBack: () -> Unit, modifier: Mod
       }
     }
   }
-  shownLicense?.let { LicenseDialog(it, onDismiss = { shownLicense = null }) }
+  shownLicense?.let { LicenseDialog(it, licenseReadContext, onDismiss = { shownLicense = null }) }
 }
 
 /** "Version 1.0 (1)", plus " · debug" on a build that isn't a release. */
@@ -139,13 +150,13 @@ private fun PrivacyPoint(@StringRes text: Int) {
   }
 }
 
-/** The license's full text, read from res/raw off the main thread. */
+/** The license's full text, read from res/raw in [readContext] (off the main thread in the app). */
 @Composable
-private fun LicenseDialog(license: OpenSourceLicense, onDismiss: () -> Unit) {
+private fun LicenseDialog(license: OpenSourceLicense, readContext: CoroutineContext, onDismiss: () -> Unit) {
   val context = LocalContext.current
   val text by
-    produceState<String?>(initialValue = null, license) {
-      value = withContext(Dispatchers.IO) { context.resources.openRawResource(license.textRes).bufferedReader().use { it.readText() } }
+    produceState<String?>(initialValue = null, license, readContext) {
+      value = withContext(readContext) { context.resources.openRawResource(license.textRes).bufferedReader().use { it.readText() } }
     }
   AlertDialog(
     onDismissRequest = onDismiss,
