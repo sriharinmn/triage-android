@@ -94,6 +94,7 @@ fun IssueDetailScreen(viewModel: IssueDetailViewModel, onBack: () -> Unit, modif
   val snackbarHostState = remember { SnackbarHostState() }
   val scope = rememberCoroutineScope()
   val openFailed = stringResource(R.string.inbox_open_failed)
+  val noWebPage = stringResource(R.string.detail_demo_no_web_page)
   // "2m ago" labels tick every minute.
   val now by
     produceState(initialValue = Instant.now()) {
@@ -108,11 +109,16 @@ fun IssueDetailScreen(viewModel: IssueDetailViewModel, onBack: () -> Unit, modif
     now = now,
     onBack = onBack,
     onOpenInBrowser = {
-      try {
-        uriHandler.openUri(viewModel.browserUrl())
-      } catch (e: IllegalArgumentException) {
-        // AndroidUriHandler wraps ActivityNotFoundException (no browser installed) in this.
-        scope.launch { snackbarHostState.showSnackbar(openFailed) }
+      val url = viewModel.browserUrl()
+      if (url == null) {
+        scope.launch { snackbarHostState.showSnackbar(noWebPage) }
+      } else {
+        try {
+          uriHandler.openUri(url)
+        } catch (e: IllegalArgumentException) {
+          // AndroidUriHandler wraps ActivityNotFoundException (no browser installed) in this.
+          scope.launch { snackbarHostState.showSnackbar(openFailed) }
+        }
       }
     },
     onEventKindSelected = viewModel::onEventKindSelected,

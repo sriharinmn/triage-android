@@ -15,6 +15,7 @@ import io.github.sriharinmn.triage.data.detail.IssueDetailRepository
 import io.github.sriharinmn.triage.data.detail.IssueEvent
 import io.github.sriharinmn.triage.data.detail.IssueSummary
 import io.github.sriharinmn.triage.data.detail.TagSummary
+import io.github.sriharinmn.triage.data.demo.isDemo
 import io.github.sriharinmn.triage.data.issues.issueBrowserUrl
 import io.github.sriharinmn.triage.data.members.Member
 import io.github.sriharinmn.triage.data.members.MembersRepository
@@ -341,7 +342,7 @@ class IssueDetailViewModel(
   }
 
   /** Where "Open in browser" goes: Sentry's https permalink, or a link built from the account. */
-  fun browserUrl(): String = issueBrowserUrl(account, issueId, _state.value.summary?.permalink)
+  fun browserUrl(): String? = if (account.isDemo) null else issueBrowserUrl(account, issueId, _state.value.summary?.permalink)
 
   private suspend fun loadSummary(cached: IssueSummary?) {
     _state.update { it.copy(isLoadingSummary = true, summaryError = null) }

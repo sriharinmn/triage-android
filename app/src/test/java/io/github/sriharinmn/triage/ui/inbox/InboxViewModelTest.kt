@@ -3,6 +3,7 @@ package io.github.sriharinmn.triage.ui.inbox
 import io.github.sriharinmn.triage.data.AccountDataCleaner
 import io.github.sriharinmn.triage.data.Disconnector
 import io.github.sriharinmn.triage.data.RateLimitGate
+import io.github.sriharinmn.triage.data.account.Account
 import io.github.sriharinmn.triage.data.account.AccountRepository
 import io.github.sriharinmn.triage.data.alerts.AlertState
 import io.github.sriharinmn.triage.data.alerts.DataStoreAlertSettingsStore
@@ -11,6 +12,7 @@ import io.github.sriharinmn.triage.data.actions.ActionNotice
 import io.github.sriharinmn.triage.data.actions.IssueAction
 import io.github.sriharinmn.triage.data.actions.IssueActionRepository
 import io.github.sriharinmn.triage.data.actions.PendingActions
+import io.github.sriharinmn.triage.data.demo.DemoAccount
 import io.github.sriharinmn.triage.data.issues.InboxError
 import io.github.sriharinmn.triage.data.issues.InboxFilter
 import io.github.sriharinmn.triage.data.issues.InboxTab
@@ -40,6 +42,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runCurrent
+import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withContext
 import org.junit.Assert.assertEquals
@@ -69,10 +72,14 @@ class InboxViewModelTest {
 
   private lateinit var pendingActions: PendingActions
 
-  private fun TestScope.viewModel(opening: InboxOpening? = null): InboxViewModel {
+  private fun TestScope.viewModel(
+    opening: InboxOpening? = null,
+    account: Account = TEST_ACCOUNT,
+    markWelcomeSeen: () -> Unit = {},
+  ): InboxViewModel {
     pendingActions = PendingActions(IssueActionRepository(api, RateLimitGate(clock::now)), repository, backgroundScope)
     return InboxViewModel(
-      TEST_ACCOUNT,
+      account,
       repository,
       settings,
       disconnector,
@@ -81,6 +88,7 @@ class InboxViewModelTest {
       alertState,
       opening = opening,
       clock = clock::now,
+      markWelcomeSeen = markWelcomeSeen,
     )
   }
 
@@ -91,6 +99,24 @@ class InboxViewModelTest {
 
   private suspend fun cacheList(filter: InboxFilter, ids: List<String>, age: Duration) =
     cache.replaceList(filter.listKey, ids.map { issueDto(it).toIssue() }, null, clock.now() - age)
+
+  @Test
+  fun aRealAccount_isNotTheDemo() = runTest {
+    assertFalse(viewModel().state.value.isDemo)
+  }
+
+  @Test
+  fun theDemo_isMarked_andConnectInsteadMarksTheWelcomeSeenThenLeaves() = runTest {
+    var welcomeSeen = 0
+    val vm = viewModel(account = DemoAccount, markWelcomeSeen = { welcomeSeen++ })
+    assertTrue(vm.state.value.isDemo)
+
+    vm.onConnectInsteadOfDemo()
+    advanceUntilIdle()
+
+    assertEquals(1, welcomeSeen)
+    assertNull(accountStore.current)
+  }
 
   @Test
   fun aResolvedRow_disappearsAtOnce_andUndoBringsItBack() = runTest {

@@ -112,6 +112,18 @@ class SettingsContentTest {
   }
 
   @Test
+  fun theDemo_showsSampleData_andLeavesWithoutAsking() {
+    show(connected.copy(isDemo = true))
+
+    composeTestRule.onNodeWithText("Sample data").assertIsDisplayed()
+    composeTestRule.onNodeWithText("de.sentry.io").assertDoesNotExist()
+    composeTestRule.onNodeWithTag(SettingsTags.DISCONNECT).assertDoesNotExist()
+    composeTestRule.onNodeWithTag(SettingsTags.LEAVE_DEMO).assertIsDisplayed().performClick()
+
+    assertEquals(listOf("disconnect"), calls)
+  }
+
+  @Test
   fun atTwiceTheFontSize_everyRowIsReachable() {
     show(fontScale = 2f)
 

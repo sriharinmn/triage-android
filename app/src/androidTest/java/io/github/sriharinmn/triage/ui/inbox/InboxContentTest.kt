@@ -35,6 +35,7 @@ import io.github.sriharinmn.triage.theme.TriageTheme
 import java.time.Duration
 import java.time.Instant
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -95,6 +96,7 @@ class InboxContentTest {
             onAlertsCardTurnOn = { calls += "alertsTurnOn" },
             onAlertsCardNotNow = { calls += "alertsNotNow" },
             onOpenSettings = { calls += "openSettings" },
+            onConnectInsteadOfDemo = { calls += "connectInsteadOfDemo" },
           )
         }
       }
@@ -403,6 +405,36 @@ class InboxContentTest {
     composeTestRule.onNodeWithContentDescription("Settings").performClick()
 
     assertEquals(listOf("openSettings"), calls)
+  }
+
+  @Test
+  fun theDemo_hasAChip_whoseNoteExplainsIt() {
+    show(loaded.copy(isDemo = true))
+
+    composeTestRule.onNodeWithTag(DemoTags.CHIP).assertIsDisplayed().performClick()
+    composeTestRule.onNodeWithText("made-up shop", substring = true).assertIsDisplayed()
+    composeTestRule.onNodeWithTag(DemoTags.KEEP_EXPLORING).performClick()
+
+    composeTestRule.onNodeWithText("made-up shop", substring = true).assertDoesNotExist()
+    assertFalse("connectInsteadOfDemo" in calls)
+  }
+
+  @Test
+  fun theDemoNotesConnect_leavesTheDemoForConnect() {
+    show(loaded.copy(isDemo = true))
+
+    composeTestRule.onNodeWithTag(DemoTags.CHIP).performClick()
+    composeTestRule.onNodeWithTag(DemoTags.CONNECT).performClick()
+
+    assertTrue("connectInsteadOfDemo" in calls)
+    composeTestRule.onNodeWithText("made-up shop", substring = true).assertDoesNotExist()
+  }
+
+  @Test
+  fun aRealAccount_hasNoDemoChip() {
+    show(loaded)
+
+    composeTestRule.onNodeWithTag(DemoTags.CHIP).assertDoesNotExist()
   }
 
   @Test

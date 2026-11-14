@@ -124,6 +124,7 @@ fun InboxScreen(
     onAlertsCardNotNow = viewModel::onAlertsCardNotNow,
     onOpenSettings = onOpenSettings,
     snackbarHostState = snackbarHostState,
+    onConnectInsteadOfDemo = viewModel::onConnectInsteadOfDemo,
     modifier = modifier,
   )
 }
@@ -154,8 +155,10 @@ internal fun InboxContent(
   onOpenSettings: () -> Unit,
   modifier: Modifier = Modifier,
   snackbarHostState: SnackbarHostState = remember { SnackbarHostState() },
+  onConnectInsteadOfDemo: () -> Unit = {},
 ) {
   var confirmingDisconnect by rememberSaveable { mutableStateOf(false) }
+  var showingDemoNote by rememberSaveable { mutableStateOf(false) }
   val context = LocalContext.current
   val error = state.error
   val errorText = error?.let { errorMessage(it) }
@@ -196,7 +199,7 @@ internal fun InboxContent(
 
   Scaffold(
     modifier = modifier,
-    topBar = { InboxTopBar(orgName = state.orgName, onOpenSettings = onOpenSettings) },
+    topBar = { InboxTopBar(orgName = state.orgName, isDemo = state.isDemo, onOpenSettings = onOpenSettings, onDemoChip = { showingDemoNote = true }) },
     // A notice covers any other snackbar, which shows once the notice goes.
     snackbarHost = {
       if (noticeHostState.currentSnackbarData != null) SnackbarHost(noticeHostState) else SnackbarHost(snackbarHostState)
@@ -264,17 +267,29 @@ internal fun InboxContent(
       onDismiss = { confirmingDisconnect = false },
     )
   }
+
+  if (showingDemoNote) {
+    DemoNoteDialog(
+      onConnect = {
+        showingDemoNote = false
+        onConnectInsteadOfDemo()
+      },
+      onDismiss = { showingDemoNote = false },
+    )
+  }
 }
 
-/** The org's initial and name, and the gear to Settings (Disconnect, Alerts, Appearance and About live there). */
+/** The org's initial and name (and the Demo chip for the sample data), and the gear to Settings. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun InboxTopBar(orgName: String, onOpenSettings: () -> Unit) {
+private fun InboxTopBar(orgName: String, isDemo: Boolean, onOpenSettings: () -> Unit, onDemoChip: () -> Unit) {
   TopAppBar(
     title = {
       Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         OrgInitialTile(orgName)
-        Text(orgName, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        // A long name gives way to the chip, which must stay visible.
+        Text(orgName, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+        if (isDemo) DemoChip(onClick = onDemoChip)
       }
     },
     actions = {

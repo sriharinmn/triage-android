@@ -50,6 +50,7 @@ import io.github.sriharinmn.triage.ui.common.SectionLabel
 /** Test tags for the Settings screen. */
 object SettingsTags {
   const val DISCONNECT = "settings_disconnect"
+  const val LEAVE_DEMO = "settings_leave_demo"
   const val ALERTS = "settings_alerts"
   const val WALLPAPER_COLORS = "settings_wallpaper_colors"
   const val ABOUT = "settings_about"
@@ -57,7 +58,7 @@ object SettingsTags {
   fun theme(mode: ThemeMode) = "settings_theme_${mode.name}"
 }
 
-/** The inbox's gear: the account and Disconnect, Alerts, Appearance, and About. */
+/** The inbox's gear: the account and Disconnect (Leave demo for the sample data), Alerts, Appearance, and About. */
 @Composable
 fun SettingsScreen(
   viewModel: SettingsViewModel,
@@ -126,17 +127,33 @@ internal fun SettingsContent(
       ListItem(
         leadingContent = { OrgInitialTile(state.orgName) },
         headlineContent = { Text(state.orgName) },
-        supportingContent = { Text(state.serverHost, style = MaterialTheme.typography.bodyMedium.mono()) },
+        supportingContent = {
+          if (state.isDemo) Text(stringResource(R.string.settings_demo_account))
+          else Text(state.serverHost, style = MaterialTheme.typography.bodyMedium.mono())
+        },
       )
-      ListItem(
-        leadingContent = { Icon(painterResource(R.drawable.ic_logout), contentDescription = null) },
-        headlineContent = { Text(stringResource(R.string.settings_disconnect)) },
-        supportingContent = { Text(stringResource(R.string.settings_disconnect_hint)) },
-        modifier =
-          Modifier.testTag(SettingsTags.DISCONNECT).clickable(enabled = !state.isDisconnecting, role = Role.Button) {
-            confirmingDisconnect = true
-          },
-      )
+      if (state.isDemo) {
+        // Nothing of value is lost, so no confirmation: the sample data can be opened again from the welcome.
+        ListItem(
+          leadingContent = { Icon(painterResource(R.drawable.ic_logout), contentDescription = null) },
+          headlineContent = { Text(stringResource(R.string.settings_leave_demo)) },
+          supportingContent = { Text(stringResource(R.string.settings_leave_demo_hint)) },
+          modifier =
+            Modifier.testTag(SettingsTags.LEAVE_DEMO).clickable(enabled = !state.isDisconnecting, role = Role.Button) {
+              onDisconnectConfirmed()
+            },
+        )
+      } else {
+        ListItem(
+          leadingContent = { Icon(painterResource(R.drawable.ic_logout), contentDescription = null) },
+          headlineContent = { Text(stringResource(R.string.settings_disconnect)) },
+          supportingContent = { Text(stringResource(R.string.settings_disconnect_hint)) },
+          modifier =
+            Modifier.testTag(SettingsTags.DISCONNECT).clickable(enabled = !state.isDisconnecting, role = Role.Button) {
+              confirmingDisconnect = true
+            },
+        )
+      }
       HorizontalDivider(color = hairline)
       NavigationRow(R.drawable.ic_notification, R.string.settings_alerts, R.string.settings_alerts_hint, SettingsTags.ALERTS, onOpenAlerts)
       HorizontalDivider(color = hairline)

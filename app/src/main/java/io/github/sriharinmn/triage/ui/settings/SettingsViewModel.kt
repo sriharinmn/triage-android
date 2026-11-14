@@ -7,6 +7,7 @@ import io.github.sriharinmn.triage.data.account.Account
 import io.github.sriharinmn.triage.data.appearance.AppearanceSettings
 import io.github.sriharinmn.triage.data.appearance.AppearanceStore
 import io.github.sriharinmn.triage.data.appearance.ThemeMode
+import io.github.sriharinmn.triage.data.demo.isDemo
 import java.io.IOException
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -21,6 +22,8 @@ data class SettingsUiState(
   val orgName: String,
   /** The Sentry server's host, e.g. de.sentry.io or sentry.example.com. */
   val serverHost: String,
+  /** The sample data is showing: Leave demo instead of Disconnect. */
+  val isDemo: Boolean = false,
   val appearance: AppearanceSettings = AppearanceSettings(),
   val isDisconnecting: Boolean = false,
   val disconnectFailed: Boolean = false,
@@ -42,7 +45,7 @@ class SettingsViewModel(
 ) : ViewModel() {
   private val _state =
     MutableStateFlow(
-      SettingsUiState(orgName = account.orgName, serverHost = serverHost(account.apiBaseUrl), appearance = initialAppearance)
+      SettingsUiState(orgName = account.orgName, serverHost = serverHost(account.apiBaseUrl), isDemo = account.isDemo, appearance = initialAppearance)
     )
   val state: StateFlow<SettingsUiState> = _state.asStateFlow()
 
