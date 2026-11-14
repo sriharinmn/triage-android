@@ -121,10 +121,54 @@ class DemoWorldTest {
   }
 
   @Test
+  fun theWebAndApiProjects_haveTheirIssues() {
+    assertEquals(9, starting(SHOP_WEB).size)
+    assertEquals(5, arrivals(SHOP_WEB).size)
+    assertEquals(10, starting(SHOP_API).size)
+    assertEquals(5, arrivals(SHOP_API).size)
+  }
+
+  @Test
+  fun theStartingMix_matchesTheSpec() {
+    val issues = DemoWorld.startingIssues
+    assertEquals(30, issues.size)
+    assertEquals(mapOf("fatal" to 3, "error" to 20, "warning" to 5, "info" to 2), issues.groupingBy { it.spec.level }.eachCount())
+    assertEquals(2, issues.count { it.start is DemoStart.Regressed })
+    assertEquals(2, issues.count { it.start is DemoStart.Escalating })
+    assertEquals(2, issues.count { it.start is DemoStart.Archived })
+    assertEquals(2, issues.count { it.start is DemoStart.Resolved })
+    // New: unresolved and first seen within the last 3 days.
+    assertEquals(4, issues.count { it.start == DemoStart.Unresolved && it.firstSeenAgo <= Duration.ofDays(3) })
+    assertEquals(2, issues.count { it.assigneeId == DemoWorld.me.userId })
+    assertEquals(5, issues.count { it.assigneeId != null && it.assigneeId != DemoWorld.me.userId })
+  }
+
+  @Test
+  fun theEventsCoverEveryKindTheDetailScreenShows() {
+    val events = (DemoWorld.startingIssues.map { it.spec } + DemoWorld.arrivals).map { it.event }
+    assertEquals(1, events.count { it.exceptions.isEmpty() && it.threads.isEmpty() && it.message != null })
+    assertEquals(1, events.count { it.threads.isNotEmpty() })
+    assertTrue(events.any { it.exceptions.size >= 2 })
+    assertTrue(events.any { event -> event.exceptions.flatMap { it.frames }.any { it.colNo != null } })
+    assertTrue(events.any { it.request != null })
+    assertTrue(events.any { "browser" in it.contexts })
+    assertTrue(events.any { "runtime" in it.contexts })
+  }
+
+  @Test
+  fun arrivals_takeTheProjectsInTurn() {
+    assertEquals(
+      List(5) { listOf(SHOP_ANDROID, SHOP_WEB, SHOP_API) }.flatten(),
+      DemoWorld.arrivals.map { it.projectSlug },
+    )
+  }
+
+  @Test
   fun eachTitle_isTheThrownException() {
-    // Sentry titles an event by its last exception: the type, then the value's first line.
+    // Sentry titles an event by its last exception: the type, then the value's first line. Browsers raise the
+    // ResizeObserver loop error without an Error object, and Sentry titles that by its message alone.
     allSpecs
-      .filter { it.event.exceptions.isNotEmpty() }
+      .filter { it.event.exceptions.isNotEmpty() && it.key != "web-resize-observer" }
       .forEach { spec ->
         val thrown = spec.event.exceptions.last()
         assertEquals(spec.key, "${thrown.type}: ${thrown.value.lines().first()}", spec.title)
@@ -133,7 +177,9 @@ class DemoWorldTest {
 
   @Test
   fun eachCulprit_isTheTopmostAppFrame() {
-    allSpecs.forEach { spec ->
+    // Except web-chunk-load: Sentry counts webpack's runtime as the app's own code (it isn't under node_modules) and
+    // names its chunk loader, which the demo shows as a library frame.
+    allSpecs.filter { it.key != "web-chunk-load" }.forEach { spec ->
       val event = spec.event
       val frames = event.exceptions.lastOrNull()?.frames ?: event.threads.firstOrNull { it.crashed }?.frames ?: return@forEach
       val top = frames.last { it.inApp }
