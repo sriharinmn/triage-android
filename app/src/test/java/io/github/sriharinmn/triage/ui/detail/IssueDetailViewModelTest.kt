@@ -99,7 +99,6 @@ class IssueDetailViewModelTest {
     return anotherVisit()
   }
 
-  /** Opens the issue again, with the actions of the earlier visits still in [pendingActions]. */
   @Test
   fun browserUrl_isNullForTheDemo_whoseIssuesHaveNoPage() = runTest {
     viewModel()
@@ -108,6 +107,7 @@ class IssueDetailViewModelTest {
     assertNull(demo.browserUrl())
   }
 
+  /** Opens the issue again, with the actions of the earlier visits still in [pendingActions]. */
   private fun anotherVisit() = IssueDetailViewModel(TEST_ACCOUNT, "4201", repository, disconnector, pendingActions, members)
 
   private fun membersAre(vararg people: Member) {
