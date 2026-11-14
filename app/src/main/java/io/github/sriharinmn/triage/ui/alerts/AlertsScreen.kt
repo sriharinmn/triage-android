@@ -48,6 +48,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.sriharinmn.triage.R
 import io.github.sriharinmn.triage.data.alerts.AlertKind
 import io.github.sriharinmn.triage.data.alerts.CheckInterval
+import io.github.sriharinmn.triage.ui.common.SectionLabel
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
@@ -76,14 +77,19 @@ private enum class QuietEnd {
   To,
 }
 
-/** ⋮ → Alerts: the master switch, how often to check, which kinds and projects, quiet hours, and the battery guide. */
+/** Settings → Alerts: the master switch, how often to check, which kinds and projects, quiet hours, and the battery guide. */
 @Composable
 fun AlertsScreen(viewModel: AlertsViewModel, onBack: () -> Unit, modifier: Modifier = Modifier) {
   val state by viewModel.state.collectAsStateWithLifecycle()
   val phone = rememberPhoneAlertStatus()
   val context = LocalContext.current
-  // Alerts go on only once Android allows notifications; turning them off needs no permission.
-  val requestNotifications = rememberNotificationPermissionRequest { allowed -> if (allowed) viewModel.onEnabledChanged(true) }
+  // Alerts go on only once Android allows notifications; when Android won't ask any more, its notification settings for
+  // Triage open instead, where the user can allow them. Turning alerts off needs no permission.
+  val requestNotifications =
+    rememberNotificationPermissionRequest(
+      onResult = { allowed -> if (allowed) viewModel.onEnabledChanged(true) },
+      onBlocked = context::openNotificationSettings,
+    )
   val batteryTip = remember { batteryTipFor(Build.MANUFACTURER, Build.BRAND) }
 
   AlertsContent(
@@ -140,15 +146,19 @@ internal fun AlertsContent(
           }
         },
         actions = {
-          Switch(
-            checked = settings.enabled,
-            onCheckedChange = onEnabledChanged,
-            modifier = Modifier.padding(end = 16.dp).testTag(AlertsTags.MASTER).semantics { contentDescription = masterLabel },
-          )
+          if (state.isLoaded) {
+            Switch(
+              checked = settings.enabled,
+              onCheckedChange = onEnabledChanged,
+              modifier = Modifier.padding(end = 16.dp).testTag(AlertsTags.MASTER).semantics { contentDescription = masterLabel },
+            )
+          }
         },
       )
     },
   ) { padding ->
+    // Until the stores answer, the defaults ("off", "15 min") would flash; show nothing instead.
+    if (!state.isLoaded) return@Scaffold
     Column(Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState())) {
       Text(
         lastCheckedText(context, state),
@@ -163,7 +173,7 @@ internal fun AlertsContent(
         WarningRow(stringResource(R.string.alerts_notifications_off_row), AlertsTags.NOTIFICATIONS_ROW, onOpenNotificationSettings)
       }
 
-      SectionHeader(R.string.alerts_check_every)
+      SectionLabel(stringResource(R.string.alerts_check_every))
       SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
         CheckInterval.entries.forEachIndexed { index, interval ->
           SegmentedButton(
@@ -177,12 +187,12 @@ internal fun AlertsContent(
         }
       }
 
-      SectionHeader(R.string.alerts_kinds)
+      SectionLabel(stringResource(R.string.alerts_kinds))
       AlertKind.entries.forEach { kind ->
         SwitchRow(stringResource(kind.switchLabel), kind in settings.kinds, AlertsTags.kind(kind)) { onKindChanged(kind, it) }
       }
 
-      SectionHeader(R.string.alerts_projects)
+      SectionLabel(stringResource(R.string.alerts_projects))
       if (state.projects.isEmpty()) {
         Text(
           stringResource(R.string.alerts_projects_empty),
@@ -196,7 +206,7 @@ internal fun AlertsContent(
         }
       }
 
-      HorizontalDivider(Modifier.padding(top = 16.dp))
+      HorizontalDivider(Modifier.padding(top = 16.dp), color = MaterialTheme.colorScheme.outlineVariant)
       SwitchRow(
         stringResource(R.string.alerts_quiet_hours),
         quietHours.enabled,
@@ -269,16 +279,6 @@ private fun WarningRow(text: String, tag: String, onClick: () -> Unit) {
 @Composable
 private fun TimeRow(text: String, tag: String, onClick: () -> Unit) {
   ListItem(headlineContent = { Text(text) }, modifier = Modifier.testTag(tag).clickable(role = Role.Button, onClick = onClick))
-}
-
-@Composable
-private fun SectionHeader(@StringRes text: Int) {
-  Text(
-    stringResource(text),
-    style = MaterialTheme.typography.titleSmall,
-    color = MaterialTheme.colorScheme.primary,
-    modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 24.dp, bottom = 8.dp),
-  )
 }
 
 /** A clock dial only (no keyboard mode): minimal typing. */

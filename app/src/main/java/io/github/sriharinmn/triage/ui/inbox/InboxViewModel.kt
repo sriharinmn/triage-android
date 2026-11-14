@@ -61,6 +61,10 @@ data class InboxUiState(
   /** Environments offered by the filter: the selected project's, or every project's for "All projects". */
   val environments: List<String>
     get() = (selectedProject?.let(::listOf) ?: projects).flatMap { it.environments }.distinct().sorted()
+
+  /** A project or environment is chosen, so an empty list may only mean the filters hide everything. */
+  val hasFilters: Boolean
+    get() = filter.projectId != null || filter.environment != null
 }
 
 /**
@@ -139,6 +143,9 @@ class InboxViewModel(
     show(current.filter.copy(projectId = projectId, environment = environment))
   }
 
+  /** "Clear filters" under an empty list: every project and environment, on the same tab and sort. */
+  fun onClearFilters() = show(_state.value.filter.copy(projectId = null, environment = null))
+
   fun onRefresh() = startRefresh()
 
   fun onLoadMore() {
@@ -180,7 +187,7 @@ class InboxViewModel(
   /** The card's Turn on, after Android's notification popup: alerts go on only if notifications are allowed. */
   fun onAlertsCardTurnOn(allowed: Boolean) = answerAlertsCard(turnOn = allowed)
 
-  /** The card's Not now: it doesn't show again; Alerts stays in the ⋮ menu. */
+  /** The card's Not now: it doesn't show again; Alerts stays in Settings. */
   fun onAlertsCardNotNow() = answerAlertsCard(turnOn = false)
 
   private fun answerAlertsCard(turnOn: Boolean) {

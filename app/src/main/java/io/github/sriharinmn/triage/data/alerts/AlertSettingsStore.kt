@@ -33,6 +33,9 @@ interface AlertSettingsStore {
 
   suspend fun setQuietHours(quietHours: QuietHours)
 
+  /** Changes the window from what is stored at that moment, in one edit, so two quick changes never undo each other. */
+  suspend fun updateQuietHours(change: (QuietHours) -> QuietHours)
+
   /** The inbox card was answered; it doesn't show again for this account. */
   suspend fun dismissCard()
 
@@ -78,11 +81,14 @@ class DataStoreAlertSettingsStore(private val dataStore: DataStore<Preferences>)
     }
   }
 
-  override suspend fun setQuietHours(quietHours: QuietHours) {
+  override suspend fun setQuietHours(quietHours: QuietHours) = updateQuietHours { quietHours }
+
+  override suspend fun updateQuietHours(change: (QuietHours) -> QuietHours) {
     dataStore.edit { prefs ->
-      prefs[Keys.QUIET_ON] = quietHours.enabled
-      prefs[Keys.QUIET_START] = quietHours.startMinute
-      prefs[Keys.QUIET_END] = quietHours.endMinute
+      val next = change(prefs.quietHours())
+      prefs[Keys.QUIET_ON] = next.enabled
+      prefs[Keys.QUIET_START] = next.startMinute
+      prefs[Keys.QUIET_END] = next.endMinute
     }
   }
 
@@ -101,24 +107,27 @@ class DataStoreAlertSettingsStore(private val dataStore: DataStore<Preferences>)
 
   private fun Preferences.toSettings(): AlertSettings {
     val kindsOff = this[Keys.KINDS_OFF].orEmpty()
-    val defaults = QuietHours()
     return AlertSettings(
       enabled = this[Keys.ENABLED] ?: false,
       interval = CheckInterval.entries.firstOrNull { it.name == this[Keys.INTERVAL] } ?: CheckInterval.Minutes15,
       kinds = AlertKind.entries.filter { it.name !in kindsOff }.toSet(),
       projectsOff = this[Keys.PROJECTS_OFF].orEmpty(),
-      quietHours =
-        QuietHours(
-          enabled = this[Keys.QUIET_ON] ?: false,
-          startMinute = this[Keys.QUIET_START].validMinute() ?: defaults.startMinute,
-          endMinute = this[Keys.QUIET_END].validMinute() ?: defaults.endMinute,
-        ),
+      quietHours = quietHours(),
       cardDismissed = this[Keys.CARD_DISMISSED] ?: false,
       baselineRequest = this[Keys.BASELINE_REQUEST] ?: 0L,
     )
   }
 
   private fun Int?.validMinute(): Int? = this?.takeIf { it in 0 until QuietHours.MINUTES_PER_DAY }
+
+  private fun Preferences.quietHours(): QuietHours {
+    val defaults = QuietHours()
+    return QuietHours(
+      enabled = this[Keys.QUIET_ON] ?: false,
+      startMinute = this[Keys.QUIET_START].validMinute() ?: defaults.startMinute,
+      endMinute = this[Keys.QUIET_END].validMinute() ?: defaults.endMinute,
+    )
+  }
 
   private object Keys {
     val ENABLED = booleanPreferencesKey("enabled")

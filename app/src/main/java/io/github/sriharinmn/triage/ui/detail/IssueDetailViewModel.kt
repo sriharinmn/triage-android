@@ -68,8 +68,14 @@ data class IssueDetailUiState(
   val isLoadingEvent: Boolean = true,
   /** Why the selected kind's event couldn't load. */
   val eventError: DetailError? = null,
-  /** The issue's main tags; null until loaded, or if Sentry couldn't give them (the event's own tags show instead). */
+  /**
+   * The issue's main tags; null only while they load or after they failed (the event's own tags show instead). An issue
+   * without tag keys comes back as an empty list.
+   */
   val tags: List<TagSummary>? = null,
+  val isLoadingTags: Boolean = false,
+  /** Why the issue's tags couldn't load. */
+  val tagsError: DetailError? = null,
   /** Frames whose source lines are showing. */
   val expandedFrames: Set<FrameRef> = emptySet(),
   /** Stacks whose library frames are showing. */
@@ -354,15 +360,17 @@ class IssueDetailViewModel(
 
   private fun loadTags(keys: List<String>) {
     tagsJob?.cancel()
+    _state.update { it.copy(isLoadingTags = true, tagsError = null) }
     tagsJob =
       viewModelScope.launch {
-        val tags =
-          when (val result = repository.tags(account, issueId, keys)) {
-            is DetailResult.Success -> result.value
-            // The section falls back to the event's own tags; there is nothing to report.
-            is DetailResult.Failure -> null
+        val result = repository.tags(account, issueId, keys)
+        _state.update {
+          when (result) {
+            is DetailResult.Success -> it.copy(tags = result.value, isLoadingTags = false, tagsError = null)
+            // The tab falls back to the event's own tags, or says why there are none.
+            is DetailResult.Failure -> it.copy(tags = null, isLoadingTags = false, tagsError = result.error)
           }
-        _state.update { it.copy(tags = tags) }
+        }
       }
   }
 

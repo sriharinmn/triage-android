@@ -3,9 +3,12 @@ package io.github.sriharinmn.triage.ui.inbox
 import androidx.activity.ComponentActivity
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.ui.test.DeviceConfigurationOverride
 import androidx.compose.ui.test.ExperimentalTestApi
+import androidx.compose.ui.test.FontScale
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
@@ -14,6 +17,7 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performCustomAccessibilityActionWithLabel
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipeLeft
 import androidx.compose.ui.test.swipeRight
@@ -62,49 +66,69 @@ class InboxContentTest {
 
   private val loaded = InboxUiState(orgName = "Example Org", issues = listOf(issue("1"), issue("2")), refreshedAt = now)
 
-  private fun show(state: InboxUiState) = show(mutableStateOf(state))
+  private fun show(state: InboxUiState, fontScale: Float = 1f) = show(mutableStateOf(state), fontScale)
 
   /** Shows the inbox for whatever [state] holds, so a test can change the state after the first composition. */
-  private fun show(state: MutableState<InboxUiState>) {
+  private fun show(state: MutableState<InboxUiState>, fontScale: Float = 1f) {
     composeTestRule.setContent {
-      TriageTheme {
-        InboxContent(
-          state = state.value,
-          now = now,
-          onTabSelected = { calls += "tab:${it.name}" },
-          onProjectSelected = { calls += "project:$it" },
-          onEnvironmentSelected = { calls += "environment:$it" },
-          onSortSelected = { calls += "sort:${it.name}" },
-          onRefresh = { calls += "refresh" },
-          onLoadMore = { calls += "loadMore" },
-          onRetryLoadMore = { calls += "retryLoadMore" },
-          onIssueClick = { calls += "open:${it.id}" },
-          onResolve = { calls += "resolve:${it.id}" },
-          onArchive = { calls += "archive:${it.id}" },
-          onUndo = { calls += "undo:${it.action.id}" },
-          onRetryAction = { calls += "retryAction:${it.action.id}" },
-          onNoticeDismissed = { calls += "noticeDismissed:${it.action.id}" },
-          onDisconnectConfirmed = { calls += "disconnect" },
-          onDisconnectFailureShown = {},
-          onAlertsCardTurnOn = { calls += "alertsTurnOn" },
-          onAlertsCardNotNow = { calls += "alertsNotNow" },
-          onOpenAlerts = { calls += "openAlerts" },
-        )
+      DeviceConfigurationOverride(DeviceConfigurationOverride.FontScale(fontScale)) {
+        TriageTheme {
+          InboxContent(
+            state = state.value,
+            now = now,
+            onTabSelected = { calls += "tab:${it.name}" },
+            onProjectSelected = { calls += "project:$it" },
+            onEnvironmentSelected = { calls += "environment:$it" },
+            onSortSelected = { calls += "sort:${it.name}" },
+            onClearFilters = { calls += "clearFilters" },
+            onRefresh = { calls += "refresh" },
+            onLoadMore = { calls += "loadMore" },
+            onRetryLoadMore = { calls += "retryLoadMore" },
+            onIssueClick = { calls += "open:${it.id}" },
+            onResolve = { calls += "resolve:${it.id}" },
+            onArchive = { calls += "archive:${it.id}" },
+            onUndo = { calls += "undo:${it.action.id}" },
+            onRetryAction = { calls += "retryAction:${it.action.id}" },
+            onNoticeDismissed = { calls += "noticeDismissed:${it.action.id}" },
+            onDisconnectConfirmed = { calls += "disconnect" },
+            onDisconnectFailureShown = {},
+            onAlertsCardTurnOn = { calls += "alertsTurnOn" },
+            onAlertsCardNotNow = { calls += "alertsNotNow" },
+            onOpenSettings = { calls += "openSettings" },
+          )
+        }
       }
     }
   }
 
   @Test
-  fun rows_showTitleIdCountsAndTimes() {
+  fun aRow_readsAsOneSentence() {
+    // issue("1") has 0, 1, ... 23 events an hour: the last three hours are well over an eighth of the day, so it's Hot.
     show(loaded)
 
-    composeTestRule.onNodeWithText("Error 1").assertIsDisplayed()
-    composeTestRule.onNodeWithTag(InboxTags.row("1")).assert(hasText("DEMO-1"))
-    composeTestRule.onNodeWithTag(InboxTags.row("1")).assert(hasText("48 events"))
-    composeTestRule.onNodeWithTag(InboxTags.row("1")).assert(hasText("11 users"))
-    composeTestRule.onNodeWithTag(InboxTags.row("1")).assert(hasText("3m ago"))
-    composeTestRule.onNodeWithTag(InboxTags.row("1")).assert(hasText("5d old"))
-    composeTestRule.onNodeWithTag(InboxTags.row("1")).assert(hasText("New"))
+    composeTestRule
+      .onNodeWithTag(InboxTags.row("1"))
+      .assert(hasContentDescription("Error. Error 1. 48 events, busier than usual, 11 users. New. 3 minutes ago."))
+  }
+
+  @Test
+  fun aQuietRow_isNotCalledBusy() {
+    show(loaded.copy(issues = listOf(issue("3").copy(hourlyEvents = List(24) { 0L }, badge = null))))
+
+    composeTestRule
+      .onNodeWithTag(InboxTags.row("3"))
+      .assert(hasContentDescription("Error. Error 3. 48 events, 11 users. 3 minutes ago."))
+  }
+
+  @Test
+  fun atTwiceTheFontSize_aRowStillReads_andSwipes() {
+    show(loaded, fontScale = 2f)
+
+    composeTestRule.onNodeWithTag(InboxTags.row("1")).assertIsDisplayed()
+    composeTestRule.onNodeWithTag(InboxTags.row("1")).performTouchInput { swipeRight() }
+    composeTestRule.waitForIdle()
+
+    assertTrue("resolve:1" in calls)
   }
 
   @Test
@@ -136,7 +160,7 @@ class InboxContentTest {
     composeTestRule.onNodeWithTag(InboxTags.row("1")).performTouchInput { swipeRight() }
     composeTestRule.waitForIdle()
 
-    composeTestRule.onNodeWithText("Error 1").assertIsDisplayed()
+    composeTestRule.onNodeWithTag(InboxTags.row("1")).assertIsDisplayed()
     composeTestRule.onNodeWithTag(InboxTags.row("1")).performTouchInput { swipeRight() }
     composeTestRule.waitForIdle()
 
@@ -198,14 +222,14 @@ class InboxContentTest {
   fun anEmptyTab_saysSoKindly() {
     show(InboxUiState(orgName = "Example Org", filter = InboxFilter(tab = InboxTab.Escalating), refreshedAt = now))
 
-    composeTestRule.onNodeWithText("Nothing is escalating.").assertIsDisplayed()
+    composeTestRule.onNodeWithText("Nothing escalating").assertIsDisplayed()
   }
 
   @Test
   fun noCacheAndNoNetwork_offersRetry() {
     show(InboxUiState(orgName = "Example Org", error = InboxError.Network))
 
-    composeTestRule.onNodeWithText("Couldn't reach Sentry. Check your connection.").assertIsDisplayed()
+    composeTestRule.onNodeWithText(CANT_REACH).assertIsDisplayed()
     composeTestRule.onNodeWithTag(InboxTags.ERROR_ACTION).performClick()
 
     assertEquals(listOf("refresh"), calls)
@@ -240,23 +264,23 @@ class InboxContentTest {
   fun refreshingWithNoCache_showsTheSpinnerNotTheOldError() {
     show(InboxUiState(orgName = "Example Org", error = InboxError.Network, isRefreshing = true))
 
-    composeTestRule.onNodeWithText(NETWORK_ERROR).assertDoesNotExist()
+    composeTestRule.onNodeWithText(CANT_REACH).assertDoesNotExist()
     composeTestRule.onNodeWithContentDescription("Loading issues…").assertIsDisplayed()
   }
 
   @Test
   fun aRepeatedFailure_showsTheSnackbarAgain() {
-    val state = mutableStateOf(loaded.copy(error = InboxError.Network))
+    val state = mutableStateOf(loaded.copy(error = InboxError.Server))
     show(state)
-    waitForText(NETWORK_ERROR, present = true)
+    waitForText(SERVER_ERROR, present = true)
 
     // The same error stays set while the next refresh runs; starting it dismisses the old snackbar.
     composeTestRule.runOnIdle { state.value = state.value.copy(isRefreshing = true) }
-    waitForText(NETWORK_ERROR, present = false)
+    waitForText(SERVER_ERROR, present = false)
 
     // The retry fails with the very same error, and the snackbar comes back.
     composeTestRule.runOnIdle { state.value = state.value.copy(isRefreshing = false) }
-    waitForText(NETWORK_ERROR, present = true)
+    waitForText(SERVER_ERROR, present = true)
   }
 
   @Test
@@ -277,9 +301,48 @@ class InboxContentTest {
 
   @Test
   fun aCachedListWithAnError_saysItCouldNotRefresh() {
-    show(loaded.copy(error = InboxError.Network))
+    show(loaded.copy(error = InboxError.Server))
 
     composeTestRule.onNodeWithText("couldn't refresh", substring = true).assertIsDisplayed()
+  }
+
+  @Test
+  fun offlineWithACachedList_showsTheBanner_insteadOfASnackbar() {
+    show(loaded.copy(error = InboxError.Network))
+
+    composeTestRule.onNodeWithTag(InboxTags.OFFLINE_BANNER).assertIsDisplayed()
+    composeTestRule.onNodeWithText("Offline · showing issues from", substring = true).assertIsDisplayed()
+    composeTestRule.waitForIdle()
+    assertTrue(composeTestRule.onAllNodesWithText(NETWORK_ERROR).fetchSemanticsNodes().isEmpty())
+    composeTestRule.onNodeWithText("Retry").performClick()
+
+    assertTrue("refresh" in calls)
+  }
+
+  @Test
+  fun anEmptyUnresolvedTab_isAllClear() {
+    show(InboxUiState(orgName = "Example Org", refreshedAt = now))
+
+    composeTestRule.onNodeWithText("All clear").assertIsDisplayed()
+    composeTestRule.onNodeWithText("No unresolved issues in the last 14 days.").assertIsDisplayed()
+  }
+
+  @Test
+  fun filtersThatHideEverything_offerToClearThem() {
+    show(InboxUiState(orgName = "Example Org", filter = InboxFilter(environment = "staging"), refreshedAt = now))
+
+    composeTestRule.onNodeWithText("No issues match these filters").assertIsDisplayed()
+    composeTestRule.onNodeWithTag(InboxTags.CLEAR_FILTERS).performClick()
+
+    assertEquals(listOf("clearFilters"), calls)
+  }
+
+  @Test
+  fun atTwiceTheFontSize_theChipsScroll_andKeepTheirFullLabels() {
+    show(loaded, fontScale = 2f)
+
+    composeTestRule.onNodeWithTag(InboxTags.SORT_FILTER).performScrollTo().assertIsDisplayed()
+    composeTestRule.onNodeWithText("All environments").assertExists()
   }
 
   @Test
@@ -316,18 +379,6 @@ class InboxContentTest {
   }
 
   @Test
-  fun disconnect_asksForConfirmationFirst() {
-    show(loaded)
-
-    composeTestRule.onNodeWithTag(InboxTags.MENU).performClick()
-    composeTestRule.onNodeWithText("Disconnect…").performClick()
-    assertTrue(calls.isEmpty())
-    composeTestRule.onNodeWithText("Disconnect").performClick()
-
-    assertEquals(listOf("disconnect"), calls)
-  }
-
-  @Test
   fun theAlertsCard_showsAboveTheList_andItsButtonsCallBack() {
     show(loaded.copy(showAlertsCard = true))
 
@@ -346,13 +397,19 @@ class InboxContentTest {
   }
 
   @Test
-  fun theMenu_opensAlerts() {
+  fun theGear_opensSettings() {
     show(loaded)
 
-    composeTestRule.onNodeWithTag(InboxTags.MENU).performClick()
-    composeTestRule.onNodeWithTag(InboxTags.MENU_ALERTS).performClick()
+    composeTestRule.onNodeWithContentDescription("Settings").performClick()
 
-    assertEquals(listOf("openAlerts"), calls)
+    assertEquals(listOf("openSettings"), calls)
+  }
+
+  @Test
+  fun theTopBar_namesTheOrg() {
+    show(loaded)
+
+    composeTestRule.onNodeWithText("Example Org").assertIsDisplayed()
   }
 
   private fun waitForText(text: String, present: Boolean) {
@@ -364,5 +421,7 @@ class InboxContentTest {
 
   private companion object {
     const val NETWORK_ERROR = "Couldn't reach Sentry. Check your connection."
+    const val SERVER_ERROR = "Sentry sent something unexpected. Try again."
+    const val CANT_REACH = "Can't reach Sentry"
   }
 }

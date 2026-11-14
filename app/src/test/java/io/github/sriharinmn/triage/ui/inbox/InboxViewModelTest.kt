@@ -514,6 +514,22 @@ class InboxViewModelTest {
   }
 
   @Test
+  fun clearFilters_showsEveryProjectAndEnvironment_onTheSameTabAndSort() = runTest {
+    api.issuesHandler = { page() }
+    val vm = viewModel()
+    vm.onTabSelected(InboxTab.Regressed)
+    vm.onSortSelected(IssueSort.Events)
+    vm.onEnvironmentSelected("production")
+    assertTrue(vm.state.value.hasFilters)
+
+    vm.onClearFilters()
+
+    assertEquals(InboxFilter(tab = InboxTab.Regressed, sort = IssueSort.Events), vm.state.value.filter)
+    assertFalse(vm.state.value.hasFilters)
+    assertEquals(vm.state.value.filter, settings.current)
+  }
+
+  @Test
   fun aRememberedProjectThatIsGone_fallsBackToAllProjects() = runTest {
     settings.save(InboxFilter(projectId = "999"))
     api.projectsResult = ApiResult.Success(listOf(projectDto("101")))

@@ -128,6 +128,35 @@ class AccountGateTest {
     assertFalse(second.cleared)
   }
 
+  @Test
+  fun signedOutViewModels_areDroppedOnceAnAccountConnects() {
+    val state = MutableStateFlow<AccountState>(AccountState.Ready(null))
+    val seen = mutableListOf<ProbeViewModel>()
+    composeTestRule.setContent {
+      val current by state.collectAsState()
+      AccountGate(
+        current,
+        signedOut = {
+          val vm: ProbeViewModel = viewModel { ProbeViewModel() }
+          if (seen.none { it === vm }) seen += vm
+          Text("connect vm ${vm.id}")
+        },
+        signedIn = { Text("inbox for ${it.orgSlug}") },
+      )
+    }
+    composeTestRule.waitForIdle()
+    assertEquals(1, seen.size)
+    val first = seen[0]
+
+    setState(state, AccountState.Ready(account))
+    composeTestRule.onNodeWithText("inbox for example-org").assertIsDisplayed()
+    assertTrue("connecting must drop Connect's ViewModel and the token typed into it", first.cleared)
+
+    setState(state, AccountState.Ready(null))
+    composeTestRule.onNodeWithText("connect vm ${seen.last().id}").assertIsDisplayed()
+    assertNotSame("a later sign-out must start on a fresh Connect", first, seen.last())
+  }
+
   /** Shows [ProbeViewModel]s for the signed-in account; every distinct instance the screen gets lands in the result. */
   private fun setUpProbe(state: MutableStateFlow<AccountState>): List<ProbeViewModel> {
     val seen = mutableListOf<ProbeViewModel>()

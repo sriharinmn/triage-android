@@ -28,5 +28,6 @@ class TriageApplication : Application(), Configuration.Provider {
     super.onCreate()
     container = AppContainer(this)
     container.startAlerts()
+    container.startWelcomeTracking()
   }
 }

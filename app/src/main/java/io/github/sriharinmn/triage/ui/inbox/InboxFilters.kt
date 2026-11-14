@@ -4,6 +4,7 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
@@ -16,6 +17,7 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ListItem
+import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.RadioButton
@@ -27,11 +29,11 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import io.github.sriharinmn.triage.R
 import io.github.sriharinmn.triage.data.issues.IssueSort
@@ -57,7 +59,7 @@ internal fun InboxFilterRow(
   val sortLabels = IssueSort.entries.associateWith { stringResource(it.labelRes()) }
 
   Row(
-    modifier = modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 12.dp, vertical = 4.dp),
+    modifier = modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 4.dp),
     horizontalArrangement = Arrangement.spacedBy(8.dp),
   ) {
     DropdownChip(
@@ -119,7 +121,8 @@ private fun DropdownChip(label: String, active: Boolean, onClick: () -> Unit, mo
   FilterChip(
     selected = active,
     onClick = onClick,
-    label = { Text(label, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+    // The row scrolls sideways, so a chip always shows its whole label, even at large font sizes.
+    label = { Text(label, maxLines = 1) },
     trailingIcon = {
       Icon(
         painterResource(R.drawable.ic_arrow_drop_down),
@@ -143,12 +146,14 @@ private fun <T> ChoiceSheet(
 ) {
   ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
     Text(title, style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp))
-    LazyColumn(modifier = Modifier.selectableGroup()) {
+    // The last option stays clear of the gesture bar.
+    LazyColumn(modifier = Modifier.selectableGroup().navigationBarsPadding()) {
       items(options) { option ->
         val isSelected = option == selected
         ListItem(
           headlineContent = { Text(label(option)) },
           leadingContent = { RadioButton(selected = isSelected, onClick = null) },
+          colors = ListItemDefaults.colors(containerColor = Color.Transparent),
           modifier =
             Modifier.fillMaxWidth().selectable(
               selected = isSelected,

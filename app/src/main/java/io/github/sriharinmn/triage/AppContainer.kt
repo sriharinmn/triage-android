@@ -25,6 +25,11 @@ import io.github.sriharinmn.triage.data.alerts.NotificationActionSender
 import io.github.sriharinmn.triage.data.alerts.WorkManagerAlertWork
 import io.github.sriharinmn.triage.data.alerts.alertSettingsDataStore
 import io.github.sriharinmn.triage.data.alerts.alertStateDataStore
+import io.github.sriharinmn.triage.data.appearance.AppearanceSettings
+import io.github.sriharinmn.triage.data.appearance.AppearanceStore
+import io.github.sriharinmn.triage.data.appearance.DataStoreAppearanceStore
+import io.github.sriharinmn.triage.data.appearance.appearanceDataStore
+import io.github.sriharinmn.triage.data.appearance.markWelcomeSeenOnceConnected
 import io.github.sriharinmn.triage.data.detail.IssueDetailRepository
 import io.github.sriharinmn.triage.data.issues.IssueCache
 import io.github.sriharinmn.triage.data.issues.IssueRepository
@@ -40,14 +45,18 @@ import io.github.sriharinmn.triage.local.TriageDatabase
 import io.github.sriharinmn.triage.remote.OkHttpSentryApi
 import io.github.sriharinmn.triage.remote.SentryApi
 import io.github.sriharinmn.triage.ui.alerts.AlertNotifier
+import java.io.IOException
 import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.filterIsInstance
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
 import okhttp3.OkHttpClient
 
 /** Manual dependency injection: one instance per process, owned by [TriageApplication]. */
@@ -56,6 +65,16 @@ class AppContainer(context: Context) {
 
   /** Lives as long as the process, for state that outlives every screen. */
   val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+
+  /** Theme and first-launch choices for the whole phone; never forgotten with the account. */
+  val appearance: AppearanceStore = DataStoreAppearanceStore(appContext.appearanceDataStore)
+
+  /**
+   * [appearance], read once at app start and shared; null until the file has been read. MainActivity holds its first
+   * frame for it, so the theme never flashes.
+   */
+  val appearanceSettings: StateFlow<AppearanceSettings?> =
+    appearance.settings.stateIn<AppearanceSettings?>(applicationScope, SharingStarted.Eagerly, null)
 
   private val okHttpClient =
     OkHttpClient.Builder()
@@ -163,5 +182,21 @@ class AppContainer(context: Context) {
   fun startAlerts() {
     alertNotifier.createChannels()
     alertScheduler.start(applicationScope)
+  }
+
+  /** Get started on the welcome: saved on the app's scope, so leaving the app at once can't cancel it. */
+  fun markWelcomeSeen() {
+    applicationScope.launch {
+      try {
+        appearance.markWelcomeSeen()
+      } catch (_: IOException) {
+        // The welcome shows once more on the next launch without an account; nothing else depends on it.
+      }
+    }
+  }
+
+  /** Marks the welcome seen once an account is connected ([markWelcomeSeenOnceConnected]). Called once, at app start. */
+  fun startWelcomeTracking() {
+    applicationScope.launch { markWelcomeSeenOnceConnected(accountState, appearance) }
   }
 }

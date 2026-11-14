@@ -65,6 +65,55 @@ class SentryHostTest {
   }
 
   @Test
+  fun normalize_lowercasesTheSchemeAndHost() {
+    assertEquals("https://sentry.example.com", normalizeBaseUrl("HTTPS://Sentry.Example.COM/"))
+  }
+
+  @Test
+  fun normalize_stripsApiSuffixWithoutATrailingSlash() {
+    assertEquals("https://sentry.example.com", normalizeBaseUrl("sentry.example.com/api/0"))
+  }
+
+  @Test
+  fun normalize_dropsCredentialsQueryAndFragment() {
+    assertEquals("https://sentry.example.com", normalizeBaseUrl("https://user:secret@sentry.example.com/?project=1#top"))
+  }
+
+  @Test
+  fun normalize_keepsOnlyTheServerOfAPastedSentryPage() {
+    assertEquals("https://sentry.example.com", normalizeBaseUrl("https://sentry.example.com/organizations/acme/issues/?project=1"))
+    assertEquals(
+      "https://example.com:8443/sentry",
+      normalizeBaseUrl("https://example.com:8443/sentry/settings/account/api/auth-tokens/"),
+    )
+    assertEquals("https://sentry.example.com", normalizeBaseUrl("https://sentry.example.com/api/0/organizations/"))
+  }
+
+  @Test
+  fun normalize_cutsAPastedApiAddressAtItsApiRoot() {
+    assertEquals("https://example.com/sentry", normalizeBaseUrl("https://example.com/sentry/api/0/projects/acme/"))
+    assertEquals("https://sentry.example.com", normalizeBaseUrl("https://sentry.example.com/api/0/projects/acme/backend/issues/"))
+  }
+
+  @Test
+  fun normalize_keepsOnlyTheServerOfTheLoginPage() {
+    assertEquals("https://sentry.example.com", normalizeBaseUrl("https://sentry.example.com/auth/login/"))
+    assertEquals("https://example.com:8443/sentry", normalizeBaseUrl("https://example.com:8443/sentry/auth/login/acme/"))
+  }
+
+  @Test
+  fun normalize_rejectsOtherSchemes() {
+    assertNull(normalizeBaseUrl("ftp://sentry.example.com"))
+    assertNull(normalizeBaseUrl("file:///etc/hosts"))
+  }
+
+  @Test
+  fun normalize_rejectsWhitespaceInside() {
+    assertNull(normalizeBaseUrl("sentry.example .com"))
+    assertNull(normalizeBaseUrl("https://sentry.example.com/\tsentry"))
+  }
+
+  @Test
   fun cloudHost_pointsAtSentryIo() {
     assertEquals("https://sentry.io", SentryHost.Cloud.baseUrl)
     assertEquals("https://sentry.io/settings/account/api/auth-tokens/", SentryHost.Cloud.tokenPageUrl)

@@ -19,19 +19,26 @@ import io.github.sriharinmn.triage.data.account.AccountState
 import io.github.sriharinmn.triage.ui.alerts.DeepLink
 import io.github.sriharinmn.triage.ui.connect.ConnectScreen
 import io.github.sriharinmn.triage.ui.connect.ConnectViewModel
+import io.github.sriharinmn.triage.ui.welcome.SignedOutScreens
 
-/** Shows Connect until an account is stored, then the main navigation, opened where a tapped notification points. */
+/**
+ * Without an account: the welcome on a first launch, then Connect. With one: the main navigation, opened where a tapped
+ * notification points.
+ */
 @Composable
 fun TriageApp(container: AppContainer, deepLink: DeepLink? = null) {
   val accountState by container.accountState.collectAsStateWithLifecycle()
+  val appearance by container.appearanceSettings.collectAsStateWithLifecycle()
   // A notification's link is used once: after the first signed-in composition has taken it, a Disconnect and Connect in
   // the same activity starts on the plain inbox instead of replaying it.
   var pending by remember { mutableStateOf(deepLink) }
   AccountGate(
     state = accountState,
     signedOut = {
-      val connectViewModel: ConnectViewModel = viewModel { ConnectViewModel(container.accountRepository) }
-      ConnectScreen(connectViewModel)
+      SignedOutScreens(appearance, onGetStarted = container::markWelcomeSeen) {
+        val connectViewModel: ConnectViewModel = viewModel { ConnectViewModel(container.accountRepository) }
+        ConnectScreen(connectViewModel)
+      }
     },
     signedIn = { account ->
       TriageNavigation(account = account, container = container, deepLink = pending)
@@ -41,10 +48,11 @@ fun TriageApp(container: AppContainer, deepLink: DeepLink? = null) {
 }
 
 /**
- * The root for an account state: nothing while loading, [signedOut] without an account, [signedIn] with one. A different
- * account gets a fresh composition, and its [signedIn] screens get their own ViewModel store (see
- * [SessionViewModelStores]) that is cleared as soon as a settled state no longer has that account, so a ViewModel never
- * outlives the account it was made for.
+ * The root for an account state: nothing while loading, [signedOut] without an account, [signedIn] with one. Each gets a
+ * ViewModel store of its own (see [SessionViewModelStores]), cleared as soon as a settled state no longer matches it:
+ * - a signed-in account's ViewModels never outlive that account;
+ * - the signed-out screens' ViewModels go once an account connects, so Connect's (with the token typed into it) never
+ *   comes back after a later Disconnect, and Connect can leave its progress showing until the inbox replaces it.
  */
 @Composable
 fun AccountGate(state: AccountState, signedOut: @Composable () -> Unit, signedIn: @Composable (Account) -> Unit) {
@@ -54,32 +62,35 @@ fun AccountGate(state: AccountState, signedOut: @Composable () -> Unit, signedIn
     AccountState.Loading -> Unit
     is AccountState.Ready -> {
       val account = state.account
-      val sessionKey = account?.sessionKey()
+      val sessionKey = account?.sessionKey() ?: SIGNED_OUT_SESSION
       // Every settled state drops the other sessions' ViewModels; this also covers an account that disappeared while
       // the activity was being recreated, when the old composition's disposal could not tell it was gone for good.
       SideEffect { sessions.retainOnly(sessionKey) }
-      if (account == null) signedOut()
-      else
-        key(account.apiBaseUrl, account.orgSlug) {
-          val owner = remember { SessionStoreOwner(sessions.storeFor(account.sessionKey())) }
-          CompositionLocalProvider(LocalViewModelStoreOwner provides owner) { signedIn(account) }
+      key(sessionKey) {
+        val owner = remember { SessionStoreOwner(sessions.storeFor(sessionKey)) }
+        CompositionLocalProvider(LocalViewModelStoreOwner provides owner) {
+          if (account == null) signedOut() else signedIn(account)
         }
+      }
     }
   }
 }
 
+/** The signed-out screens' session. Account sessions are "apiBaseUrl|orgSlug", so none can equal it. */
+private const val SIGNED_OUT_SESSION = "signed-out"
+
 private fun Account.sessionKey() = "$apiBaseUrl|$orgSlug"
 
 /**
- * Hands a signed-in session's [viewModelStore] to the composition. Navigation 3 keeps each entry's ViewModels in the
- * nearest owner's store and does not clear them when NavDisplay leaves composition, so this is what scopes them to the
- * session. It provides no default factory or SavedStateHandle extras, so ViewModels in the signed-in subtree must be
- * created through a Navigation entry or with an explicit initializer.
+ * Hands a session's [viewModelStore] to the composition. Navigation 3 keeps each entry's ViewModels in the nearest
+ * owner's store and does not clear them when NavDisplay leaves composition, so this is what scopes them to the session.
+ * It provides no default factory or SavedStateHandle extras, so ViewModels under the gate must be created through a
+ * Navigation entry or with an explicit initializer.
  */
 private class SessionStoreOwner(override val viewModelStore: ViewModelStore) : ViewModelStoreOwner
 
 /**
- * The ViewModelStores of signed-in sessions, kept in the activity's store so they survive rotation.
+ * The ViewModelStores of the sessions (signed in or signed out), kept in the activity's store so they survive rotation.
  * [retainOnly] clears every session but the current one, so a ViewModel never outlives the account it was made for.
  */
 internal class SessionViewModelStores : ViewModel() {

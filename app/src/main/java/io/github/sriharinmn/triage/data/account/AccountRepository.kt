@@ -2,6 +2,7 @@ package io.github.sriharinmn.triage.data.account
 
 import io.github.sriharinmn.triage.remote.ApiError
 import io.github.sriharinmn.triage.remote.ApiResult
+import io.github.sriharinmn.triage.remote.NetworkCause
 import io.github.sriharinmn.triage.remote.OrganizationDto
 import io.github.sriharinmn.triage.remote.SentryApi
 import kotlinx.coroutines.flow.Flow
@@ -29,6 +30,15 @@ sealed interface ConnectError {
   data class RateLimited(val retryAfterSeconds: Long?) : ConnectError
 
   data object Network : ConnectError
+
+  /** The secure connection failed: the server's certificate isn't trusted by this phone, or is for another address. */
+  data object InsecureConnection : ConnectError
+
+  /** A self-hosted address whose name doesn't resolve (on sentry.io that only means offline: [Network]). */
+  data object ServerNotFound : ConnectError
+
+  /** Something answered at a self-hosted address, but not Sentry's API (a 404, or a web page instead of JSON). */
+  data object NotSentryServer : ConnectError
 
   data object Unknown : ConnectError
 
@@ -59,7 +69,7 @@ class AccountRepository(
       is ApiResult.Success ->
         if (result.value.isEmpty()) ConnectResult.Error(ConnectError.NoOrganizations)
         else ConnectResult.Organizations(result.value)
-      is ApiResult.Failure -> ConnectResult.Error(result.error.toConnectError())
+      is ApiResult.Failure -> ConnectResult.Error(result.error.toConnectError(host))
     }
   }
 
@@ -96,16 +106,25 @@ class AccountRepository(
     return if (url.isHttps && isSentryHost) "https://${url.host}" else null
   }
 
-  private fun ApiError.toConnectError(): ConnectError =
-    when (this) {
+  private fun ApiError.toConnectError(host: SentryHost): ConnectError {
+    val selfHosted = host is SentryHost.SelfHosted
+    return when (this) {
       ApiError.Unauthorized -> ConnectError.InvalidToken
       ApiError.Forbidden -> ConnectError.MissingScopes
       is ApiError.RateLimited -> ConnectError.RateLimited(retryAfterSeconds)
-      is ApiError.Network -> ConnectError.Network
-      is ApiError.Http,
-      ApiError.Parse,
+      is ApiError.Network ->
+        when {
+          cause == NetworkCause.Tls -> ConnectError.InsecureConnection
+          // On sentry.io an unknown host only means no connection; on a self-hosted address it's usually a typo.
+          cause == NetworkCause.UnknownHost && selfHosted -> ConnectError.ServerNotFound
+          else -> ConnectError.Network
+        }
+      // A 404 or a web page where Sentry's API should be: the address isn't a Sentry server's.
+      is ApiError.Http -> if (selfHosted && code == 404) ConnectError.NotSentryServer else ConnectError.Unknown
+      ApiError.Parse -> if (selfHosted) ConnectError.NotSentryServer else ConnectError.Unknown
       ApiError.TooLarge -> ConnectError.Unknown
     }
+  }
 
   private companion object {
     const val ORG_TOKEN_PREFIX = "sntrys_"

@@ -33,13 +33,14 @@ fun elapsedSince(then: Instant, now: Instant): ElapsedSpan {
   }
 }
 
-/** 999, 1.2k, 15k, 1.5M: one decimal below ten of a unit, always rounded down so counts never look bigger. */
+/** 999, 1.2k, 15k, 1.5M, 1.2B: one decimal below ten of a unit, always rounded down so counts never look bigger. */
 fun compactCount(count: Long): String {
   val n = count.coerceAtLeast(0)
   return when {
     n < 1_000 -> n.toString()
     n < 1_000_000 -> scaled(n, 1_000, "k")
-    else -> scaled(n, 1_000_000, "M")
+    n < 1_000_000_000 -> scaled(n, 1_000_000, "M")
+    else -> scaled(n, 1_000_000_000, "B")
   }
 }
 

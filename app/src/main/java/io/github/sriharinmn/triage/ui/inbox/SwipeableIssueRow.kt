@@ -19,7 +19,6 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.CustomAccessibilityAction
@@ -28,6 +27,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import io.github.sriharinmn.triage.R
 import io.github.sriharinmn.triage.data.issues.Issue
+import io.github.sriharinmn.triage.theme.semanticColors
 import java.time.Instant
 import kotlinx.coroutines.launch
 
@@ -69,7 +69,7 @@ internal fun SwipeableIssueRow(
       issue = issue,
       now = now,
       onClick = onClick,
-      // On the row itself, which merges its texts into one TalkBack item, so the actions belong to that item.
+      // On the row itself, which is one cleared TalkBack sentence, so the actions belong to that item.
       modifier =
         modifier.semantics {
           customActions =
@@ -88,21 +88,14 @@ internal fun SwipeableIssueRow(
   }
 }
 
-/** Behind the row: teal "Resolve" on the left when swiping right, slate "Archive" on the right when swiping left. */
+/** Behind the row: Resolve on the left when swiping right, Archive on the right when swiping left. */
 @Composable
 private fun SwipeBackground(direction: SwipeToDismissBoxValue) {
   if (direction == SwipeToDismissBoxValue.Settled) return
-  val dark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
+  val colors = MaterialTheme.semanticColors
   val resolving = direction == SwipeToDismissBoxValue.StartToEnd
-  // Deliberately not Sentry's purple.
-  val background =
-    when {
-      resolving && dark -> Color(0xFF4DB6AC)
-      resolving -> Color(0xFF00796B)
-      dark -> Color(0xFF90A4AE)
-      else -> Color(0xFF546E7A)
-    }
-  val content = if (dark) Color.Black else Color.White
+  val background = if (resolving) colors.resolveSwipe else colors.archiveSwipe
+  val content = if (resolving) colors.onResolveSwipe else colors.onArchiveSwipe
   Box(
     Modifier.fillMaxSize().background(background).padding(horizontal = 24.dp),
     contentAlignment = if (resolving) Alignment.CenterStart else Alignment.CenterEnd,

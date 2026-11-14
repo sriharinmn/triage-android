@@ -296,7 +296,7 @@ class AlertNotifier(private val context: Context, private val channelPrefix: Str
 
     /**
      * What a new pending notification keeps as its original. If [active] is itself a pending one (a second tap before the
-     * shade updated), keep the one it holds, so Undo never brings back a stale "Resolving…".
+     * shade updated), keep the one it holds, so Undo never brings back a stale "Resolvingâ€¦".
      */
     internal fun originalToKeep(active: Notification?): Notification? = active?.let { originalOf(it) ?: it }
   }

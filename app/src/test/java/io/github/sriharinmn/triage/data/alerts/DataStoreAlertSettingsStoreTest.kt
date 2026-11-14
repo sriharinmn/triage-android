@@ -33,6 +33,21 @@ class DataStoreAlertSettingsStoreTest {
   }
 
   @Test
+  fun updateQuietHours_changesTheStoredWindow() = runTest {
+    store.setEnabled(true)
+    store.setInterval(CheckInterval.Hour1)
+    store.setQuietHours(QuietHours(enabled = true, startMinute = 23 * 60))
+
+    store.updateQuietHours { it.copy(endMinute = 6 * 60) }
+
+    val settings = store.settings.first()
+    assertEquals(QuietHours(enabled = true, startMinute = 23 * 60, endMinute = 6 * 60), settings.quietHours)
+    // An edit of the window must not touch the other settings.
+    assertTrue(settings.enabled)
+    assertEquals(CheckInterval.Hour1, settings.interval)
+  }
+
+  @Test
   fun everyChoice_roundTrips() = runTest {
     store.setEnabled(true)
     store.setInterval(CheckInterval.Hour1)

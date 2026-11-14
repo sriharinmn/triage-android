@@ -1,6 +1,7 @@
 package io.github.sriharinmn.triage.ui.alerts
 
 import android.Manifest
+import android.app.Activity
 import android.app.ActivityManager
 import android.content.ActivityNotFoundException
 import android.content.Context
@@ -10,6 +11,7 @@ import android.net.Uri
 import android.os.Build
 import android.os.PowerManager
 import android.provider.Settings
+import androidx.activity.compose.LocalActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
@@ -19,6 +21,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
+import androidx.core.app.ActivityCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
@@ -53,22 +56,55 @@ fun rememberPhoneAlertStatus(): PhoneAlertStatus {
 
 /**
  * Asks Android for permission to post notifications (Android 13+), then calls [onResult] with whether notifications can
- * show. Older Android has no popup, so the answer is whether they're switched on.
+ * show. A no the user just gave in Android's popup is respected: `onResult(false)`, even when it was their last chance.
+ * When Android won't show its popup at all (the user said no for good earlier, notifications are off in its settings, or
+ * there is no popup on this Android version) and [onBlocked] is given, that runs instead, typically opening Android's
+ * notification settings for Triage. Without [onBlocked], that case is just `onResult(false)`.
  */
 @Composable
-fun rememberNotificationPermissionRequest(onResult: (allowed: Boolean) -> Unit): () -> Unit {
+fun rememberNotificationPermissionRequest(onResult: (allowed: Boolean) -> Unit, onBlocked: (() -> Unit)? = null): () -> Unit {
   val context = LocalContext.current
+  val activity = LocalActivity.current
   val currentOnResult by rememberUpdatedState(onResult)
+  val currentOnBlocked by rememberUpdatedState(onBlocked)
+  fun deliver(answer: NotificationAnswer) {
+    val blocked = currentOnBlocked
+    if (answer == NotificationAnswer.Blocked && blocked != null) blocked() else currentOnResult(answer == NotificationAnswer.Allowed)
+  }
+  // Whether Android would have shown a rationale before the popup: if so, the popup is certainly shown, so a no from it
+  // is respected even when the rationale is gone afterwards (the user's last chance).
+  // A plain holder: written when asking, read in the result callback, never drawn, so no state write or recomposition.
+  val askedJustNow = remember { BooleanArray(1) }
   val launcher =
-    rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted -> currentOnResult(granted) }
+    rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+      // After a no, Android shows its popup again only while it would show a rationale. Without an activity we can't
+      // tell, so we never jump to Android's settings.
+      deliver(
+        notificationAnswer(
+          allowed = granted,
+          askedJustNow = askedJustNow[0],
+          canAskAgain = activity?.mayAskForNotificationsAgain() ?: true,
+        )
+      )
+    }
   return {
     val allowed = NotificationManagerCompat.from(context).areNotificationsEnabled()
-    val canAsk =
+    val canShowPopup =
       Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
         ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
-    if (!allowed && canAsk) launcher.launch(Manifest.permission.POST_NOTIFICATIONS) else currentOnResult(allowed)
+    if (!allowed && canShowPopup) {
+      askedJustNow[0] = activity?.mayAskForNotificationsAgain() ?: false
+      launcher.launch(Manifest.permission.POST_NOTIFICATIONS)
+    } else {
+      deliver(notificationAnswer(allowed = allowed, askedJustNow = false, canAskAgain = false))
+    }
   }
 }
+
+/** True while Android would still show its notification popup after a no (it shows a rationale then). */
+private fun Activity.mayAskForNotificationsAgain(): Boolean =
+  Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+    ActivityCompat.shouldShowRequestPermissionRationale(this, Manifest.permission.POST_NOTIFICATIONS)
 
 /** Android's battery-optimization list, where Triage can be exempted; Triage's app info if a phone lacks the list. */
 fun Context.openBatterySettings() {

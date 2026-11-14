@@ -16,7 +16,6 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
@@ -27,6 +26,8 @@ data class AlertsUiState(
   val projects: List<Project> = emptyList(),
   val lastSuccessAt: Instant? = null,
   val lastAttemptFailed: Boolean = false,
+  /** False only for the placeholder before the stores answer, when the screen shows nothing rather than "off / 15 min". */
+  val isLoaded: Boolean = true,
 )
 
 /** Drives the Alerts screen: every control saves straight to the settings store, and the screen shows what the store says. */
@@ -44,7 +45,7 @@ class AlertsViewModel(
       ) { settings, alertState, projectList ->
         AlertsUiState(settings, projectList, alertState.lastSuccessAt, alertState.lastAttemptFailed)
       }
-      .stateIn(viewModelScope, SharingStarted.Eagerly, AlertsUiState())
+      .stateIn(viewModelScope, SharingStarted.Eagerly, AlertsUiState(isLoaded = false))
 
   /** Call with true only once Android allows notifications: the screen asks first. */
   fun onEnabledChanged(enabled: Boolean) = save { setEnabled(enabled) }
@@ -61,8 +62,8 @@ class AlertsViewModel(
 
   fun onQuietEndSelected(minuteOfDay: Int) = saveQuietHours { it.copy(endMinute = minuteOfDay) }
 
-  /** Reads the stored window first, so two quick changes (on, then a time) never undo each other. */
-  private fun saveQuietHours(change: (QuietHours) -> QuietHours) = save { setQuietHours(change(settings.first().quietHours)) }
+  /** One store edit, so two quick changes (on, then a time) never undo each other. */
+  private fun saveQuietHours(change: (QuietHours) -> QuietHours) = save { updateQuietHours(change) }
 
   private fun save(change: suspend AlertSettingsStore.() -> Unit) {
     viewModelScope.launch {

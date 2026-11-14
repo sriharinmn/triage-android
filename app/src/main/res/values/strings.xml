@@ -7,10 +7,14 @@
     <string name="connect_host_self_hosted">Self-hosted</string>
     <string name="connect_server_url">Server URL</string>
     <string name="connect_server_url_error">Enter your server\'s https:// address</string>
-    <string name="connect_step1_title">1. Create a personal token</string>
-    <string name="connect_step1_body">On the token page, create a Personal Token with: Organization Read, Project Read, Issue &amp; Event Read &amp; Write, Member Read.</string>
+    <string name="connect_step1_title">Create a personal token</string>
+    <string name="connect_step1_body">On the token page, create a Personal Token with these permissions:</string>
+    <string name="connect_scope_org">Organization: Read</string>
+    <string name="connect_scope_project">Project: Read</string>
+    <string name="connect_scope_issue">Issue &amp; Event: Read &amp; Write</string>
+    <string name="connect_scope_member">Member: Read</string>
     <string name="connect_open_token_page">Open token page</string>
-    <string name="connect_step2_title">2. Paste it here</string>
+    <string name="connect_step2_title">Paste it here</string>
     <string name="connect_token_label">Personal token</string>
     <string name="connect_paste">Paste</string>
     <string name="connect_button">Connect</string>
@@ -49,10 +53,19 @@
     <string name="inbox_sort_events">Events</string>
     <string name="inbox_sort_users">Users</string>
 
-    <string name="inbox_empty_for_review">Nothing to review.</string>
-    <string name="inbox_empty_unresolved">No unresolved issues in the last 14 days.</string>
-    <string name="inbox_empty_regressed">No regressions in the last 14 days.</string>
-    <string name="inbox_empty_escalating">Nothing is escalating.</string>
+    <string name="inbox_empty_for_review">Nothing to review</string>
+    <string name="inbox_empty_for_review_help">Issues waiting for someone to look at them show up here.</string>
+    <string name="inbox_empty_unresolved">All clear</string>
+    <string name="inbox_empty_unresolved_help">No unresolved issues in the last 14 days.</string>
+    <string name="inbox_empty_regressed">Nothing regressed</string>
+    <string name="inbox_empty_regressed_help">No regressions in the last 14 days.</string>
+    <string name="inbox_empty_escalating">Nothing escalating</string>
+    <string name="inbox_empty_escalating_help">Issues that suddenly get busier show up here.</string>
+    <string name="inbox_no_matches">No issues match these filters</string>
+    <string name="inbox_no_matches_help">Clear them to see every issue on this tab.</string>
+    <string name="inbox_clear_filters">Clear filters</string>
+    <string name="inbox_offline_since">Offline · showing issues from %1$s</string>
+    <string name="inbox_offline">Offline · showing saved issues</string>
     <string name="inbox_loading">Loading issues…</string>
 
     <string name="inbox_updated_stale">Updated %1$s · couldn\'t refresh</string>
@@ -68,8 +81,6 @@
     <string name="inbox_error_storage">Couldn\'t save issues on this phone. Free up some storage, then try again.</string>
     <string name="inbox_open_failed">Couldn\'t open the browser.</string>
 
-    <string name="inbox_menu">More options</string>
-    <string name="inbox_disconnect">Disconnect…</string>
     <string name="inbox_disconnect_title">Disconnect from Sentry?</string>
     <string name="inbox_disconnect_body">Triage will forget your token and cached issues on this phone. Sentry shows a token only once, so you\'ll need to create a new one to reconnect.</string>
     <string name="inbox_disconnect_confirm">Disconnect</string>
@@ -87,7 +98,6 @@
     <string name="level_debug">Debug</string>
     <string name="level_unknown">Unknown level</string>
     <string name="issue_last_seen">%1$s ago</string>
-    <string name="issue_age">%1$s old</string>
     <string name="span_under_minute">&lt;1m</string>
     <string name="span_minutes">%1$dm</string>
     <string name="span_hours">%1$dh</string>
@@ -104,13 +114,9 @@
         <item quantity="one">%1$s user</item>
         <item quantity="other">%1$s users</item>
     </plurals>
-    <plurals name="issue_events_last_24h">
-        <item quantity="one">%1$d event in the last 24 hours</item>
-        <item quantity="other">%1$d events in the last 24 hours</item>
-    </plurals>
-    <string name="detail_stack_trace">Stack trace</string>
     <string name="detail_message">Message</string>
-    <string name="detail_no_stack_trace">This event has no stack trace.</string>
+    <string name="detail_no_stack_trace">No stack trace in this event</string>
+    <string name="detail_no_stack_trace_help">Sentry recorded this event without one.</string>
     <string name="detail_caused_by">Caused by</string>
     <string name="detail_thread">Thread %1$s</string>
     <string name="detail_unknown_error">Unknown error</string>
@@ -148,14 +154,8 @@
     <string name="detail_event_oldest">Oldest</string>
     <string name="detail_event_loading">Loading event…</string>
     <string name="detail_release">release %1$s</string>
-    <string name="detail_first_seen">First seen %1$s ago</string>
-    <string name="detail_last_seen">Last seen %1$s ago</string>
     <string name="detail_trend_24h">24h</string>
     <string name="detail_trend_30d">30d</string>
-    <plurals name="detail_events_last_30d">
-        <item quantity="one">%1$d event in the last 30 days</item>
-        <item quantity="other">%1$d events in the last 30 days</item>
-    </plurals>
     <string name="detail_status_resolved">Resolved</string>
     <string name="detail_status_archived">Archived</string>
     <string name="action_resolve">Resolve</string>
@@ -260,9 +260,114 @@
     <string name="battery_tip_generic">In the list that opens, choose All apps, find Triage and choose Don\'t optimize (or Unrestricted).</string>
     <string name="battery_open_settings">Open battery settings</string>
 
-    <string name="inbox_alerts">Alerts</string>
     <string name="alerts_card_title">Get alerts for new, regressed and escalating issues?</string>
     <string name="alerts_card_body">Triage checks Sentry in the background. No server involved.</string>
     <string name="alerts_card_not_now">Not now</string>
     <string name="alerts_card_turn_on">Turn on</string>
+    <string name="welcome_wordmark">triage</string>
+    <string name="welcome_lede">Your Sentry issues, on your phone. See what broke, read the trace, resolve it with a swipe.</string>
+    <string name="welcome_alerts_title">Alerts for what matters</string>
+    <string name="welcome_alerts_body">New, regressed and escalating issues, checked in the background.</string>
+    <string name="welcome_swipe_title">Triage in a swipe</string>
+    <string name="welcome_swipe_body">Resolve, archive or assign, with Undo.</string>
+    <string name="welcome_private_title">Private by design</string>
+    <string name="welcome_private_body">Your phone talks only to your Sentry server. No account with us, no tracking.</string>
+    <string name="welcome_get_started">Get started</string>
+    <string name="welcome_token_note">You\'ll need a Sentry personal token (takes a minute).</string>
+    <string name="connect_error_insecure">Couldn\'t connect securely. The server\'s certificate isn\'t trusted by this phone, or doesn\'t match the address.</string>
+    <string name="connect_error_server_not_found">Couldn\'t find this server. Check the address and that you\'re online.</string>
+    <string name="connect_error_not_sentry">No Sentry answered at this address. Use the address you open Sentry at, like https://sentry.example.com.</string>
+    <string name="connect_paste_empty">Nothing to paste: copy the token first.</string>
+    <string name="connect_open_failed">Couldn\'t open a browser. Copy this address into one:</string>
+    <string name="connect_copy_address">Copy address</string>
+    <string name="connect_connecting">Connecting…</string>
+    <string name="inbox_settings">Settings</string>
+    <string name="settings_title">Settings</string>
+    <string name="settings_account">Account</string>
+    <string name="settings_disconnect">Disconnect…</string>
+    <string name="settings_disconnect_hint">Forget the token and cached issues on this phone</string>
+    <string name="settings_alerts">Alerts</string>
+    <string name="settings_alerts_hint">New, regressed and escalating issues, and quiet hours</string>
+    <string name="settings_appearance">Appearance</string>
+    <string name="settings_theme">Theme</string>
+    <string name="settings_theme_system">System</string>
+    <string name="settings_theme_light">Light</string>
+    <string name="settings_theme_dark">Dark</string>
+    <string name="settings_wallpaper_colors">Use wallpaper colors</string>
+    <string name="settings_wallpaper_colors_hint">Colors from your wallpaper instead of Triage\'s blue</string>
+    <string name="settings_about">About Triage</string>
+    <string name="settings_about_hint">Version, privacy and open-source licenses</string>
+    <string name="about_title">About</string>
+    <string name="about_version">Version %1$s (%2$d)</string>
+    <string name="about_version_with_type">Version %1$s (%2$d) · %3$s</string>
+    <string name="about_privacy">Privacy</string>
+    <string name="about_privacy_no_server">No server of ours: Triage talks only to your Sentry server.</string>
+    <string name="about_privacy_no_tracking">No analytics and no tracking.</string>
+    <string name="about_privacy_token">Your token is encrypted on this phone with the Android Keystore.</string>
+    <string name="about_privacy_data">Issue data goes only between this phone and your Sentry server.</string>
+    <string name="about_licenses">Open-source licenses</string>
+    <string name="about_licenses_intro">Triage is built with these, and with the AndroidX libraries they use (Apache License 2.0). Tap one for its license.</string>
+    <string name="about_close">Close</string>
+    <plurals name="inbox_tile_events">
+        <item quantity="one">event</item>
+        <item quantity="other">events</item>
+    </plurals>
+    <string name="inbox_open_issue">Open issue</string>
+    <string name="inbox_row_users_age">%1$s · %2$s</string>
+    <string name="inbox_row_counts">%1$s, %2$s</string>
+    <string name="inbox_row_counts_hot">%1$s, busier than usual, %2$s</string>
+    <string name="spoken_under_minute_ago">less than a minute ago</string>
+    <plurals name="spoken_minutes_ago">
+        <item quantity="one">%1$d minute ago</item>
+        <item quantity="other">%1$d minutes ago</item>
+    </plurals>
+    <plurals name="spoken_hours_ago">
+        <item quantity="one">%1$d hour ago</item>
+        <item quantity="other">%1$d hours ago</item>
+    </plurals>
+    <plurals name="spoken_days_ago">
+        <item quantity="one">%1$d day ago</item>
+        <item quantity="other">%1$d days ago</item>
+    </plurals>
+    <plurals name="spoken_weeks_ago">
+        <item quantity="one">%1$d week ago</item>
+        <item quantity="other">%1$d weeks ago</item>
+    </plurals>
+    <plurals name="spoken_months_ago">
+        <item quantity="one">%1$d month ago</item>
+        <item quantity="other">%1$d months ago</item>
+    </plurals>
+    <plurals name="spoken_years_ago">
+        <item quantity="one">%1$d year ago</item>
+        <item quantity="other">%1$d years ago</item>
+    </plurals>
+    <string name="state_cant_reach">Can\'t reach Sentry</string>
+    <string name="state_cant_reach_help">Check your connection, then try again.</string>
+    <string name="state_reconnect">Reconnect to Sentry</string>
+    <string name="state_missing_permissions">Missing permissions</string>
+    <string name="state_rate_limited">Sentry asked us to wait</string>
+    <string name="state_server">Something went wrong</string>
+    <string name="state_storage">This phone is out of space</string>
+    <string name="detail_stat_events">Events</string>
+    <string name="detail_stat_users">Users</string>
+    <string name="detail_stat_first_seen">First seen</string>
+    <string name="detail_stat_last_seen">Last seen</string>
+    <string name="detail_stat_first_seen_spoken">First seen %1$s</string>
+    <string name="detail_stat_first_seen_release_spoken">First seen %1$s, in release %2$s</string>
+    <string name="detail_stat_last_seen_spoken">Last seen %1$s</string>
+    <string name="detail_chart_label">Events</string>
+    <string name="detail_chart_summary_24h">Events, last 24 hours: %1$s, busiest at %2$s</string>
+    <string name="detail_chart_summary_30d">Events, last 30 days: %1$s, busiest on %2$s</string>
+    <string name="detail_chart_none_24h">Events, last 24 hours: none</string>
+    <string name="detail_chart_none_30d">Events, last 30 days: none</string>
+    <string name="detail_tab_trace">Trace</string>
+    <string name="detail_no_breadcrumbs">No breadcrumbs in this event</string>
+    <string name="detail_no_breadcrumbs_help">The SDK sent none with it.</string>
+    <string name="detail_no_tags">No tags for this issue</string>
+    <string name="detail_tags_loading">Loading tags…</string>
+    <string name="detail_no_details">No device, user or request details</string>
+    <string name="detail_no_details_help">This event didn\'t include any.</string>
+    <string name="state_issue_gone">Issue not found</string>
+    <string name="state_no_event">No event of this kind</string>
+    <string name="state_too_large">Too large to show here</string>
 </resources>

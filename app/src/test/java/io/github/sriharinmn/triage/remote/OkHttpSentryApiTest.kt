@@ -1,15 +1,20 @@
 package io.github.sriharinmn.triage.remote
 
+import java.net.UnknownHostException
+import java.security.cert.CertificateException
 import java.time.ZoneOffset
 import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
 import java.util.concurrent.TimeUnit
+import javax.net.ssl.SSLException
+import javax.net.ssl.SSLHandshakeException
 import kotlin.system.measureTimeMillis
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runTest
+import okhttp3.Interceptor
 import okhttp3.OkHttpClient
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
@@ -110,6 +115,43 @@ class OkHttpSentryApiTest {
     val result = api.listOrganizations(url, "t")
 
     assertTrue(result is ApiResult.Failure && result.error is ApiError.Network)
+  }
+
+  @Test
+  fun aFailedSecureConnection_isReportedAsATlsProblem() = runTest {
+    val untrusted =
+      OkHttpClient.Builder()
+        .addInterceptor(
+          Interceptor {
+            throw SSLHandshakeException("certificate not trusted").apply {
+              initCause(CertificateException("Trust anchor for certification path not found."))
+            }
+          }
+        )
+        .build()
+
+    val result = OkHttpSentryApi(untrusted, userAgent = "Triage-Test", requireHttps = false).listOrganizations(baseUrl(), "t")
+
+    assertEquals(NetworkCause.Tls, ((result as ApiResult.Failure).error as ApiError.Network).cause)
+  }
+
+  @Test
+  fun aSecureConnectionThatDropped_isNotReportedAsATlsProblem() = runTest {
+    val reset = SSLException("Read error: ssl=0x0: I/O error during system call, Connection reset by peer")
+    val dropping = OkHttpClient.Builder().addInterceptor(Interceptor { throw reset }).build()
+
+    val result = OkHttpSentryApi(dropping, userAgent = "Triage-Test", requireHttps = false).listOrganizations(baseUrl(), "t")
+
+    assertEquals(NetworkCause.Other, ((result as ApiResult.Failure).error as ApiError.Network).cause)
+  }
+
+  @Test
+  fun aServerNameThatDoesNotResolve_isReportedAsAnUnknownHost() = runTest {
+    val noDns = OkHttpClient.Builder().addInterceptor(Interceptor { throw UnknownHostException("sentry.example.invalid") }).build()
+
+    val result = OkHttpSentryApi(noDns, userAgent = "Triage-Test", requireHttps = false).listOrganizations(baseUrl(), "t")
+
+    assertEquals(NetworkCause.UnknownHost, ((result as ApiResult.Failure).error as ApiError.Network).cause)
   }
 
   @Test

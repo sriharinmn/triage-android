@@ -7,16 +7,24 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
+import androidx.compose.ui.test.assertCountEquals
+import androidx.compose.ui.test.assertHeightIsAtLeast
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.hasContentDescription
+import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onChildren
+import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToNode
+import androidx.compose.ui.unit.dp
 import io.github.sriharinmn.triage.data.detail.Breadcrumb
 import io.github.sriharinmn.triage.data.detail.ContextLine
+import io.github.sriharinmn.triage.data.detail.DetailError
 import io.github.sriharinmn.triage.data.detail.EventContext
 import io.github.sriharinmn.triage.data.detail.EventRequest
 import io.github.sriharinmn.triage.data.detail.EventStack
@@ -28,6 +36,7 @@ import io.github.sriharinmn.triage.data.detail.TagSummary
 import io.github.sriharinmn.triage.data.issues.IssueLevel
 import io.github.sriharinmn.triage.theme.TriageTheme
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 
@@ -79,6 +88,8 @@ class EventSectionsTest {
     revealed: Set<Int> = emptySet(),
     showAllBreadcrumbs: Boolean = false,
     tags: List<TagSummary>? = null,
+    tagsLoading: Boolean = false,
+    tagsError: DetailError? = null,
   ) {
     composeTestRule.setContent {
       TriageTheme {
@@ -91,7 +102,7 @@ class EventSectionsTest {
             onShowLibraryFrames = { calls += "library:$it" },
           )
           breadcrumbsSection(event.breadcrumbs, showAllBreadcrumbs, onShowAll = { calls += "crumbs" })
-          tagsSection(tags, event.tags)
+          tagsSection(tagsContent(tags, event.tags, isLoading = tagsLoading, error = tagsError), onRetry = { calls += "retry" })
           detailsSection(event.context)
         }
       }
@@ -140,6 +151,37 @@ class EventSectionsTest {
   }
 
   @Test
+  fun aFrameRowWithItsPlace_isAtLeast48dpTall() {
+    show(event())
+
+    composeTestRule.onNodeWithTag(DetailTags.frame(FrameRef(0, 0))).assertHeightIsAtLeast(48.dp)
+  }
+
+  @Test
+  fun aFrameWithoutAPlace_isOneLine_andAtLeast48dpTall() {
+    val nowhere =
+      StackFrame(function = "anonymous", module = null, file = null, lineNo = null, colNo = null, inApp = true, context = emptyList())
+    show(event(stacks = listOf(crash.copy(frames = listOf(nowhere)))))
+
+    val row = composeTestRule.onNodeWithTag(DetailTags.frame(FrameRef(0, 0)), useUnmergedTree = true)
+    row.assertHeightIsAtLeast(48.dp)
+    // The name is the row's only text: there's no place line under it.
+    row.onChildren().assertCountEquals(1).onFirst().assert(hasText("anonymous"))
+  }
+
+  @Test
+  fun aFramesPlace_sitsUnderItsName_soTheNameHasTheRowsWidth() {
+    show(event())
+
+    for ((function, place) in listOf("cartTotal" to "shop/cartTotal.js:42", "handleCheckout" to "shop/handleCheckout.js:1")) {
+      val name = composeTestRule.onNodeWithText(function, useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
+      val location = composeTestRule.onNodeWithText(place, useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
+      assertTrue("$place should start below $function", location.top >= name.bottom - 0.5f)
+      assertEquals(name.left, location.left, 0.5f)
+    }
+  }
+
+  @Test
   fun aFrameWithCode_isAnnouncedAsAButton() {
     show(event())
 
@@ -176,7 +218,7 @@ class EventSectionsTest {
   fun anEventWithoutAStackOrMessage_saysSo() {
     show(event(stacks = emptyList()))
 
-    composeTestRule.onNodeWithText("This event has no stack trace.").assertIsDisplayed()
+    composeTestRule.onNodeWithText("No stack trace in this event").assertIsDisplayed()
   }
 
   @Test
@@ -247,5 +289,48 @@ class EventSectionsTest {
     scrollTo("Google Pixel 8")
     composeTestRule.onNodeWithText("id 4821 · user@example.com · 203.0.113.7").assertIsDisplayed()
     composeTestRule.onNodeWithText("POST https://shop.example.test/api/checkout").assertIsDisplayed()
+  }
+
+  @Test
+  fun anEventWithoutBreadcrumbs_saysSo() {
+    show(event())
+
+    scrollTo("No breadcrumbs in this event")
+    composeTestRule.onNodeWithText("No breadcrumbs in this event").assertIsDisplayed()
+  }
+
+  @Test
+  fun anIssueWithoutTags_saysSo_onceTheyAreLoaded() {
+    show(event(stacks = emptyList()), tags = emptyList())
+
+    scrollTo("No tags for this issue")
+    composeTestRule.onNodeWithText("No tags for this issue").assertIsDisplayed()
+  }
+
+  @Test
+  fun tagsThatCouldNotLoad_sayWhy_andOfferRetry() {
+    show(event(stacks = emptyList()), tagsError = DetailError.Network)
+
+    composeTestRule.onNodeWithTag(DetailTags.LIST).performScrollToNode(hasTestTag(DetailTags.RETRY))
+    composeTestRule.onNodeWithText("Can't reach Sentry").assertIsDisplayed()
+    composeTestRule.onNodeWithText("No tags for this issue").assertDoesNotExist()
+    composeTestRule.onNodeWithTag(DetailTags.RETRY).performClick()
+    assertEquals(listOf("retry"), calls)
+  }
+
+  @Test
+  fun tagsStillLoading_showProgress_notTheEmptyState() {
+    show(event(stacks = emptyList()), tagsLoading = true)
+
+    composeTestRule.onNodeWithTag(DetailTags.LIST).performScrollToNode(hasContentDescription("Loading tags…"))
+    composeTestRule.onNodeWithText("No tags for this issue").assertDoesNotExist()
+  }
+
+  @Test
+  fun anEventWithoutContext_saysSo() {
+    show(event(stacks = emptyList()))
+
+    scrollTo("No device, user or request details")
+    composeTestRule.onNodeWithText("No device, user or request details").assertIsDisplayed()
   }
 }
