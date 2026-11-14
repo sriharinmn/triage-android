@@ -163,7 +163,7 @@ internal fun InboxContent(
   val error = state.error
   val errorText = error?.let { errorMessage(it) }
   val retryLabel = stringResource(R.string.inbox_retry)
-  val disconnectFailedText = stringResource(R.string.inbox_disconnect_failed)
+  val disconnectFailedText = stringResource(if (state.isDemo) R.string.demo_leave_failed else R.string.inbox_disconnect_failed)
   val hasIssues = state.issues.isNotEmpty()
   // A rejected or under-scoped token can only be replaced, and Sentry shows a token only once (a 403 may also be fixable
   // by changing the token's permissions on Sentry), so Reconnect asks first, with the same dialog as Disconnect.

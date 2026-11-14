@@ -374,6 +374,7 @@
     <string name="state_issue_gone">Issue not found</string>
     <string name="state_no_event">No event of this kind</string>
     <string name="state_too_large">Too large to show here</string>
+    <string name="demo_leave_failed">Couldn\'t leave the demo. Try again.</string>
     <string name="demo_chip">Demo</string>
     <string name="demo_chip_description">Demo: sample data. Learn more</string>
     <string name="demo_note_title">Sample data</string>

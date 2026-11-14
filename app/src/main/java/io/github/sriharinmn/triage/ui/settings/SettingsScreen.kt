@@ -99,7 +99,7 @@ internal fun SettingsContent(
 ) {
   var confirmingDisconnect by rememberSaveable { mutableStateOf(false) }
   val snackbarHostState = remember { SnackbarHostState() }
-  val disconnectFailedText = stringResource(R.string.inbox_disconnect_failed)
+  val disconnectFailedText = stringResource(if (state.isDemo) R.string.demo_leave_failed else R.string.inbox_disconnect_failed)
   LaunchedEffect(state.disconnectFailed) {
     if (state.disconnectFailed) {
       snackbarHostState.showSnackbar(disconnectFailedText)

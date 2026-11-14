@@ -124,6 +124,13 @@ class SettingsContentTest {
   }
 
   @Test
+  fun aFailedLeaveDemo_saysItCouldntLeaveTheDemo() {
+    show(connected.copy(isDemo = true, disconnectFailed = true))
+
+    composeTestRule.onNodeWithText("Couldn't leave the demo. Try again.").assertIsDisplayed()
+  }
+
+  @Test
   fun atTwiceTheFontSize_everyRowIsReachable() {
     show(fontScale = 2f)
 
