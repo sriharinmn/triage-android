@@ -75,7 +75,7 @@ class InboxViewModelTest {
   private fun TestScope.viewModel(
     opening: InboxOpening? = null,
     account: Account = TEST_ACCOUNT,
-    markWelcomeSeen: () -> Unit = {},
+    markWelcomeSeen: suspend () -> Unit = {},
   ): InboxViewModel {
     pendingActions = PendingActions(IssueActionRepository(api, RateLimitGate(clock::now)), repository, backgroundScope)
     return InboxViewModel(
@@ -108,13 +108,23 @@ class InboxViewModelTest {
   @Test
   fun theDemo_isMarked_andConnectInsteadMarksTheWelcomeSeenThenLeaves() = runTest {
     var welcomeSeen = 0
-    val vm = viewModel(account = DemoAccount, markWelcomeSeen = { welcomeSeen++ })
+    var accountStillThere: Boolean? = null
+    val vm =
+      viewModel(
+        account = DemoAccount,
+        markWelcomeSeen = {
+          welcomeSeen++
+          accountStillThere = accountStore.current != null
+        },
+      )
     assertTrue(vm.state.value.isDemo)
 
     vm.onConnectInsteadOfDemo()
     advanceUntilIdle()
 
     assertEquals(1, welcomeSeen)
+    // The welcome is marked seen before the account goes, so Connect (not the welcome) shows next.
+    assertEquals(true, accountStillThere)
     assertNull(accountStore.current)
   }
 

@@ -45,7 +45,7 @@ fun TriageNavigation(account: Account, container: AppContainer, deepLink: DeepLi
             container.alertSettings,
             container.alertState,
             opening = start.inboxOpening,
-            markWelcomeSeen = container::markWelcomeSeen,
+            markWelcomeSeen = { container.appearance.markWelcomeSeen() },
           )
         }
       InboxScreen(inboxViewModel, onOpenIssue = onOpenIssue, onOpenSettings = onOpenSettings)

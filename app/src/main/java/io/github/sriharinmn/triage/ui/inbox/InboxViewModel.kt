@@ -87,7 +87,7 @@ class InboxViewModel(
   private val opening: InboxOpening? = null,
   private val clock: () -> Instant = Instant::now,
   /** Called before leaving the demo for Connect, so Connect (not the welcome) shows next. */
-  private val markWelcomeSeen: () -> Unit = {},
+  private val markWelcomeSeen: suspend () -> Unit = {},
 ) : ViewModel() {
   private val _state = MutableStateFlow(InboxUiState(orgName = account.orgName, isDemo = account.isDemo))
   val state: StateFlow<InboxUiState> = _state.asStateFlow()
@@ -216,8 +216,15 @@ class InboxViewModel(
 
   /** The Demo note's Connect Sentry: the welcome is behind the user now, so leaving the demo lands on Connect. */
   fun onConnectInsteadOfDemo() {
-    markWelcomeSeen()
-    onDisconnectConfirmed()
+    if (_state.value.isDisconnecting) return
+    viewModelScope.launch {
+      try {
+        markWelcomeSeen()
+      } catch (_: IOException) {
+        // Only which signed-out screen shows first: the welcome instead of Connect.
+      }
+      onDisconnectConfirmed()
+    }
   }
 
   fun onDisconnectConfirmed() {
