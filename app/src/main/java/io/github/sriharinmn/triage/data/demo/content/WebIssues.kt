@@ -425,7 +425,7 @@ internal object WebIssues {
           DemoIssueSpec(
             key = "web-resize-observer",
             projectSlug = SHOP_WEB,
-            title = "ResizeObserver loop completed with undelivered notifications.",
+            title = "Error: ResizeObserver loop completed with undelivered notifications.",
             culprit = "src/hooks/useElementSize.ts in observe",
             level = "info",
             isUnhandled = false,

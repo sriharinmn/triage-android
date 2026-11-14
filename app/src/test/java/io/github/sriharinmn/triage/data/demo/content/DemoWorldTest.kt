@@ -165,10 +165,9 @@ class DemoWorldTest {
 
   @Test
   fun eachTitle_isTheThrownException() {
-    // Sentry titles an event by its last exception: the type, then the value's first line. Browsers raise the
-    // ResizeObserver loop error without an Error object, and Sentry titles that by its message alone.
+    // Sentry titles an event by its last exception: the type, then the value's first line.
     allSpecs
-      .filter { it.event.exceptions.isNotEmpty() && it.key != "web-resize-observer" }
+      .filter { it.event.exceptions.isNotEmpty() }
       .forEach { spec ->
         val thrown = spec.event.exceptions.last()
         assertEquals(spec.key, "${thrown.type}: ${thrown.value.lines().first()}", spec.title)
