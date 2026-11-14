@@ -45,7 +45,12 @@ class SettingsViewModel(
 ) : ViewModel() {
   private val _state =
     MutableStateFlow(
-      SettingsUiState(orgName = account.orgName, serverHost = serverHost(account.apiBaseUrl), isDemo = account.isDemo, appearance = initialAppearance)
+      SettingsUiState(
+        orgName = account.orgName,
+        serverHost = serverHost(account.apiBaseUrl),
+        isDemo = account.isDemo,
+        appearance = initialAppearance,
+      )
     )
   val state: StateFlow<SettingsUiState> = _state.asStateFlow()
 

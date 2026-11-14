@@ -24,8 +24,8 @@ import io.github.sriharinmn.triage.ui.welcome.SampleDataViewModel
 import io.github.sriharinmn.triage.ui.welcome.SignedOutScreens
 
 /**
- * Without an account: the welcome on a first launch, then Connect; both offer the sample data. With one: the main navigation, opened where a tapped
- * notification points.
+ * Without an account: the welcome on a first launch, then Connect; both offer the sample data. With one: the main
+ * navigation, opened where a tapped notification points.
  */
 @Composable
 fun TriageApp(container: AppContainer, deepLink: DeepLink? = null) {

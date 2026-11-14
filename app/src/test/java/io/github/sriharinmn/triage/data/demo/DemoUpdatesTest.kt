@@ -40,7 +40,8 @@ class DemoUpdatesTest {
     val resolved = checkNotNull(state.updated(newIssue.id, IssueAction.Resolve.toChanges(), now - Duration.ofHours(1)))
     val archivedAt = now + Duration.ofHours(1)
 
-    val archived = checkNotNull(resolved.updated(newIssue.id, IssueAction.Archive.toChanges(), archivedAt)).issues.single { it.id == newIssue.id }
+    val archived =
+      checkNotNull(resolved.updated(newIssue.id, IssueAction.Archive.toChanges(), archivedAt)).issues.single { it.id == newIssue.id }
 
     assertEquals(listOf(DemoQuietSpan(from = (now - Duration.ofHours(1)).epochMs, to = archivedAt.epochMs)), archived.quietSpans)
   }

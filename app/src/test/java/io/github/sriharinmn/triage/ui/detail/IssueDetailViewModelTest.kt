@@ -112,7 +112,9 @@ class IssueDetailViewModelTest {
 
   private fun membersAre(vararg people: Member) {
     api.membersResult =
-      ApiResult.Success(people.map { MemberDto(id = "m${it.userId}", user = MemberUserDto(id = it.userId, name = it.name, email = it.email)) })
+      ApiResult.Success(
+        people.map { MemberDto(id = "m${it.userId}", user = MemberUserDto(id = it.userId, name = it.name, email = it.email)) }
+      )
   }
 
   private fun whats() = api.detailCalls.map { it.what }

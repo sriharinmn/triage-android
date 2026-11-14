@@ -199,7 +199,14 @@ internal fun InboxContent(
 
   Scaffold(
     modifier = modifier,
-    topBar = { InboxTopBar(orgName = state.orgName, isDemo = state.isDemo, onOpenSettings = onOpenSettings, onDemoChip = { showingDemoNote = true }) },
+    topBar = {
+      InboxTopBar(
+        orgName = state.orgName,
+        isDemo = state.isDemo,
+        onOpenSettings = onOpenSettings,
+        onDemoChip = { showingDemoNote = true },
+      )
+    },
     // A notice covers any other snackbar, which shows once the notice goes.
     snackbarHost = {
       if (noticeHostState.currentSnackbarData != null) SnackbarHost(noticeHostState) else SnackbarHost(snackbarHostState)

@@ -115,7 +115,10 @@ class DemoTimelineTest {
     val withOpenSpan =
       fresh.copy(
         happeningCount = 1,
-        issues = fresh.issues.map { if (it.id == resize.id) it.copy(quietSpans = listOf(DemoQuietSpan(from = (t - Duration.ofHours(5)).epochMs))) else it },
+        issues =
+          fresh.issues.map {
+            if (it.id == resize.id) it.copy(quietSpans = listOf(DemoQuietSpan(from = (t - Duration.ofHours(5)).epochMs))) else it
+          },
       )
 
     val escalated = withOpenSpan.after(Happening(t, alwaysNew = false)).issue("web-resize-observer")
@@ -133,7 +136,11 @@ class DemoTimelineTest {
         happeningCount = 2,
         issues =
           fresh.issues.map {
-            if (it.status == DemoStatus.Resolved) it.copy(quietSpans = listOf(DemoQuietSpan(from = (t - Duration.ofHours(1)).epochMs))) else it
+            if (it.status == DemoStatus.Resolved) {
+              it.copy(quietSpans = listOf(DemoQuietSpan(from = (t - Duration.ofHours(1)).epochMs)))
+            } else {
+              it
+            }
           },
       )
 
@@ -147,7 +154,10 @@ class DemoTimelineTest {
   fun escalating_withNothingArchived_picksTheBusiestIssueNotEscalatedThisWeek() {
     val t = start + Duration.ofHours(3)
     val nothingArchived =
-      fresh.copy(happeningCount = 1, issues = fresh.issues.map { if (it.status == DemoStatus.Archived) it.copy(status = DemoStatus.Resolved) else it })
+      fresh.copy(
+        happeningCount = 1,
+        issues = fresh.issues.map { if (it.status == DemoStatus.Archived) it.copy(status = DemoStatus.Resolved) else it },
+      )
 
     val next = nothingArchived.after(Happening(t, alwaysNew = false))
 
