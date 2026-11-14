@@ -16,8 +16,12 @@ import io.github.sriharinmn.triage.remote.TagDetailDto
 import java.io.IOException
 import java.time.Instant
 import java.time.ZoneId
+import kotlin.coroutines.cancellation.CancellationException
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.JsonObject
 
 /**
@@ -25,11 +29,13 @@ import kotlinx.serialization.json.JsonObject
  * the sample content and the clock, never the network.
  *
  * Each call, under one lock (the screens and the background check share this instance), loads the state, applies the
- * happenings that are due, answers, and saves if anything changed. With nothing saved it starts a fresh demo.
+ * happenings that are due, answers, and saves if anything changed. With nothing saved it starts a fresh demo. The
+ * computing happens on [computeDispatcher], never the caller's thread.
  */
 class DemoSentryApi(
   private val store: DemoStateStore,
   private val clock: () -> Instant = Instant::now,
+  private val computeDispatcher: CoroutineDispatcher = Dispatchers.Default,
   private val zone: () -> ZoneId = ZoneId::systemDefault,
 ) : SentryApi {
   private val lock = Mutex()
@@ -47,13 +53,17 @@ class DemoSentryApi(
   /** Alerts were just switched on: a new issue arrives about 20 minutes from now, unless something happens sooner. */
   suspend fun onAlertsTurnedOn() {
     lock.withLock {
-      try {
-        val saved = store.load() ?: return@withLock
-        val now = clock()
-        val next = advance(saved, now, zone()).withAlertsKick(now, zone())
-        if (next != saved) store.save(next)
-      } catch (_: IOException) {
-        // Only a convenience: the day's own happenings still come.
+      withContext(computeDispatcher) {
+        try {
+          val saved = store.load() ?: return@withContext
+          val now = clock()
+          val next = advance(saved, now, zone()).withAlertsKick(now, zone())
+          if (next != saved) store.save(next)
+        } catch (e: CancellationException) {
+          throw e
+        } catch (_: Exception) {
+          // Only a convenience: the day's own happenings still come.
+        }
       }
     }
   }
@@ -126,16 +136,23 @@ class DemoSentryApi(
 
   private suspend fun <T> answer(respond: (DemoState, Instant) -> Pair<DemoState, ApiResult<T>>): ApiResult<T> =
     lock.withLock {
-      try {
-        val now = clock()
-        val saved = store.load()
-        val current = advance(saved ?: freshDemoState(now), now, zone())
-        val (next, result) = respond(current, now)
-        if (next != saved) store.save(next)
-        result
-      } catch (_: IOException) {
-        // The screens explain a network error kindly, and the next call tries again.
-        ApiResult.Failure(ApiError.Network("Couldn't read or save the sample data"))
+      withContext(computeDispatcher) {
+        try {
+          val now = clock()
+          val saved = store.load()
+          val current = advance(saved ?: freshDemoState(now), now, zone())
+          val (next, result) = respond(current, now)
+          if (next != saved) store.save(next)
+          result
+        } catch (e: IOException) {
+          // The screens explain a network error kindly, and the next call tries again.
+          ApiResult.Failure(ApiError.Network("Couldn't read or save the sample data"))
+        } catch (e: CancellationException) {
+          throw e
+        } catch (e: Exception) {
+          // A demo bug shows as an unreadable answer instead of crashing a tester's app.
+          ApiResult.Failure(ApiError.Parse)
+        }
       }
     }
 

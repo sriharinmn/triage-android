@@ -131,10 +131,14 @@ class DemoSentryApiTest {
 
     api.startFresh()
     clock.advance(Duration.ofHours(2))
+    // Move on to a quiet stretch: nothing happens in the next 50 minutes, so the kick is not crowded out.
+    var quiet = clock.now()
+    while (happenings(store.current!!, quiet, quiet + Duration.ofMinutes(50), zone).isNotEmpty()) quiet += Duration.ofMinutes(10)
+    clock.advance(Duration.between(clock.now(), quiet))
+
     api.onAlertsTurnedOn()
-    // Either a kick 20 minutes from now, or nothing because something already happens within 45 minutes.
-    val kick = store.current!!.kickAt
-    assertTrue(kick == null || kick == (clock.now() + Duration.ofMinutes(20)).toEpochMilli())
+
+    assertEquals((clock.now() + Duration.ofMinutes(20)).toEpochMilli(), store.current!!.kickAt)
   }
 
   @Test
@@ -155,6 +159,22 @@ class DemoSentryApiTest {
     val result = broken.listIssues(base, token, org, params(), cursor = null)
 
     assertTrue((result as ApiResult.Failure).error is ApiError.Network)
+  }
+
+  @Test
+  fun anUnexpectedFailure_isAnUnreadableAnswer_notACrash() = runTest {
+    val buggy =
+      object : DemoStateStore {
+        override suspend fun load(): DemoState? = throw IllegalStateException("a demo bug")
+
+        override suspend fun save(state: DemoState) = Unit
+
+        override suspend fun clear() = Unit
+      }
+
+    val result = DemoSentryApi(buggy, clock::now) { zone }.listIssues(base, token, org, params(), cursor = null)
+
+    assertEquals(ApiResult.Failure(ApiError.Parse), result)
   }
 
   @Test
