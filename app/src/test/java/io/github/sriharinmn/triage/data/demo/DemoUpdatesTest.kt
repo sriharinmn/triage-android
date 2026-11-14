@@ -36,6 +36,13 @@ class DemoUpdatesTest {
   }
 
   @Test
+  fun archivingAgain_keepsTheFirstArchiveTime() {
+    val archived = state.issues.single { it.contentKey == "web-resize-observer" }
+    val again = checkNotNull(state.updated(archived.id, IssueAction.Archive.toChanges(), now)).issues.single { it.id == archived.id }
+    assertEquals(archived.archivedAt, again.archivedAt)
+  }
+
+  @Test
   fun assign_andUnassign() {
     assertEquals("1003", after(IssueAction.Assign(Member("1003", "Diego Alvarez", null))).assigneeId)
     val assigned = state.issues.single { it.contentKey == "android-socket-timeout" }

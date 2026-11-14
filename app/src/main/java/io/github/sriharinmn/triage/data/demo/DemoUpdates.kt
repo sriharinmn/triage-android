@@ -19,7 +19,8 @@ internal fun DemoState.updated(issueId: String, changes: JsonObject, now: Instan
       if (issue.status != DemoStatus.Resolved) {
         issue = issue.copy(status = DemoStatus.Resolved, archivedAt = null, inboxSince = null, quietSpans = issue.quietSpans + DemoQuietSpan(from = t))
       }
-    "ignored" -> issue = issue.copy(status = DemoStatus.Archived, archivedAt = t, inboxSince = null)
+    // Archiving again keeps the first archive time: the issue archived longest is the next to escalate.
+    "ignored" -> if (issue.status != DemoStatus.Archived) issue = issue.copy(status = DemoStatus.Archived, archivedAt = t, inboxSince = null)
   }
   changes.string("assignedTo")?.let { value ->
     issue = issue.copy(assigneeId = value.removePrefix(USER_PREFIX).takeIf { value.startsWith(USER_PREFIX) && it.isNotEmpty() })
