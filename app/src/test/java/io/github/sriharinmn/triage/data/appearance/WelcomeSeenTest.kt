@@ -1,6 +1,7 @@
 package io.github.sriharinmn.triage.data.appearance
 
 import io.github.sriharinmn.triage.data.account.AccountState
+import io.github.sriharinmn.triage.data.demo.DemoAccount
 import io.github.sriharinmn.triage.testing.InMemoryPreferencesDataStore
 import io.github.sriharinmn.triage.testing.TEST_ACCOUNT
 import io.github.sriharinmn.triage.testing.UnreadableDataStore
@@ -9,6 +10,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertFalse
@@ -30,6 +32,18 @@ class WelcomeSeenTest {
 
     accounts.value = AccountState.Ready(TEST_ACCOUNT)
     runCurrent()
+    assertTrue(store.settings.first().welcomeSeen)
+  }
+
+  @Test
+  fun theDemo_doesntMarkTheWelcomeSeen() = runTest {
+    val accounts = MutableStateFlow<AccountState>(AccountState.Ready(DemoAccount))
+    val job = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { markWelcomeSeenOnceConnected(accounts, store) }
+
+    assertFalse(store.settings.first().welcomeSeen)
+
+    accounts.value = AccountState.Ready(TEST_ACCOUNT)
+    job.join()
     assertTrue(store.settings.first().welcomeSeen)
   }
 

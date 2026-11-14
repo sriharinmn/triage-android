@@ -30,6 +30,12 @@ import io.github.sriharinmn.triage.data.appearance.AppearanceStore
 import io.github.sriharinmn.triage.data.appearance.DataStoreAppearanceStore
 import io.github.sriharinmn.triage.data.appearance.appearanceDataStore
 import io.github.sriharinmn.triage.data.appearance.markWelcomeSeenOnceConnected
+import io.github.sriharinmn.triage.data.demo.DataStoreDemoStateStore
+import io.github.sriharinmn.triage.data.demo.DemoRoutingSentryApi
+import io.github.sriharinmn.triage.data.demo.DemoSentryApi
+import io.github.sriharinmn.triage.data.demo.DemoStarter
+import io.github.sriharinmn.triage.data.demo.demoDataStore
+import io.github.sriharinmn.triage.data.demo.kickDemoWhenAlertsTurnOn
 import io.github.sriharinmn.triage.data.detail.IssueDetailRepository
 import io.github.sriharinmn.triage.data.issues.IssueCache
 import io.github.sriharinmn.triage.data.issues.IssueRepository
@@ -86,7 +92,13 @@ class AppContainer(context: Context) {
       .followSslRedirects(false)
       .build()
 
-  val sentryApi: SentryApi = OkHttpSentryApi(okHttpClient, userAgent = "Triage-Android/${BuildConfig.VERSION_NAME}")
+  private val demoStateStore = DataStoreDemoStateStore(appContext.demoDataStore)
+
+  /** The pretend Sentry behind "Try with sample data"; calls for the demo's account go to it. */
+  val demoApi = DemoSentryApi(demoStateStore)
+
+  val sentryApi: SentryApi =
+    DemoRoutingSentryApi(real = OkHttpSentryApi(okHttpClient, userAgent = "Triage-Android/${BuildConfig.VERSION_NAME}"), demo = demoApi)
 
   // Room opens the database lazily, on the first query.
   private val database = TriageDatabase.create(appContext)
@@ -158,6 +170,8 @@ class AppContainer(context: Context) {
           // alert_state.baselineFor has to be gone first, or a reconnect could match it and skip its baseline.
           AccountScoped { alertCheckRunner.forget() },
           AccountScoped { alertSettings.clear() },
+          // Leaving the demo, or connecting a real account, forgets everything the demo saved.
+          AccountScoped { demoApi.clear() },
         ),
     )
 
@@ -168,6 +182,9 @@ class AppContainer(context: Context) {
 
   val disconnector = Disconnector(accountRepository, accountDataCleaner)
 
+  /** Starts the demo from Welcome or Connect. */
+  val demoStarter = DemoStarter(accountRepository, demoApi, accountPrefs)
+
   private val alertScheduler =
     AlertScheduler(
       connected = accountState.filterIsInstance<AccountState.Ready>().map { it.account != null },
@@ -177,11 +194,13 @@ class AppContainer(context: Context) {
 
   /**
    * Creates the notification channels and keeps the periodic check in line with the account and the alert settings. Called
-   * once the container exists, so WorkManager (whose workers come from the container) never starts before it.
+   * once the container exists, so WorkManager (whose workers come from the container) never starts before it. In the demo
+   * it also tells the pretend Sentry when alerts are switched on.
    */
   fun startAlerts() {
     alertNotifier.createChannels()
     alertScheduler.start(applicationScope)
+    applicationScope.launch { kickDemoWhenAlertsTurnOn(accountState, alertSettings.settings, demoApi::onAlertsTurnedOn) }
   }
 
   /** Get started on the welcome: saved on the app's scope, so leaving the app at once can't cancel it. */

@@ -1,5 +1,6 @@
 package io.github.sriharinmn.triage.data.account
 
+import io.github.sriharinmn.triage.data.demo.DemoAccount
 import io.github.sriharinmn.triage.remote.ApiError
 import io.github.sriharinmn.triage.remote.ApiResult
 import io.github.sriharinmn.triage.remote.NetworkCause
@@ -90,6 +91,16 @@ class AccountRepository(
       )
     forgetPreviousAccountData()
     store.save(account)
+  }
+
+  /**
+   * Stores the demo's account ([DemoAccount]) after forgetting the previous account's data and running [prepare], which
+   * writes the demo's own data. Throws, saving no account, if either fails.
+   */
+  suspend fun useSampleData(prepare: suspend () -> Unit) {
+    forgetPreviousAccountData()
+    prepare()
+    store.save(DemoAccount)
   }
 
   suspend fun disconnect() {
