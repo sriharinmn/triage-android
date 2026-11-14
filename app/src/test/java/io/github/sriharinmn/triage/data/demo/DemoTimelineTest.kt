@@ -109,6 +109,23 @@ class DemoTimelineTest {
   }
 
   @Test
+  fun anArchivedIssueWithAnOpenQuietSpan_escalatesWithEverySpanClosed_andItsBurstShows() {
+    val t = start + Duration.ofHours(3)
+    val resize = fresh.issue("web-resize-observer")
+    val withOpenSpan =
+      fresh.copy(
+        happeningCount = 1,
+        issues = fresh.issues.map { if (it.id == resize.id) it.copy(quietSpans = listOf(DemoQuietSpan(from = (t - Duration.ofHours(5)).epochMs))) else it },
+      )
+
+    val escalated = withOpenSpan.after(Happening(t, alwaysNew = false)).issue("web-resize-observer")
+
+    assertEquals(listOf(DemoQuietSpan(from = (t - Duration.ofHours(5)).epochMs, to = t.epochMs)), escalated.quietSpans)
+    val atBurst = escalated.view(t)!!.count
+    assertTrue(escalated.view(t + Duration.ofHours(3))!!.count > atBurst)
+  }
+
+  @Test
   fun regressed_skipsIssuesResolvedLessThan2HoursAgo_andFallsBackToEscalating() {
     val t = start + Duration.ofHours(3)
     val onlyJustResolved =
@@ -176,6 +193,7 @@ class DemoTimelineTest {
     val kicked = settled.withAlertsKick(now, zone)
 
     assertEquals((now + minutes(20)).epochMs, kicked.kickAt)
+    assertEquals(now.epochMs, kicked.processedUntil)
     val arrived = advance(kicked, now + minutes(21), zone).issues.last()
     assertEquals((now + minutes(20)).epochMs, arrived.firstSeen)
     // No daily slot crowds in within 90 minutes after the kick.

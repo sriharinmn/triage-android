@@ -36,6 +36,16 @@ class DemoUpdatesTest {
   }
 
   @Test
+  fun archivingAResolvedIssue_closesItsQuietSpanAtTheArchiveTime() {
+    val resolved = checkNotNull(state.updated(newIssue.id, IssueAction.Resolve.toChanges(), now - Duration.ofHours(1)))
+    val archivedAt = now + Duration.ofHours(1)
+
+    val archived = checkNotNull(resolved.updated(newIssue.id, IssueAction.Archive.toChanges(), archivedAt)).issues.single { it.id == newIssue.id }
+
+    assertEquals(listOf(DemoQuietSpan(from = (now - Duration.ofHours(1)).epochMs, to = archivedAt.epochMs)), archived.quietSpans)
+  }
+
+  @Test
   fun archivingAgain_keepsTheFirstArchiveTime() {
     val archived = state.issues.single { it.contentKey == "web-resize-observer" }
     val again = checkNotNull(state.updated(archived.id, IssueAction.Archive.toChanges(), now)).issues.single { it.id == archived.id }

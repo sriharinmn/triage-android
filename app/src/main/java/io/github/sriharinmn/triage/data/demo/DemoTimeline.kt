@@ -73,7 +73,12 @@ internal fun DemoState.after(happening: Happening): DemoState {
  * minutes. [this] must already be advanced to [now].
  */
 internal fun DemoState.withAlertsKick(now: Instant, zone: ZoneId): DemoState =
-  if (happenings(this, now, now + KICK_SOON, zone).isNotEmpty()) this else copy(kickAt = (now + KICK_DELAY).epochMs)
+  if (happenings(this, now, now + KICK_SOON, zone).isNotEmpty()) {
+    this
+  } else {
+    // Also moves processedUntil, which advance leaves alone when nothing was due, so a slot the kick crowded out can't fire backdated.
+    copy(kickAt = (now + KICK_DELAY).epochMs, processedUntil = maxOf(processedUntil, now.epochMs))
+  }
 
 /** The issue resolved longest (at least 2 hours before [at]) comes back. */
 private fun DemoState.regressOne(at: Instant): DemoState? {
@@ -89,7 +94,7 @@ private fun DemoState.regressOne(at: Instant): DemoState? {
   return replacing(
     pick.copy(
       status = DemoStatus.Unresolved,
-      quietSpans = pick.quietSpans.map { if (it.to == null) it.copy(to = t) else it },
+      quietSpans = pick.quietSpans.closedAt(t),
       regressedAt = t,
       inboxSince = t,
     )
@@ -113,7 +118,16 @@ private fun DemoState.escalateOne(at: Instant): DemoState? {
         }
         .minWithOrNull(compareByDescending<DemoIssueState> { DemoWorld.spec(it.contentKey)?.ratePerHour ?: 0.0 }.thenBy { it.id })
       ?: return null
-  return replacing(pick.copy(status = DemoStatus.Unresolved, archivedAt = null, escalatedAt = t, bursts = pick.bursts + t, inboxSince = t))
+  return replacing(
+    pick.copy(
+      status = DemoStatus.Unresolved,
+      archivedAt = null,
+      escalatedAt = t,
+      bursts = pick.bursts + t,
+      inboxSince = t,
+      quietSpans = pick.quietSpans.closedAt(t),
+    )
+  )
 }
 
 /** The next arriving issue turns up, with a fresh id and the project's next short id. */
