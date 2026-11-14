@@ -21,9 +21,11 @@ class AboutContentTest {
 
   private fun show(buildType: String = "debug") {
     val state = AboutViewModel(versionName = "1.0", versionCode = 1, buildType = buildType).state
-    // The license text is read on the main thread, so the dialog's state isn't set from another thread (see
-    // AboutContent).
-    composeTestRule.setContent { TriageTheme { AboutContent(state, onBack = {}, licenseReadContext = EmptyCoroutineContext) } }
+    // The license text is read on the main thread. Read on an IO thread, this test's dispatcher sets the dialog's
+    // state from that thread. We suspect, without proof, that this is why the text twice never showed in a full run.
+    composeTestRule.setContent {
+      TriageTheme { AboutContent(state, onBack = {}, licenseReadContext = EmptyCoroutineContext) }
+    }
   }
 
   @Test

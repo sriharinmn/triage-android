@@ -67,9 +67,8 @@ fun AboutScreen(viewModel: AboutViewModel, onBack: () -> Unit, modifier: Modifie
 }
 
 /**
- * [licenseReadContext] is where a license's text is read: off the main thread by default. A test passes
- * EmptyCoroutineContext so the text is read and shown on the main thread. Under Compose's test dispatcher, a read off
- * the main thread sets the dialog's state from that thread, and twice in full phone runs the text never showed.
+ * [licenseReadContext] is where a license's text is read: off the main thread by default. Tests pass
+ * [kotlin.coroutines.EmptyCoroutineContext] to keep the read on the main thread.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
