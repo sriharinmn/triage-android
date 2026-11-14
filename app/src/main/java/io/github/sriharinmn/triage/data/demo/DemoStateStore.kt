@@ -48,6 +48,10 @@ class DataStoreDemoStateStore(private val dataStore: DataStore<Preferences>) : D
 
   private companion object {
     val STATE = stringPreferencesKey("state")
-    val DemoJson = Json { ignoreUnknownKeys = true }
+    // Defaults are written too, so a later version that changes a default still reads old demos as they were saved.
+    val DemoJson = Json {
+      ignoreUnknownKeys = true
+      encodeDefaults = true
+    }
   }
 }
