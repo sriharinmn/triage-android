@@ -65,6 +65,8 @@ import io.github.sriharinmn.triage.R
 import io.github.sriharinmn.triage.data.account.ConnectError
 import io.github.sriharinmn.triage.remote.OrganizationDto
 import io.github.sriharinmn.triage.theme.mono
+import io.github.sriharinmn.triage.ui.welcome.SampleDataAction
+import io.github.sriharinmn.triage.ui.welcome.SampleDataButton
 import kotlinx.coroutines.launch
 
 object ConnectTags {
@@ -84,7 +86,7 @@ private val TOKEN_SCOPES =
   listOf(R.string.connect_scope_org, R.string.connect_scope_project, R.string.connect_scope_issue, R.string.connect_scope_member)
 
 @Composable
-fun ConnectScreen(viewModel: ConnectViewModel, modifier: Modifier = Modifier) {
+fun ConnectScreen(viewModel: ConnectViewModel, modifier: Modifier = Modifier, sampleData: SampleDataButton? = null) {
   val state by viewModel.state.collectAsStateWithLifecycle()
   val uriHandler = LocalUriHandler.current
   val clipboard = LocalClipboard.current
@@ -123,6 +125,7 @@ fun ConnectScreen(viewModel: ConnectViewModel, modifier: Modifier = Modifier) {
     onOrganizationChosen = viewModel::onOrganizationChosen,
     onBackFromOrganizations = viewModel::onBackFromOrganizations,
     modifier = modifier,
+    sampleData = sampleData,
   )
 }
 
@@ -140,6 +143,7 @@ internal fun ConnectContent(
   onOrganizationChosen: (OrganizationDto) -> Unit,
   onBackFromOrganizations: () -> Unit,
   modifier: Modifier = Modifier,
+  sampleData: SampleDataButton? = null,
 ) {
   Column(
     modifier = modifier.fillMaxSize().safeDrawingPadding().verticalScroll(rememberScrollState()).padding(24.dp),
@@ -158,6 +162,7 @@ internal fun ConnectContent(
         onPasteToken,
         onSubmit,
         onCancelValidation,
+        sampleData,
       )
     }
   }
@@ -175,6 +180,7 @@ private fun ColumnScope.ConnectForm(
   onPasteToken: () -> Unit,
   onSubmit: () -> Unit,
   onCancelValidation: () -> Unit,
+  sampleData: SampleDataButton?,
 ) {
   // The ViewModel ignores edits unless the step is EnterToken, so the controls are disabled to match.
   val inputsEnabled = state.step == Step.EnterToken
@@ -292,6 +298,7 @@ private fun ColumnScope.ConnectForm(
   }
 
   Text(stringResource(R.string.connect_disclaimer), style = MaterialTheme.typography.bodySmall, color = muted)
+  sampleData?.let { SampleDataAction(it, outlined = false, label = R.string.connect_try_sample_data) }
 }
 
 /** The organizations to choose from; while the chosen one saves, the list stays with a progress bar and can't be tapped. */

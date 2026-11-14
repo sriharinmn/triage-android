@@ -40,9 +40,11 @@ object WelcomeTags {
   const val GET_STARTED = "welcome_get_started"
 }
 
-/** The first launch's one screen: what Triage does, three things to know, and Get started, which leads to Connect. No tour. */
+/** The first launch's one screen: what Triage does, three things to know, and Get started, which leads to Connect. No tour.
+ * [sampleData] adds Try with sample data under Get started.
+ */
 @Composable
-fun WelcomeScreen(onGetStarted: () -> Unit, modifier: Modifier = Modifier) {
+fun WelcomeScreen(onGetStarted: () -> Unit, modifier: Modifier = Modifier, sampleData: SampleDataButton? = null) {
   val muted = MaterialTheme.colorScheme.onSurfaceVariant
   Column(
     modifier
@@ -59,11 +61,14 @@ fun WelcomeScreen(onGetStarted: () -> Unit, modifier: Modifier = Modifier) {
       WelcomePoint(R.drawable.ic_swipe, R.string.welcome_swipe_title, R.string.welcome_swipe_body)
       WelcomePoint(R.drawable.ic_lock, R.string.welcome_private_title, R.string.welcome_private_body)
     }
-    Button(
-      onClick = onGetStarted,
-      modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).testTag(WelcomeTags.GET_STARTED),
-    ) {
-      Text(stringResource(R.string.welcome_get_started))
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+      Button(
+        onClick = onGetStarted,
+        modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).testTag(WelcomeTags.GET_STARTED),
+      ) {
+        Text(stringResource(R.string.welcome_get_started))
+      }
+      sampleData?.let { SampleDataAction(it, outlined = true, label = R.string.welcome_try_sample_data) }
     }
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
       Text(stringResource(R.string.welcome_token_note), style = MaterialTheme.typography.bodySmall, color = muted)

@@ -4,7 +4,10 @@ import androidx.compose.material3.Text
 import androidx.compose.ui.test.DeviceConfigurationOverride
 import androidx.compose.ui.test.FontScale
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsEnabled
+import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -74,5 +77,52 @@ class WelcomeScreenTest {
 
     composeTestRule.onNodeWithText("connect screen").assertIsDisplayed()
     composeTestRule.onNodeWithTag(WelcomeTags.GET_STARTED).assertDoesNotExist()
+  }
+
+  private fun showWithSampleData(status: SampleDataStatus, onClick: () -> Unit = {}) {
+    composeTestRule.setContent {
+      TriageTheme { WelcomeScreen(onGetStarted = { started++ }, sampleData = SampleDataButton(status, onClick)) }
+    }
+  }
+
+  @Test
+  fun trySampleData_isOfferedUnderGetStarted() {
+    var tapped = 0
+    showWithSampleData(SampleDataStatus.Idle) { tapped++ }
+
+    composeTestRule.onNodeWithText("Try with sample data").performScrollTo().assertIsDisplayed().performClick()
+
+    assertEquals(1, tapped)
+    assertEquals(0, started)
+  }
+
+  @Test
+  fun whileTheSampleDataOpens_theButtonShowsProgress_andCantBeTappedAgain() {
+    showWithSampleData(SampleDataStatus.Starting)
+
+    composeTestRule.onNodeWithTag(SampleDataTags.BUTTON).performScrollTo().assertIsNotEnabled()
+    composeTestRule.onNodeWithContentDescription("Opening the sample data").assertExists()
+  }
+
+  @Test
+  fun aFailedStart_saysSo_andTheButtonWorksAgain() {
+    showWithSampleData(SampleDataStatus.Failed)
+
+    composeTestRule.onNodeWithTag(SampleDataTags.ERROR).performScrollTo().assertIsDisplayed()
+    composeTestRule.onNodeWithText("Couldn't open the sample data. Try again.").assertExists()
+    composeTestRule.onNodeWithTag(SampleDataTags.BUTTON).assertIsEnabled()
+  }
+
+  @Test
+  fun theSignedOutWelcome_offersTheSampleData() {
+    composeTestRule.setContent {
+      TriageTheme {
+        SignedOutScreens(AppearanceSettings(), onGetStarted = {}, sampleData = SampleDataButton(SampleDataStatus.Idle) {}) {
+          Text("connect screen")
+        }
+      }
+    }
+
+    composeTestRule.onNodeWithTag(SampleDataTags.BUTTON).performScrollTo().assertIsDisplayed()
   }
 }

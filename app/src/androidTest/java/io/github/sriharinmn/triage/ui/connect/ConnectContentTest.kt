@@ -22,6 +22,8 @@ import androidx.compose.ui.text.input.ImeAction
 import io.github.sriharinmn.triage.data.account.ConnectError
 import io.github.sriharinmn.triage.remote.OrganizationDto
 import io.github.sriharinmn.triage.theme.TriageTheme
+import io.github.sriharinmn.triage.ui.welcome.SampleDataButton
+import io.github.sriharinmn.triage.ui.welcome.SampleDataStatus
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -41,6 +43,7 @@ class ConnectContentTest {
     onCancelValidation: () -> Unit = {},
     onCopyTokenPageUrl: (String) -> Unit = {},
     fontScale: Float = 1f,
+    sampleData: SampleDataButton? = null,
   ) {
     composeTestRule.setContent {
       DeviceConfigurationOverride(DeviceConfigurationOverride.FontScale(fontScale)) {
@@ -57,6 +60,7 @@ class ConnectContentTest {
             onCancelValidation = onCancelValidation,
             onOrganizationChosen = onOrganizationChosen,
             onBackFromOrganizations = {},
+            sampleData = sampleData,
           )
         }
       }
@@ -65,6 +69,16 @@ class ConnectContentTest {
 
   private val marked = SemanticsMatcher.keyIsDefined(SemanticsProperties.Error)
   private val unmarked = SemanticsMatcher.keyNotDefined(SemanticsProperties.Error)
+
+  @Test
+  fun trySampleDataInstead_isOfferedUnderTheForm() {
+    var tapped = 0
+    show(ConnectUiState(), sampleData = SampleDataButton(SampleDataStatus.Idle) { tapped++ })
+
+    composeTestRule.onNodeWithText("Try with sample data instead").performScrollTo().assertIsDisplayed().performClick()
+
+    assertEquals(1, tapped)
+  }
 
   @Test
   fun connectButton_disabledWithoutToken() {
