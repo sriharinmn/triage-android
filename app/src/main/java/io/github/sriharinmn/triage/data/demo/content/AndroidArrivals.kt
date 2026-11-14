@@ -15,32 +15,24 @@ internal object AndroidArrivals {
   val all: List<DemoIssueSpec> =
     listOf(
       DemoIssueSpec(
-        key = "android-arr-file-provider",
+        key = "android-arr-no-camera",
         projectSlug = SHOP_ANDROID,
-        title =
-          "SecurityException: Permission Denial: opening provider androidx.core.content.FileProvider " +
-            "from ProcessRecord{4f2a9c1 23514:com.android.camera/u0a112}",
+        title = "ActivityNotFoundException: No Activity found to handle Intent { act=android.media.action.IMAGE_CAPTURE (has extras) }",
         culprit = "com.example.shop.reviews.PhotoPicker in launchCamera",
         level = "error",
         isUnhandled = true,
         ratePerHour = 0.3,
         userShare = 0.9,
-        // Only phones whose camera app is com.android.camera, which is mostly one maker's.
-        tags =
-          androidTags(
-            device = listOf("Redmi Note 13" to 0.5, "Redmi 13C" to 0.25, "Poco X6" to 0.15, "Redmi Note 12" to 0.1),
-            os = listOf("Android 14" to 0.7, "Android 15" to 0.2, "Android 13" to 0.1),
-          ),
+        // Phones whose camera app is turned off, often by a work profile's policy, so nothing handles IMAGE_CAPTURE.
+        tags = androidTags(device = listOf("Galaxy S24" to 0.4, "Pixel 8" to 0.25, "Galaxy A15" to 0.2, "Pixel 7a" to 0.15)),
         event =
           DemoEventSpec(
             exceptions =
               listOf(
                 DemoException(
-                  type = "SecurityException",
-                  value =
-                    "Permission Denial: opening provider androidx.core.content.FileProvider " +
-                      "from ProcessRecord{4f2a9c1 23514:com.android.camera/u0a112}",
-                  module = "java.lang",
+                  type = "ActivityNotFoundException",
+                  value = "No Activity found to handle Intent { act=android.media.action.IMAGE_CAPTURE (has extras) }",
+                  module = "android.content",
                   frames =
                     ANDROID_LOOPER +
                       listOf(
@@ -52,7 +44,18 @@ internal object AndroidArrivals {
                           "WriteReviewFragment.kt",
                           57,
                         ),
-                        DemoFrame("launchCamera", "com.example.shop.reviews.PhotoPicker", "PhotoPicker.kt", 62),
+                        DemoFrame(
+                          "launchCamera",
+                          "com.example.shop.reviews.PhotoPicker",
+                          "PhotoPicker.kt",
+                          62,
+                          context =
+                            listOf(
+                              61 to "    val photo = FileProvider.getUriForFile(context, AUTHORITY, newPhotoFile())",
+                              62 to "    takePicture.launch(photo)",
+                              63 to "  }",
+                            ),
+                        ),
                         DemoFrame(
                           "launch",
                           "androidx.activity.result.ActivityResultLauncher",
@@ -60,21 +63,53 @@ internal object AndroidArrivals {
                           47,
                           inApp = false,
                         ),
+                        DemoFrame(
+                          "launch",
+                          "androidx.activity.result.ActivityResultRegistry\$register\$3",
+                          "ActivityResultRegistry.kt",
+                          239,
+                          inApp = false,
+                        ),
+                        DemoFrame(
+                          "onLaunch",
+                          "androidx.activity.ComponentActivity\$activityResultRegistry\$1",
+                          "ComponentActivity.kt",
+                          254,
+                          inApp = false,
+                        ),
+                        DemoFrame(
+                          "startActivityForResult",
+                          "androidx.core.app.ActivityCompat",
+                          "ActivityCompat.java",
+                          241,
+                          inApp = false,
+                        ),
+                        DemoFrame("startActivityForResult", "android.app.Activity", "Activity.java", 5663, inApp = false),
                         DemoFrame("execStartActivity", "android.app.Instrumentation", "Instrumentation.java", 1880, inApp = false),
-                        DemoFrame("readException", "android.os.Parcel", "Parcel.java", 3133, inApp = false),
-                        DemoFrame("createExceptionOrNull", "android.os.Parcel", "Parcel.java", 3189, inApp = false),
+                        DemoFrame(
+                          "checkStartActivityResult",
+                          "android.app.Instrumentation",
+                          "Instrumentation.java",
+                          2241,
+                          inApp = false,
+                        ),
                       ),
                 )
               ),
             breadcrumbs =
               listOf(
-                DemoBreadcrumb(48, "navigation", type = "navigation", data = mapOf("from" to "Account", "to" to "ProductDetail")),
-                DemoBreadcrumb(40, "ui.click", "Tapped \"Write a review\""),
-                DemoBreadcrumb(39, "navigation", type = "navigation", data = mapOf("from" to "ProductDetail", "to" to "WriteReview")),
-                DemoBreadcrumb(6, "ui.click", "Tapped \"Add photo\""),
-                DemoBreadcrumb(1, "ui.click", "Tapped \"Take photo\""),
+                DemoBreadcrumb(50, "navigation", type = "navigation", data = mapOf("from" to "Home", "to" to "Account")),
+                DemoBreadcrumb(
+                  47,
+                  "http",
+                  type = "http",
+                  data = mapOf("method" to "GET", "url" to "https://api.shop.example.com/api/v2/me/orders/", "status_code" to "200"),
+                ),
+                DemoBreadcrumb(31, "ui.click", "Tapped \"Write a review\""),
+                DemoBreadcrumb(30, "navigation", type = "navigation", data = mapOf("from" to "Account", "to" to "WriteReview")),
+                DemoBreadcrumb(2, "ui.click", "Tapped \"Add photo\""),
               ),
-            contexts = androidContexts("Xiaomi", "Redmi Note 13", "14"),
+            contexts = androidContexts("Samsung", "Galaxy S24", "15"),
             userIndex = 167,
           ),
       ),
@@ -99,6 +134,8 @@ internal object AndroidArrivals {
                   frames =
                     ANDROID_CHOREOGRAPHER +
                       listOf(
+                        DemoFrame("run", "android.view.ViewRootImpl\$TraversalRunnable", "ViewRootImpl.java", 10951, inApp = false),
+                        DemoFrame("doTraversal", "android.view.ViewRootImpl", "ViewRootImpl.java", 3166, inApp = false),
                         DemoFrame("performTraversals", "android.view.ViewRootImpl", "ViewRootImpl.java", 4230, inApp = false),
                         DemoFrame("onLayout", "androidx.recyclerview.widget.RecyclerView", "RecyclerView.java", 4744, inApp = false),
                         DemoFrame(

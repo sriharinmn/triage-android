@@ -41,6 +41,7 @@ internal val ANDROID_MAIN_LOOP: List<DemoFrame> =
   listOf(
     DemoFrame("main", "com.android.internal.os.ZygoteInit", "ZygoteInit.java", 1042, inApp = false),
     DemoFrame("run", "com.android.internal.os.RuntimeInit\$MethodAndArgsCaller", "RuntimeInit.java", 548, inApp = false),
+    DemoFrame("main", "android.app.ActivityThread", "ActivityThread.java", 8913, inApp = false),
     DemoFrame("loop", "android.os.Looper", "Looper.java", 317, inApp = false),
     DemoFrame("dispatchMessage", "android.os.Handler", "Handler.java", 99, inApp = false),
     DemoFrame("run", "kotlinx.coroutines.DispatchedTask", "DispatchedTask.kt", 108, inApp = false),
@@ -49,12 +50,14 @@ internal val ANDROID_MAIN_LOOP: List<DemoFrame> =
 /** [ANDROID_MAIN_LOOP] without the coroutine: the looper running a plain message or callback. */
 internal val ANDROID_LOOPER: List<DemoFrame> = ANDROID_MAIN_LOOP.dropLast(1)
 
-/** The main thread starting to draw a frame. */
+/** The main thread drawing a frame, down to the callback it runs: an animation (a fling) or a traversal (layout). */
 internal val ANDROID_CHOREOGRAPHER: List<DemoFrame> =
   ANDROID_LOOPER +
     listOf(
       DemoFrame("run", "android.view.Choreographer\$FrameDisplayEventReceiver", "Choreographer.java", 1305, inApp = false),
       DemoFrame("doFrame", "android.view.Choreographer", "Choreographer.java", 1108, inApp = false),
+      DemoFrame("doCallbacks", "android.view.Choreographer", "Choreographer.java", 1199, inApp = false),
+      DemoFrame("run", "android.view.Choreographer\$CallbackRecord", "Choreographer.java", 1352, inApp = false),
     )
 
 /** A RecyclerView's layout manager filling in a row, down to the adapter binding it. */
@@ -289,8 +292,12 @@ internal object AndroidIssues {
                       "OkHttp Dispatcher",
                       crashed = false,
                       frames =
+                        // Idle, waiting for the next call.
                         listOf(
                           DemoFrame("run", "java.lang.Thread", "Thread.java", 1012, inApp = false),
+                          DemoFrame("run", "java.util.concurrent.ThreadPoolExecutor\$Worker", "ThreadPoolExecutor.java", 644, inApp = false),
+                          DemoFrame("runWorker", "java.util.concurrent.ThreadPoolExecutor", "ThreadPoolExecutor.java", 1137, inApp = false),
+                          DemoFrame("getTask", "java.util.concurrent.ThreadPoolExecutor", "ThreadPoolExecutor.java", 1086, inApp = false),
                           DemoFrame("poll", "java.util.concurrent.SynchronousQueue", "SynchronousQueue.java", 903, inApp = false),
                         ),
                     ),
@@ -678,6 +685,14 @@ internal object AndroidIssues {
                               "com.squareup.moshi.CollectionJsonAdapter",
                               "CollectionJsonAdapter.java",
                               81,
+                              inApp = false,
+                            ),
+                            // The list element's adapter, expecting a promotion object.
+                            DemoFrame(
+                              "fromJson",
+                              "com.squareup.moshi.kotlin.reflect.KotlinJsonAdapter",
+                              "KotlinJsonAdapter.kt",
+                              74,
                               inApp = false,
                             ),
                             DemoFrame("beginObject", "com.squareup.moshi.JsonUtf8Reader", "JsonUtf8Reader.java", 172, inApp = false),
