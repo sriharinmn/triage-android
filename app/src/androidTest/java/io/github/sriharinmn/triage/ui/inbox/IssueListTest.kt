@@ -16,6 +16,7 @@ import io.github.sriharinmn.triage.data.issues.IssueLevel
 import io.github.sriharinmn.triage.theme.TriageTheme
 import java.time.Duration
 import java.time.Instant
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 
@@ -48,6 +49,8 @@ class IssueListTest {
   private fun inbox(issues: List<Issue>, filter: InboxFilter = InboxFilter()) =
     InboxUiState(orgName = "Example Org", issues = issues, filter = filter, refreshedAt = now)
 
+  private val loadMoreCalls = mutableListOf<String>()
+
   private fun show(state: MutableState<InboxUiState>) {
     composeTestRule.setContent {
       TriageTheme {
@@ -57,7 +60,7 @@ class IssueListTest {
           onIssueClick = {},
           onResolve = {},
           onArchive = {},
-          onLoadMore = {},
+          onLoadMore = { loadMoreCalls += "loadMore" },
           onRetryLoadMore = {},
         )
       }
@@ -103,5 +106,20 @@ class IssueListTest {
     composeTestRule.waitForIdle()
 
     composeTestRule.onNodeWithTag(InboxTags.row("x")).assertIsDisplayed()
+  }
+
+  @Test
+  fun afterSwitchingFilter_scrollingToTheEnd_asksForMore() {
+    val state = mutableStateOf(inbox(twelve))
+    show(state)
+    val other = listOf("x", "y", "z", "w", "v", "u", "t", "s", "r", "q", "p", "o").map { issue(it) }
+    state.value = inbox(other, InboxFilter(tab = InboxTab.Regressed)).copy(hasMore = true)
+    composeTestRule.waitForIdle()
+    loadMoreCalls.clear()
+
+    composeTestRule.onNodeWithTag(InboxTags.LIST).performScrollToIndex(other.size - 1)
+    composeTestRule.waitForIdle()
+
+    assertTrue(loadMoreCalls.isNotEmpty())
   }
 }

@@ -50,13 +50,20 @@ internal fun IssueList(
   // to an issue's detail screen.
   val listState = rememberSaveable(state.filter, saver = LazyListState.Saver) { LazyListState() }
   // LazyColumn keeps the first visible issue in place when issues are added above it, which would hide a newer issue just
-  // off the top. When the list is at the very top, ask it to stay there. The position is read without observation so
-  // scrolling doesn't recompose this list.
+  // off the top. So when the issues change while the list is at the very top, ask it to stay there. This runs once per
+  // change, not on every recomposition, because the request cancels a scroll in progress (such as a pull to refresh just
+  // starting). The position is read without observation so scrolling doesn't recompose this list.
+  val lastIssues = remember(listState) { arrayOf(state.issues) }
   SideEffect {
-    val atTop = Snapshot.withoutReadObservation { listState.firstVisibleItemIndex == 0 && listState.firstVisibleItemScrollOffset == 0 }
-    if (atTop) listState.requestScrollToItem(0)
+    if (lastIssues[0] != state.issues) {
+      lastIssues[0] = state.issues
+      val atTop = Snapshot.withoutReadObservation {
+        listState.firstVisibleItemIndex == 0 && listState.firstVisibleItemScrollOffset == 0
+      }
+      if (atTop) listState.requestScrollToItem(0)
+    }
   }
-  val nearEnd by remember {
+  val nearEnd by remember(listState) {
     derivedStateOf {
       val info = listState.layoutInfo
       val lastVisible = info.visibleItemsInfo.lastOrNull()?.index ?: return@derivedStateOf false
