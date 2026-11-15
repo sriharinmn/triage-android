@@ -9,6 +9,7 @@ import io.github.sriharinmn.triage.data.alerts.AlertStateStore
 import io.github.sriharinmn.triage.data.actions.ActionNotice
 import io.github.sriharinmn.triage.data.actions.IssueAction
 import io.github.sriharinmn.triage.data.actions.PendingActions
+import io.github.sriharinmn.triage.data.demo.isDemo
 import io.github.sriharinmn.triage.data.issues.InboxError
 import io.github.sriharinmn.triage.data.issues.InboxFilter
 import io.github.sriharinmn.triage.data.issues.InboxTab
@@ -37,6 +38,8 @@ import kotlinx.coroutines.launch
 /** Everything the inbox screen shows: the list for [filter], the filter choices, and load and disconnect progress. */
 data class InboxUiState(
   val orgName: String,
+  /** The sample data is showing: the top bar has the Demo chip. */
+  val isDemo: Boolean = false,
   val filter: InboxFilter = InboxFilter(),
   val projects: List<Project> = emptyList(),
   val issues: List<Issue> = emptyList(),
@@ -83,8 +86,10 @@ class InboxViewModel(
   /** A summary notification's tab and project, shown instead of the remembered filter (which stays as the user left it). */
   private val opening: InboxOpening? = null,
   private val clock: () -> Instant = Instant::now,
+  /** Called before leaving the demo for Connect, so Connect (not the welcome) shows next. */
+  private val markWelcomeSeen: suspend () -> Unit = {},
 ) : ViewModel() {
-  private val _state = MutableStateFlow(InboxUiState(orgName = account.orgName))
+  private val _state = MutableStateFlow(InboxUiState(orgName = account.orgName, isDemo = account.isDemo))
   val state: StateFlow<InboxUiState> = _state.asStateFlow()
 
   /** The filter whose cached list is on screen; null until the saved filter has been read. */
@@ -207,6 +212,19 @@ class InboxViewModel(
     // The account is being forgotten; an action now would go out with a token that's about to be dropped.
     if (_state.value.isDisconnecting) return
     pendingActions.submit(account, issue.id, issue.shortId, action)
+  }
+
+  /** The Demo note's Connect Sentry: the welcome is behind the user now, so leaving the demo lands on Connect. */
+  fun onConnectInsteadOfDemo() {
+    if (_state.value.isDisconnecting) return
+    viewModelScope.launch {
+      try {
+        markWelcomeSeen()
+      } catch (_: IOException) {
+        // Only which signed-out screen shows first: the welcome instead of Connect.
+      }
+      onDisconnectConfirmed()
+    }
   }
 
   fun onDisconnectConfirmed() {

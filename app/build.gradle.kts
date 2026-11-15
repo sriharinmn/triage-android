@@ -22,6 +22,21 @@ android {
             isMinifyEnabled = false
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
+        // The phone check of demo mode: installs next to the debug app (its own applicationId), so the owner's real
+        // connection in the debug app is never touched.
+        create("sample") {
+            initWith(getByName("debug"))
+            applicationIdSuffix = ".sample"
+            versionNameSuffix = "-sample"
+            matchingFallbacks += listOf("debug")
+        }
+    }
+    sourceSets {
+        getByName("sample") {
+            // Built-in Kotlin only compiles .kt files from the kotlin dirs, so the debug receiver needs this, not java.srcDir.
+            kotlin.directories += "src/debug/java"
+            manifest.srcFile("src/debug/AndroidManifest.xml")
+        }
     }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17

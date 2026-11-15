@@ -18,6 +18,7 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performCustomAccessibilityActionWithLabel
 import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.performScrollToIndex
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipeLeft
 import androidx.compose.ui.test.swipeRight
@@ -27,14 +28,11 @@ import io.github.sriharinmn.triage.data.actions.SubmittedAction
 import io.github.sriharinmn.triage.data.issues.InboxError
 import io.github.sriharinmn.triage.data.issues.InboxFilter
 import io.github.sriharinmn.triage.data.issues.InboxTab
-import io.github.sriharinmn.triage.data.issues.Issue
-import io.github.sriharinmn.triage.data.issues.IssueBadge
-import io.github.sriharinmn.triage.data.issues.IssueLevel
 import io.github.sriharinmn.triage.data.issues.Project
 import io.github.sriharinmn.triage.theme.TriageTheme
-import java.time.Duration
 import java.time.Instant
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -45,24 +43,7 @@ class InboxContentTest {
   private val now = Instant.parse("2026-10-22T12:00:00Z")
   private val calls = mutableListOf<String>()
 
-  private fun issue(id: String) =
-    Issue(
-      id = id,
-      shortId = "DEMO-$id",
-      title = "Error $id",
-      culprit = "handler in app",
-      level = IssueLevel.Error,
-      badge = IssueBadge.New,
-      isUnhandled = false,
-      eventCount = 48,
-      userCount = 11,
-      firstSeen = now - Duration.ofDays(5),
-      lastSeen = now.minusSeconds(180),
-      permalink = "https://example-org.sentry.io/issues/$id/",
-      projectId = "101",
-      projectSlug = "shop-api",
-      hourlyEvents = List(24) { it.toLong() },
-    )
+  private fun issue(id: String) = testIssue(id, now)
 
   private val loaded = InboxUiState(orgName = "Example Org", issues = listOf(issue("1"), issue("2")), refreshedAt = now)
 
@@ -95,6 +76,7 @@ class InboxContentTest {
             onAlertsCardTurnOn = { calls += "alertsTurnOn" },
             onAlertsCardNotNow = { calls += "alertsNotNow" },
             onOpenSettings = { calls += "openSettings" },
+            onConnectInsteadOfDemo = { calls += "connectInsteadOfDemo" },
           )
         }
       }
@@ -403,6 +385,71 @@ class InboxContentTest {
     composeTestRule.onNodeWithContentDescription("Settings").performClick()
 
     assertEquals(listOf("openSettings"), calls)
+  }
+
+  @Test
+  fun theDemo_hasAChip_whoseNoteExplainsIt() {
+    show(loaded.copy(isDemo = true))
+
+    composeTestRule.onNodeWithTag(DemoTags.CHIP).assertIsDisplayed().performClick()
+    composeTestRule.onNodeWithText("made-up shop", substring = true).assertIsDisplayed()
+    composeTestRule.onNodeWithTag(DemoTags.KEEP_EXPLORING).performClick()
+
+    composeTestRule.onNodeWithText("made-up shop", substring = true).assertDoesNotExist()
+    assertFalse("connectInsteadOfDemo" in calls)
+  }
+
+  @Test
+  fun theDemoNotesConnect_leavesTheDemoForConnect() {
+    show(loaded.copy(isDemo = true))
+
+    composeTestRule.onNodeWithTag(DemoTags.CHIP).performClick()
+    composeTestRule.onNodeWithTag(DemoTags.CONNECT).performClick()
+
+    assertTrue("connectInsteadOfDemo" in calls)
+    composeTestRule.onNodeWithText("made-up shop", substring = true).assertDoesNotExist()
+  }
+
+  @Test
+  fun aRealAccount_hasNoDemoChip() {
+    show(loaded)
+
+    composeTestRule.onNodeWithTag(DemoTags.CHIP).assertDoesNotExist()
+  }
+
+  /** Many rows, so the list scrolls on any screen and its end is out of view at the top. */
+  private fun many(prefix: String) = List(40) { issue("$prefix$it") }
+
+  private fun top(tag: String) = composeTestRule.onNodeWithTag(tag).fetchSemanticsNode().boundsInRoot.top
+
+  @Test
+  fun anotherTab_opensAtItsTop() {
+    val state = mutableStateOf(loaded.copy(issues = many("a")))
+    show(state)
+    composeTestRule.onNodeWithTag(InboxTags.LIST).performScrollToIndex(6)
+    composeTestRule.waitForIdle()
+    composeTestRule.onNodeWithTag(InboxTags.row("a0")).assertDoesNotExist()
+    assertEquals(top(InboxTags.LIST), top(InboxTags.row("a6")), 1f)
+
+    state.value = state.value.copy(issues = many("b"), filter = InboxFilter(tab = InboxTab.Regressed))
+    composeTestRule.waitForIdle()
+
+    composeTestRule.onNodeWithTag(InboxTags.row("b0")).assertIsDisplayed()
+    assertEquals(top(InboxTags.LIST), top(InboxTags.row("b0")), 1f)
+  }
+
+  @Test
+  fun afterSwitchingFilter_scrollingToTheEnd_asksForMore() {
+    val state = mutableStateOf(loaded.copy(issues = many("a")))
+    show(state)
+    state.value = state.value.copy(issues = many("b"), filter = InboxFilter(tab = InboxTab.Regressed), hasMore = true)
+    composeTestRule.waitForIdle()
+    assertFalse("loadMore" in calls)
+
+    composeTestRule.onNodeWithTag(InboxTags.LIST).performScrollToIndex(39)
+    composeTestRule.waitForIdle()
+
+    assertTrue("loadMore" in calls)
   }
 
   @Test

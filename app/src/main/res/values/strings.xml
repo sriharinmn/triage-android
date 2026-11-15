@@ -274,6 +274,10 @@
     <string name="welcome_private_body">Your phone talks only to your Sentry server. No account with us, no tracking.</string>
     <string name="welcome_get_started">Get started</string>
     <string name="welcome_token_note">You\'ll need a Sentry personal token (takes a minute).</string>
+    <string name="welcome_try_sample_data">Try with sample data</string>
+    <string name="connect_try_sample_data">Try with sample data instead</string>
+    <string name="sample_data_starting">Opening the sample data</string>
+    <string name="sample_data_failed">Couldn\'t open the sample data. Try again.</string>
     <string name="connect_error_insecure">Couldn\'t connect securely. The server\'s certificate isn\'t trusted by this phone, or doesn\'t match the address.</string>
     <string name="connect_error_server_not_found">Couldn\'t find this server. Check the address and that you\'re online.</string>
     <string name="connect_error_not_sentry">No Sentry answered at this address. Use the address you open Sentry at, like https://sentry.example.com.</string>
@@ -370,4 +374,15 @@
     <string name="state_issue_gone">Issue not found</string>
     <string name="state_no_event">No event of this kind</string>
     <string name="state_too_large">Too large to show here</string>
+    <string name="demo_leave_failed">Couldn\'t leave the demo. Try again.</string>
+    <string name="demo_chip">Demo</string>
+    <string name="demo_chip_description">Demo: sample data. Learn more</string>
+    <string name="demo_note_title">Sample data</string>
+    <string name="demo_note_body">You\'re looking at a made-up shop\'s issues. Everything works, but nothing is sent to Sentry. Connect your Sentry account to see your real issues.</string>
+    <string name="demo_note_connect">Connect Sentry</string>
+    <string name="demo_note_keep_exploring">Keep exploring</string>
+    <string name="settings_demo_account">Sample data</string>
+    <string name="settings_leave_demo">Leave demo</string>
+    <string name="settings_leave_demo_hint">Clears the sample data and your changes to it</string>
+    <string name="detail_demo_no_web_page">Sample issues aren\'t on Sentry, so there\'s no page to open.</string>
 </resources>

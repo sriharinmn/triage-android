@@ -28,10 +28,16 @@ fun signedOutScreen(appearance: AppearanceSettings?, getStartedTapped: Boolean):
 
 /**
  * The signed-out slot: the welcome, then [connect] once Get started is tapped (now, or on an earlier launch).
- * [onGetStarted] saves that it was tapped; the screen moves on at once even if saving fails.
+ * [onGetStarted] saves that it was tapped; the screen moves on at once even if saving fails. [sampleData] is offered on
+ * the welcome.
  */
 @Composable
-fun SignedOutScreens(appearance: AppearanceSettings?, onGetStarted: () -> Unit, connect: @Composable () -> Unit) {
+fun SignedOutScreens(
+  appearance: AppearanceSettings?,
+  onGetStarted: () -> Unit,
+  sampleData: SampleDataButton? = null,
+  connect: @Composable () -> Unit,
+) {
   var getStartedTapped by rememberSaveable { mutableStateOf(false) }
   when (signedOutScreen(appearance, getStartedTapped)) {
     SignedOutScreen.Welcome ->
@@ -39,7 +45,8 @@ fun SignedOutScreens(appearance: AppearanceSettings?, onGetStarted: () -> Unit, 
         onGetStarted = {
           getStartedTapped = true
           onGetStarted()
-        }
+        },
+        sampleData = sampleData,
       )
     SignedOutScreen.Connect -> connect()
     // The appearance file hasn't been read yet; MainActivity usually holds the first frame until it has.

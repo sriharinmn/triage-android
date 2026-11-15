@@ -19,11 +19,13 @@ import io.github.sriharinmn.triage.data.account.AccountState
 import io.github.sriharinmn.triage.ui.alerts.DeepLink
 import io.github.sriharinmn.triage.ui.connect.ConnectScreen
 import io.github.sriharinmn.triage.ui.connect.ConnectViewModel
+import io.github.sriharinmn.triage.ui.welcome.SampleDataButton
+import io.github.sriharinmn.triage.ui.welcome.SampleDataViewModel
 import io.github.sriharinmn.triage.ui.welcome.SignedOutScreens
 
 /**
- * Without an account: the welcome on a first launch, then Connect. With one: the main navigation, opened where a tapped
- * notification points.
+ * Without an account: the welcome on a first launch, then Connect; both offer the sample data. With one: the main
+ * navigation, opened where a tapped notification points.
  */
 @Composable
 fun TriageApp(container: AppContainer, deepLink: DeepLink? = null) {
@@ -35,9 +37,13 @@ fun TriageApp(container: AppContainer, deepLink: DeepLink? = null) {
   AccountGate(
     state = accountState,
     signedOut = {
-      SignedOutScreens(appearance, onGetStarted = container::markWelcomeSeen) {
+      // In the signed-out session, so it goes once the demo's account is stored.
+      val sampleDataViewModel: SampleDataViewModel = viewModel { SampleDataViewModel(container.demoStarter::start) }
+      val sampleStatus by sampleDataViewModel.status.collectAsStateWithLifecycle()
+      val sampleData = SampleDataButton(sampleStatus, sampleDataViewModel::onTrySampleData)
+      SignedOutScreens(appearance, onGetStarted = container::markWelcomeSeen, sampleData = sampleData) {
         val connectViewModel: ConnectViewModel = viewModel { ConnectViewModel(container.accountRepository) }
-        ConnectScreen(connectViewModel)
+        ConnectScreen(connectViewModel, sampleData = sampleData)
       }
     },
     signedIn = { account ->

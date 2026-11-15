@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The sample build sits next to the debug app on the phone; this tells the two apart. -->
+    <string name="app_name">Triage sample</string>
+</resources>

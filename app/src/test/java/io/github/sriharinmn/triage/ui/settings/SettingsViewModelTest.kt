@@ -6,6 +6,7 @@ import io.github.sriharinmn.triage.data.account.AccountRepository
 import io.github.sriharinmn.triage.data.appearance.AppearanceSettings
 import io.github.sriharinmn.triage.data.appearance.DataStoreAppearanceStore
 import io.github.sriharinmn.triage.data.appearance.ThemeMode
+import io.github.sriharinmn.triage.data.demo.DemoAccount
 import io.github.sriharinmn.triage.data.issues.IssueRepository
 import io.github.sriharinmn.triage.testing.FakeSentryApi
 import io.github.sriharinmn.triage.testing.InMemoryAccountStore
@@ -36,6 +37,12 @@ class SettingsViewModelTest {
   private val disconnector =
     Disconnector(AccountRepository(api, accountStore), AccountDataCleaner(issues, InMemoryInboxSettingsStore()))
   private val appearance = DataStoreAppearanceStore(InMemoryPreferencesDataStore())
+
+  @Test
+  fun theDemo_isMarked_andARealAccountIsNot() {
+    assertTrue(SettingsViewModel(DemoAccount, appearance, disconnector).state.value.isDemo)
+    assertFalse(viewModel().state.value.isDemo)
+  }
 
   private fun viewModel() = SettingsViewModel(TEST_ACCOUNT, appearance, disconnector)
 

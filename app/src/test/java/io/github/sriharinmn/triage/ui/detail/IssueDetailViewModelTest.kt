@@ -8,6 +8,7 @@ import io.github.sriharinmn.triage.data.actions.ActionNotice
 import io.github.sriharinmn.triage.data.actions.IssueAction
 import io.github.sriharinmn.triage.data.actions.IssueActionRepository
 import io.github.sriharinmn.triage.data.actions.PendingActions
+import io.github.sriharinmn.triage.data.demo.DemoAccount
 import io.github.sriharinmn.triage.data.detail.ContextLine
 import io.github.sriharinmn.triage.data.detail.DetailError
 import io.github.sriharinmn.triage.data.detail.EventContext
@@ -98,12 +99,22 @@ class IssueDetailViewModelTest {
     return anotherVisit()
   }
 
+  @Test
+  fun browserUrl_isNullForTheDemo_whoseIssuesHaveNoPage() = runTest {
+    viewModel()
+    val demo = IssueDetailViewModel(DemoAccount, "4201", repository, disconnector, pendingActions, members)
+
+    assertNull(demo.browserUrl())
+  }
+
   /** Opens the issue again, with the actions of the earlier visits still in [pendingActions]. */
   private fun anotherVisit() = IssueDetailViewModel(TEST_ACCOUNT, "4201", repository, disconnector, pendingActions, members)
 
   private fun membersAre(vararg people: Member) {
     api.membersResult =
-      ApiResult.Success(people.map { MemberDto(id = "m${it.userId}", user = MemberUserDto(id = it.userId, name = it.name, email = it.email)) })
+      ApiResult.Success(
+        people.map { MemberDto(id = "m${it.userId}", user = MemberUserDto(id = it.userId, name = it.name, email = it.email)) }
+      )
   }
 
   private fun whats() = api.detailCalls.map { it.what }
