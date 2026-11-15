@@ -54,7 +54,7 @@ internal fun IssueList(
   // LazyColumn keeps the first visible issue in place when issues are added above it, which would hide a newer issue just
   // off the top. So when the issues change while the list is at the very top, ask it to stay there. This runs once per
   // change, not on every recomposition, because the request cancels a scroll in progress: a refresh that lands in the
-  // middle of a drag at the very top jumps back to the top. The position is read without observation so scrolling
+  // middle of a drag that started at the very top cuts that drag short. The position is read without observation so scrolling
   // doesn't recompose this list.
   val lastIssues = remember(listState) { LastSeenIssues(state.issues) }
   SideEffect {
