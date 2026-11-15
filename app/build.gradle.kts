@@ -33,7 +33,8 @@ android {
     }
     sourceSets {
         getByName("sample") {
-            java.srcDir("src/debug/java")
+            // Built-in Kotlin only compiles .kt files from the kotlin dirs, so the debug receiver needs this, not java.srcDir.
+            kotlin.srcDir("src/debug/java")
             manifest.srcFile("src/debug/AndroidManifest.xml")
         }
     }
