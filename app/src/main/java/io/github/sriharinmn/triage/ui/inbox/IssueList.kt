@@ -9,7 +9,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
@@ -21,7 +21,6 @@ import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.snapshots.Snapshot
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -31,6 +30,9 @@ import androidx.compose.ui.unit.dp
 import io.github.sriharinmn.triage.R
 import io.github.sriharinmn.triage.data.issues.Issue
 import java.time.Instant
+
+/** The issues the list last showed. Plain state on purpose: changing it must not cause a recomposition. */
+private class LastSeenIssues(var issues: List<Issue>)
 
 /** Ask for the next page once the last visible row is this close to the end of the list. */
 private const val LOAD_MORE_THRESHOLD = 5
@@ -46,17 +48,18 @@ internal fun IssueList(
   onLoadMore: () -> Unit,
   onRetryLoadMore: () -> Unit,
 ) {
-  // One scroll state per filter, so a new tab or filter opens at its top. It is saveable so it survives rotation and a trip
-  // to an issue's detail screen.
-  val listState = rememberSaveable(state.filter, saver = LazyListState.Saver) { LazyListState() }
+  // InboxScreen puts this list under a key per filter, so each filter gets its own scroll state, which starts at the top. The
+  // state is saveable, so it also survives rotation and a trip to an issue's detail screen.
+  val listState = rememberLazyListState()
   // LazyColumn keeps the first visible issue in place when issues are added above it, which would hide a newer issue just
   // off the top. So when the issues change while the list is at the very top, ask it to stay there. This runs once per
-  // change, not on every recomposition, because the request cancels a scroll in progress (such as a pull to refresh just
-  // starting). The position is read without observation so scrolling doesn't recompose this list.
-  val lastIssues = remember(listState) { arrayOf(state.issues) }
+  // change, not on every recomposition, because the request cancels a scroll in progress: a refresh that lands in the
+  // middle of a drag at the very top jumps back to the top. The position is read without observation so scrolling
+  // doesn't recompose this list.
+  val lastIssues = remember(listState) { LastSeenIssues(state.issues) }
   SideEffect {
-    if (lastIssues[0] != state.issues) {
-      lastIssues[0] = state.issues
+    if (lastIssues.issues != state.issues) {
+      lastIssues.issues = state.issues
       val atTop = Snapshot.withoutReadObservation {
         listState.firstVisibleItemIndex == 0 && listState.firstVisibleItemScrollOffset == 0
       }

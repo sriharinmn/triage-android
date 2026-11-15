@@ -8,48 +8,23 @@ import androidx.compose.ui.test.assertIsNotDisplayed
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performScrollToIndex
-import io.github.sriharinmn.triage.data.issues.InboxFilter
-import io.github.sriharinmn.triage.data.issues.InboxTab
 import io.github.sriharinmn.triage.data.issues.Issue
-import io.github.sriharinmn.triage.data.issues.IssueBadge
-import io.github.sriharinmn.triage.data.issues.IssueLevel
 import io.github.sriharinmn.triage.theme.TriageTheme
-import java.time.Duration
 import java.time.Instant
-import org.junit.Assert.assertTrue
+import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
 
+/** The list on its own: what a refresh does to the scroll position. Filter changes are tested through the inbox itself. */
 class IssueListTest {
   @get:Rule val composeTestRule = createAndroidComposeRule<ComponentActivity>()
 
   private val now = Instant.parse("2026-10-22T12:00:00Z")
 
-  private fun issue(id: String) =
-    Issue(
-      id = id,
-      shortId = "DEMO-$id",
-      title = "Error $id",
-      culprit = "handler in app",
-      level = IssueLevel.Error,
-      badge = IssueBadge.New,
-      isUnhandled = false,
-      eventCount = 48,
-      userCount = 11,
-      firstSeen = now - Duration.ofDays(5),
-      lastSeen = now.minusSeconds(180),
-      permalink = "https://example-org.sentry.io/issues/$id/",
-      projectId = "101",
-      projectSlug = "shop-api",
-      hourlyEvents = List(24) { it.toLong() },
-    )
+  /** 40 rows: the list scrolls on any screen, and index 6 can be the first visible row. */
+  private val forty = List(40) { testIssue("i$it", now) }
 
-  private val twelve = ('a'..'l').map { issue(it.toString()) }
-
-  private fun inbox(issues: List<Issue>, filter: InboxFilter = InboxFilter()) =
-    InboxUiState(orgName = "Example Org", issues = issues, filter = filter, refreshedAt = now)
-
-  private val loadMoreCalls = mutableListOf<String>()
+  private fun inbox(issues: List<Issue>) = InboxUiState(orgName = "Example Org", issues = issues, refreshedAt = now)
 
   private fun show(state: MutableState<InboxUiState>) {
     composeTestRule.setContent {
@@ -60,66 +35,46 @@ class IssueListTest {
           onIssueClick = {},
           onResolve = {},
           onArchive = {},
-          onLoadMore = { loadMoreCalls += "loadMore" },
+          onLoadMore = {},
           onRetryLoadMore = {},
         )
       }
     }
   }
 
+  private fun top(tag: String) = composeTestRule.onNodeWithTag(tag).fetchSemanticsNode().boundsInRoot.top
+
+  // Without the fix, LazyColumn keeps i0 as the first row and the new issue sits above the viewport: the display and top
+  // assertions below fail.
   @Test
   fun aRefreshThatPutsANewIssueFirst_showsIt_whenTheListWasAtTheTop() {
-    val state = mutableStateOf(inbox(twelve))
+    val state = mutableStateOf(inbox(forty))
     show(state)
-    composeTestRule.onNodeWithTag(InboxTags.row("a")).assertIsDisplayed()
+    composeTestRule.waitForIdle()
+    assertEquals(top(InboxTags.LIST), top(InboxTags.row("i0")), 1f)
 
-    state.value = inbox(listOf(issue("n")) + twelve)
+    state.value = inbox(listOf(testIssue("new", now)) + forty)
     composeTestRule.waitForIdle()
 
-    composeTestRule.onNodeWithTag(InboxTags.row("n")).assertIsDisplayed()
+    composeTestRule.onNodeWithTag(InboxTags.row("new")).assertIsDisplayed()
+    assertEquals(top(InboxTags.LIST), top(InboxTags.row("new")), 1f)
   }
 
+  // This guards against over-fixing: a version that always jumps to the top would show the new issue and fail here.
   @Test
   fun aRefresh_leavesTheRowsInPlace_whenScrolledDown() {
-    val state = mutableStateOf(inbox(twelve))
+    val state = mutableStateOf(inbox(forty))
     show(state)
     composeTestRule.onNodeWithTag(InboxTags.LIST).performScrollToIndex(6)
     composeTestRule.waitForIdle()
-    composeTestRule.onNodeWithTag(InboxTags.row("g")).assertIsDisplayed()
+    composeTestRule.onNodeWithTag(InboxTags.row("i0")).assertDoesNotExist()
+    assertEquals(top(InboxTags.LIST), top(InboxTags.row("i6")), 1f)
+    val before = top(InboxTags.row("i6"))
 
-    state.value = inbox(listOf(issue("n")) + twelve)
+    state.value = inbox(listOf(testIssue("new", now)) + forty)
     composeTestRule.waitForIdle()
 
-    composeTestRule.onNodeWithTag(InboxTags.row("n")).assertIsNotDisplayed()
-    composeTestRule.onNodeWithTag(InboxTags.row("g")).assertIsDisplayed()
-  }
-
-  @Test
-  fun anotherTab_opensAtItsTop() {
-    val state = mutableStateOf(inbox(twelve))
-    show(state)
-    composeTestRule.onNodeWithTag(InboxTags.LIST).performScrollToIndex(6)
-    composeTestRule.waitForIdle()
-
-    val other = listOf("x", "y", "z", "w", "v", "u", "t", "s", "r", "q", "p", "o").map { issue(it) }
-    state.value = inbox(other, InboxFilter(tab = InboxTab.Regressed))
-    composeTestRule.waitForIdle()
-
-    composeTestRule.onNodeWithTag(InboxTags.row("x")).assertIsDisplayed()
-  }
-
-  @Test
-  fun afterSwitchingFilter_scrollingToTheEnd_asksForMore() {
-    val state = mutableStateOf(inbox(twelve))
-    show(state)
-    val other = listOf("x", "y", "z", "w", "v", "u", "t", "s", "r", "q", "p", "o").map { issue(it) }
-    state.value = inbox(other, InboxFilter(tab = InboxTab.Regressed)).copy(hasMore = true)
-    composeTestRule.waitForIdle()
-    loadMoreCalls.clear()
-
-    composeTestRule.onNodeWithTag(InboxTags.LIST).performScrollToIndex(other.size - 1)
-    composeTestRule.waitForIdle()
-
-    assertTrue(loadMoreCalls.isNotEmpty())
+    composeTestRule.onNodeWithTag(InboxTags.row("new")).assertIsNotDisplayed()
+    assertEquals(before, top(InboxTags.row("i6")), 1f)
   }
 }
