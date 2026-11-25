@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Self-hosted Sentry servers may sit behind a company CA the user installed, so user CAs are trusted by default.
+  sentry.io (and its regional subdomains) trusts only Android's built-in CAs, so an installed CA can never intercept a
+  sentry.io token. Plain HTTP is refused everywhere.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false">
+        <trust-anchors>
+            <certificates src="system" />
+            <certificates src="user" />
+        </trust-anchors>
+    </base-config>
+    <domain-config cleartextTrafficPermitted="false">
+        <domain includeSubdomains="true">sentry.io</domain>
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </domain-config>
+</network-security-config>
