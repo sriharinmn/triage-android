@@ -48,6 +48,19 @@ class AlertCheckRunnerTest {
       zone = { ZoneOffset.UTC },
     )
 
+  /** A runner as a new process would build it: same stores, a fresh in-memory rate-limit gate. */
+  private fun freshRunner() =
+    AlertCheckRunner(
+      accounts = accounts,
+      settingsStore = settingsStore,
+      stateStore = stateStore,
+      knownProjectIds = { listOf("101", "102", "103") },
+      checker = AlertChecker(api, RateLimitGate(clock::now)),
+      poster = poster,
+      clock = clock::now,
+      zone = { ZoneOffset.UTC },
+    )
+
   private var regressedIssues = listOf<IssueDto>()
   private var escalatingIssues = listOf<IssueDto>()
 
@@ -298,5 +311,52 @@ class AlertCheckRunnerTest {
 
     assertEquals(AlertState(), stateStore.state.first())
     assertEquals(1, poster.cancelAlls)
+  }
+
+  @Test
+  fun a429_savesItsHold_andAFreshProcessInsideTheHoldAsksNothing() = runTest {
+    baseline()
+    api.issuesHandler = { ApiResult.Failure(ApiError.RateLimited(120)) }
+    runner.runCheck()
+
+    val held = stateStore.state.first()
+    assertEquals(clock.now().plusSeconds(120), held.heldUntil)
+    assertTrue(held.lastAttemptFailed)
+
+    api.issuesHandler = { call -> ApiResult.Success(Page(answer(call), null)) }
+    api.issueCalls.clear()
+    clock.advance(Duration.ofSeconds(60))
+    freshRunner().runCheck()
+
+    assertTrue(api.issueCalls.isEmpty())
+    assertEquals(held, stateStore.state.first())
+  }
+
+  @Test
+  fun afterTheHold_checksRunAgain_andTheHoldIsGone() = runTest {
+    baseline()
+    api.issuesHandler = { ApiResult.Failure(ApiError.RateLimited(120)) }
+    runner.runCheck()
+
+    api.issuesHandler = { call -> ApiResult.Success(Page(answer(call), null)) }
+    api.issueCalls.clear()
+    clock.advance(Duration.ofSeconds(121))
+    freshRunner().runCheck()
+
+    assertTrue(api.issueCalls.isNotEmpty())
+    val after = stateStore.state.first()
+    assertEquals(null, after.heldUntil)
+    assertFalse(after.lastAttemptFailed)
+  }
+
+  @Test
+  fun forgettingTheAccount_dropsTheHold() = runTest {
+    baseline()
+    api.issuesHandler = { ApiResult.Failure(ApiError.RateLimited(120)) }
+    runner.runCheck()
+
+    runner.forget()
+
+    assertEquals(null, stateStore.state.first().heldUntil)
   }
 }

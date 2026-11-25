@@ -39,7 +39,10 @@ sealed interface CheckOutcome {
   /** 401 or 403: the token can't read issues any more. */
   data object AuthProblem : CheckOutcome
 
-  /** Offline, a timeout, a 429 (or its hold), a server error, or an answer too large or unreadable: try next period. */
+  /** A 429, or a round inside an earlier 429's hold: no check before [retryAfterSeconds] from now. */
+  data class RateLimited(val retryAfterSeconds: Long) : CheckOutcome
+
+  /** Offline, a timeout, a server error, or an answer too large or unreadable: try next period. */
   data object Failed : CheckOutcome
 }
 
@@ -81,7 +84,11 @@ class AlertChecker(private val api: SentryApi, private val gate: RateLimitGate) 
         when (val result = gate.call { api.listIssues(account.apiBaseUrl, account.token, account.orgSlug, params, cursor = null) }) {
           is DetailResult.Success -> pages[kind] = result.value.items
           is DetailResult.Failure ->
-            return if (result.error in AUTH_ERRORS) CheckOutcome.AuthProblem else CheckOutcome.Failed
+            return when (val error = result.error) {
+              in AUTH_ERRORS -> CheckOutcome.AuthProblem
+              is DetailError.RateLimited -> CheckOutcome.RateLimited(error.retryAfterSeconds)
+              else -> CheckOutcome.Failed
+            }
         }
       }
     }

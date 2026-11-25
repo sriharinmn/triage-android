@@ -258,13 +258,13 @@ class AlertCheckerTest {
   }
 
   @Test
-  fun a429_failsTheRound_andHoldsTheNextOneWithoutAsking() = runTest {
+  fun a429_isReportedWithItsWait_andTheNextRoundInsideTheHoldAsksNothing() = runTest {
     api.issuesHandler = { ApiResult.Failure(ApiError.RateLimited(60)) }
-    assertEquals(CheckOutcome.Failed, check())
+    assertEquals(CheckOutcome.RateLimited(60), check())
     assertNotNull(gate.remainingSeconds())
 
     api.issuesHandler = { call -> ApiResult.Success(Page(answer(call), null)) }
-    assertEquals(CheckOutcome.Failed, check())
+    assertEquals(CheckOutcome.RateLimited(60), check())
 
     assertEquals(1, api.issueCalls.size)
   }

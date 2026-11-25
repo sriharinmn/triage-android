@@ -36,6 +36,7 @@ class DataStoreAlertStateStoreTest {
       alertedNew = mapOf("1" to Instant.parse("2026-11-11T10:30:00Z")),
       backlog = mapOf("6" to AlertKind.Escalating, "7" to AlertKind.New),
       authProblemNotified = true,
+      heldUntil = Instant.parse("2026-11-11T10:50:00Z"),
     )
 
   @Test
