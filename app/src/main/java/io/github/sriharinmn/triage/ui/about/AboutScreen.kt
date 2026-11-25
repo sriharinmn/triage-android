@@ -30,6 +30,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -48,6 +49,8 @@ import kotlinx.coroutines.withContext
 object AboutTags {
   const val LIST = "about_list"
   const val LICENSE_TEXT = "about_license_text"
+  const val SOURCE = "about_source"
+  const val CONTACT = "about_contact"
 
   fun library(name: String) = "about_library_$name"
 }
@@ -60,10 +63,12 @@ private val PRIVACY_POINTS =
     R.string.about_privacy_data,
   )
 
-/** Settings → About: the version, the not-affiliated disclaimer, a privacy summary, and the open-source licenses. */
+/** Settings → About: the version, the not-affiliated disclaimer, a privacy summary, the source and contact links, and the open-source licenses. */
 @Composable
 fun AboutScreen(viewModel: AboutViewModel, onBack: () -> Unit, modifier: Modifier = Modifier) {
-  AboutContent(viewModel.state, onBack, modifier)
+  val uriHandler = LocalUriHandler.current
+  // No browser or mail app (rare, e.g. a work profile): nothing to open, and nothing to crash over.
+  AboutContent(viewModel.state, onBack, modifier, onOpenLink = { runCatching { uriHandler.openUri(it) } })
 }
 
 /**
@@ -77,6 +82,7 @@ internal fun AboutContent(
   onBack: () -> Unit,
   modifier: Modifier = Modifier,
   licenseReadContext: CoroutineContext = Dispatchers.IO,
+  onOpenLink: (String) -> Unit,
 ) {
   var shownLicense by rememberSaveable { mutableStateOf<OpenSourceLicense?>(null) }
   val muted = MaterialTheme.colorScheme.onSurfaceVariant
@@ -111,6 +117,22 @@ internal fun AboutContent(
       }
       item(key = "privacy_label") { SectionLabel(stringResource(R.string.about_privacy)) }
       items(PRIVACY_POINTS) { point -> PrivacyPoint(point) }
+      item(key = "project_label") { SectionLabel(stringResource(R.string.about_project)) }
+      item(key = "source") {
+        ListItem(
+          headlineContent = { Text(stringResource(R.string.about_source)) },
+          supportingContent = { Text(stringResource(R.string.about_source_detail)) },
+          trailingContent = { Icon(painterResource(R.drawable.ic_open_in_new), contentDescription = null) },
+          modifier = Modifier.testTag(AboutTags.SOURCE).clickable(role = Role.Button) { onOpenLink(ProjectLinks.SOURCE_URL) },
+        )
+      }
+      item(key = "contact") {
+        ListItem(
+          headlineContent = { Text(stringResource(R.string.about_contact)) },
+          supportingContent = { Text(stringResource(R.string.about_contact_detail)) },
+          modifier = Modifier.testTag(AboutTags.CONTACT).clickable(role = Role.Button) { onOpenLink(ProjectLinks.CONTACT_URI) },
+        )
+      }
       item(key = "licenses_label") { SectionLabel(stringResource(R.string.about_licenses)) }
       item(key = "licenses_intro") {
         Text(
@@ -120,7 +142,7 @@ internal fun AboutContent(
           modifier = Modifier.padding(horizontal = 16.dp),
         )
       }
-      items(state.libraries, key = { it.name }) { library ->
+      items(listOf(TRIAGE_ITSELF) + state.libraries, key = { it.name }) { library ->
         ListItem(
           headlineContent = { Text(library.name) },
           supportingContent = { Text("${library.author} · ${library.license.title}") },

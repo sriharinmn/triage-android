@@ -9,22 +9,26 @@ import androidx.compose.ui.test.isDialog
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performSemanticsAction
 import io.github.sriharinmn.triage.theme.TriageTheme
 import kotlin.coroutines.EmptyCoroutineContext
+import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
 
 class AboutContentTest {
   @get:Rule val composeTestRule = createAndroidComposeRule<ComponentActivity>()
 
+  private val opened = mutableListOf<String>()
+
   private fun show(buildType: String = "debug") {
     val state = AboutViewModel(versionName = "1.0", versionCode = 1, buildType = buildType).state
     // The license text is read on the main thread. Read on an IO thread, this test's dispatcher sets the dialog's
     // state from that thread. We suspect, without proof, that this is why the text twice never showed in a full run.
     composeTestRule.setContent {
-      TriageTheme { AboutContent(state, onBack = {}, licenseReadContext = EmptyCoroutineContext) }
+      TriageTheme { AboutContent(state, onBack = {}, licenseReadContext = EmptyCoroutineContext, onOpenLink = { opened += it }) }
     }
   }
 
@@ -65,5 +69,19 @@ class AboutContentTest {
         .fetchSemanticsNodes()
         .isNotEmpty()
     }
+  }
+
+  @Test
+  fun sourceAndContact_openTheirLinks_andTriagesOwnLicenseIsListed() {
+    show()
+
+    composeTestRule.onNodeWithTag(AboutTags.LIST).performScrollToNode(hasTestTag(AboutTags.SOURCE))
+    composeTestRule.onNodeWithTag(AboutTags.SOURCE).performClick()
+    composeTestRule.onNodeWithTag(AboutTags.LIST).performScrollToNode(hasTestTag(AboutTags.CONTACT))
+    composeTestRule.onNodeWithTag(AboutTags.CONTACT).performClick()
+
+    assertEquals(listOf("https://github.com/sriharinmn/triage-android", "mailto:triagedev2026@gmail.com"), opened)
+    composeTestRule.onNodeWithTag(AboutTags.LIST).performScrollToNode(hasTestTag(AboutTags.library("Triage")))
+    composeTestRule.onNodeWithText("Srihari Kanakaraj · Apache License 2.0").assertIsDisplayed()
   }
 }
