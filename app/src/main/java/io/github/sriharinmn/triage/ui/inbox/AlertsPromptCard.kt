@@ -31,7 +31,7 @@ internal fun AlertsPromptCard(onTurnOn: () -> Unit, onNotNow: () -> Unit, modifi
     ) {
       Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         Icon(
-          painterResource(R.drawable.ic_notification),
+          painterResource(R.drawable.ic_notifications),
           contentDescription = null,
           tint = MaterialTheme.colorScheme.primary,
           modifier = Modifier.padding(top = 2.dp).size(20.dp),

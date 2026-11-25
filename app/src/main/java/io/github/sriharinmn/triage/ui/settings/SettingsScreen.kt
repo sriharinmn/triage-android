@@ -155,7 +155,7 @@ internal fun SettingsContent(
         )
       }
       HorizontalDivider(color = hairline)
-      NavigationRow(R.drawable.ic_notification, R.string.settings_alerts, R.string.settings_alerts_hint, SettingsTags.ALERTS, onOpenAlerts)
+      NavigationRow(R.drawable.ic_notifications, R.string.settings_alerts, R.string.settings_alerts_hint, SettingsTags.ALERTS, onOpenAlerts)
       HorizontalDivider(color = hairline)
 
       SectionLabel(stringResource(R.string.settings_appearance))
