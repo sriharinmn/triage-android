@@ -5,6 +5,14 @@ plugins {
   alias(libs.plugins.ksp)
 }
 
+// The upload key's details come from the user-level ~/.gradle/gradle.properties, never from the repo. Without all four,
+// the release build comes out unsigned (forks and CI still build).
+val uploadSigning: Map<String, String>? =
+  listOf("TRIAGE_UPLOAD_STORE_FILE", "TRIAGE_UPLOAD_STORE_PASSWORD", "TRIAGE_UPLOAD_KEY_ALIAS", "TRIAGE_UPLOAD_KEY_PASSWORD")
+    .associateWith { providers.gradleProperty(it).orNull?.takeIf(String::isNotBlank) }
+    .takeIf { values -> values.values.all { it != null } }
+    ?.mapValues { it.value!! }
+
 android {
     namespace = "io.github.sriharinmn.triage"
     compileSdk = 36
@@ -13,8 +21,19 @@ android {
         minSdk = 26
         targetSdk = 36
         versionCode = 1
-        versionName = "1.0"
+        versionName = "1.0.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+    }
+
+    signingConfigs {
+        if (uploadSigning != null) {
+            create("upload") {
+                storeFile = file(uploadSigning.getValue("TRIAGE_UPLOAD_STORE_FILE"))
+                storePassword = uploadSigning.getValue("TRIAGE_UPLOAD_STORE_PASSWORD")
+                keyAlias = uploadSigning.getValue("TRIAGE_UPLOAD_KEY_ALIAS")
+                keyPassword = uploadSigning.getValue("TRIAGE_UPLOAD_KEY_PASSWORD")
+            }
+        }
     }
 
     buildTypes {
@@ -24,8 +43,10 @@ android {
             versionNameSuffix = "-debug"
         }
         release {
-            isMinifyEnabled = false
+            isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+            signingConfig = signingConfigs.findByName("upload")
         }
         // The phone check of demo mode: its own applicationId, so it installs next to the release and debug apps and
         // never touches the owner's real connection.
