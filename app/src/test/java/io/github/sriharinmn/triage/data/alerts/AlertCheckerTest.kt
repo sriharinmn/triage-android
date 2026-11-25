@@ -222,6 +222,44 @@ class AlertCheckerTest {
     assertTrue(api.issueCalls.all { it.params.projectIds == listOf("101", "103") })
   }
 
+  private fun ids(range: IntRange) = range.map { issueDto(it.toString()) }
+
+  @Test
+  fun aFullRegressedPage_keepsIssuesSeenBefore_soPageTwoIssuesDontAlertAgain() = runTest {
+    // Issue 150 was regressed last time; now 100 newer ones fill the first page and push it to page 2.
+    regressedIssues = ids(1..100)
+    val first = check(state = settled.copy(regressed = setOf("150"))).checked()
+
+    assertTrue("150" in first.next.regressed)
+    assertEquals(101, first.next.regressed.size)
+
+    // It comes back onto the first page: it was regressed all along, so no alert.
+    regressedIssues = ids(51..150)
+    val second = check(state = first.next).checked()
+
+    assertTrue(second.found().none { it.first == "150" })
+  }
+
+  @Test
+  fun aPageThatIsntFull_replacesTheSeenSet() = runTest {
+    regressedIssues = listOf(issueDto("1"), issueDto("2"))
+    escalatingIssues = listOf(issueDto("3"))
+
+    val outcome = check(state = settled.copy(regressed = setOf("150", "1"), escalating = setOf("151"))).checked()
+
+    assertEquals(setOf("1", "2"), outcome.next.regressed)
+    assertEquals(setOf("3"), outcome.next.escalating)
+  }
+
+  @Test
+  fun aFullEscalatingPage_keepsIssuesSeenBefore() = runTest {
+    escalatingIssues = ids(1..100)
+
+    val outcome = check(state = settled.copy(escalating = setOf("200"))).checked()
+
+    assertTrue("200" in outcome.next.escalating)
+  }
+
   @Test
   fun everyProjectSwitchedOff_asksNothing_andCountsAsChecked() = runTest {
     val outcome = check(settings = on.copy(projectsOff = setOf("101", "102"))).checked()
