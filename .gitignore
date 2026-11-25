@@ -31,3 +31,6 @@ Thumbs.db
 # Logs and screenshots from device test runs
 *.log
 device-captures/
+
+# Private planning notes (separate private repo triage-notes)
+.private/
