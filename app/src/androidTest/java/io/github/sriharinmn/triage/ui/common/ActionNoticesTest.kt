@@ -1,11 +1,14 @@
 package io.github.sriharinmn.triage.ui.common
 
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
@@ -29,14 +32,16 @@ class ActionNoticesTest {
     composeTestRule.setContent {
       TriageTheme {
         val host = remember { SnackbarHostState() }
-        Scaffold(snackbarHost = { SnackbarHost(host) }) { _ ->
-          ActionNoticeEffect(
-            notice.value,
-            host,
-            onUndo = { calls += "undo:${it.action.id}" },
-            onRetry = { calls += "retry:${it.action.id}" },
-            onDismissed = { calls += "dismissed:${it.action.id}" },
-          )
+        Scaffold(snackbarHost = { SnackbarHost(host) }) { padding ->
+          Box(Modifier.padding(padding)) {
+            ActionNoticeEffect(
+              notice.value,
+              host,
+              onUndo = { calls += "undo:${it.action.id}" },
+              onRetry = { calls += "retry:${it.action.id}" },
+              onDismissed = { calls += "dismissed:${it.action.id}" },
+            )
+          }
         }
       }
     }
