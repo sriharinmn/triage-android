@@ -27,8 +27,8 @@ android {
             isMinifyEnabled = false
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
-        // The phone check of demo mode: installs next to the debug app (its own applicationId), so the owner's real
-        // connection in the debug app is never touched.
+        // The phone check of demo mode: its own applicationId, so it installs next to the release and debug apps and
+        // never touches the owner's real connection.
         create("sample") {
             initWith(getByName("debug"))
             applicationIdSuffix = ".sample"
