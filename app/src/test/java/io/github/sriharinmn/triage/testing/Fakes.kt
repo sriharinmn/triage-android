@@ -2,6 +2,7 @@ package io.github.sriharinmn.triage.testing
 
 import io.github.sriharinmn.triage.data.account.Account
 import io.github.sriharinmn.triage.data.account.AccountStore
+import io.github.sriharinmn.triage.data.account.StoredAccount
 import io.github.sriharinmn.triage.remote.ApiError
 import io.github.sriharinmn.triage.remote.ApiResult
 import io.github.sriharinmn.triage.remote.EventDto
@@ -165,6 +166,12 @@ class InMemoryAccountStore(initial: Account? = null) : AccountStore {
   override val account: Flow<Account?> = state
   val current: Account?
     get() = state.value
+
+  /** When set, [read] returns it instead of what's stored. */
+  var readResult: StoredAccount? = null
+
+  override suspend fun read(): StoredAccount =
+    readResult ?: state.value?.let { StoredAccount.Connected(it) } ?: StoredAccount.Missing
 
   /** When set, [save] throws it. */
   var saveError: Exception? = null

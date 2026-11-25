@@ -19,4 +19,8 @@ class RecordingActionNotifier : ActionNotifier {
   override fun showFailed(request: NotificationActionRequest, error: DetailError) {
     calls += "failed:${request.issueId}:$error"
   }
+
+  override fun showAccountUnreadable(request: NotificationActionRequest) {
+    calls += "account-unreadable:${request.issueId}"
+  }
 }

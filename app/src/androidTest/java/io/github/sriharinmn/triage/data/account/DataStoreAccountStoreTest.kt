@@ -1,6 +1,7 @@
 package io.github.sriharinmn.triage.data.account
 
 import android.content.Context
+import android.util.Base64
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.preferencesDataStoreFile
@@ -99,5 +100,34 @@ class DataStoreAccountStoreTest {
       corruptScope.cancel()
       corruptFile.delete()
     }
+  }
+
+  @Test
+  fun read_tellsConnectedFromMissing() = runBlocking {
+    assertEquals(StoredAccount.Missing, store.read())
+    store.save(account)
+    assertEquals(StoredAccount.Connected(account), store.read())
+  }
+
+  @Test
+  fun tamperedCiphertext_readsAsDisconnected_andReadSaysUnreadable() = runBlocking {
+    store.save(account)
+    dataStore.edit { prefs ->
+      val bytes = Base64.decode(prefs[DataStoreAccountStore.Keys.TOKEN]!!, Base64.NO_WRAP)
+      bytes[bytes.size - 1] = (bytes[bytes.size - 1].toInt() xor 0x01).toByte()
+      prefs[DataStoreAccountStore.Keys.TOKEN] = Base64.encodeToString(bytes, Base64.NO_WRAP)
+    }
+
+    assertNull(store.account.first())
+    assertEquals(StoredAccount.Unreadable, store.read())
+  }
+
+  @Test
+  fun aMissingField_readsAsDisconnected_andReadSaysUnreadable() = runBlocking {
+    store.save(account)
+    dataStore.edit { it.remove(DataStoreAccountStore.Keys.ORG_SLUG) }
+
+    assertNull(store.account.first())
+    assertEquals(StoredAccount.Unreadable, store.read())
   }
 }

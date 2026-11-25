@@ -1,7 +1,7 @@
 package io.github.sriharinmn.triage.data.alerts
 
 import io.github.sriharinmn.triage.data.RateLimitGate
-import io.github.sriharinmn.triage.data.account.Account
+import io.github.sriharinmn.triage.data.account.StoredAccount
 import io.github.sriharinmn.triage.data.actions.IssueActionRepository
 import io.github.sriharinmn.triage.data.issues.InboxFilter
 import io.github.sriharinmn.triage.data.issues.IssueRepository
@@ -14,7 +14,6 @@ import io.github.sriharinmn.triage.testing.RecordingActionNotifier
 import io.github.sriharinmn.triage.testing.TEST_ACCOUNT
 import io.github.sriharinmn.triage.testing.TestClock
 import io.github.sriharinmn.triage.testing.issueDto
-import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.buildJsonObject
@@ -29,9 +28,9 @@ class NotificationActionSenderTest {
   private val clock = TestClock()
   private val gate = RateLimitGate(clock::now)
   private val issues = IssueRepository(api, InMemoryIssueCache(), clock::now, gate)
-  private val accounts = MutableStateFlow<Account?>(TEST_ACCOUNT)
+  private var stored: StoredAccount = StoredAccount.Connected(TEST_ACCOUNT)
   private val notifier = RecordingActionNotifier()
-  private val sender = NotificationActionSender(accounts, IssueActionRepository(api, gate), issues, notifier)
+  private val sender = NotificationActionSender({ stored }, IssueActionRepository(api, gate), issues, notifier)
   private val resolve = NotificationActionRequest("1", "DEMO-1", TEST_ACCOUNT.orgSlug, AlertAction.Resolve)
 
   private suspend fun inboxIds() = issues.observeInbox(InboxFilter()).first().issues.map { it.id }
@@ -95,12 +94,22 @@ class NotificationActionSenderTest {
 
   @Test
   fun anAccountThatIsGoneOrAnotherOrg_dropsTheAction() = runTest {
-    accounts.value = null
+    stored = StoredAccount.Missing
     sender.send(resolve)
-    accounts.value = TEST_ACCOUNT.copy(orgSlug = "another-org")
+    stored = StoredAccount.Connected(TEST_ACCOUNT.copy(orgSlug = "another-org"))
     sender.send(resolve)
 
     assertTrue(api.updateCalls.isEmpty())
     assertEquals(listOf("cancel:1", "cancel:1"), notifier.calls)
+  }
+
+  @Test
+  fun anUnreadableAccount_saysSo_andSendsNothing() = runTest {
+    stored = StoredAccount.Unreadable
+
+    sender.send(resolve)
+
+    assertTrue(api.updateCalls.isEmpty())
+    assertEquals(listOf("account-unreadable:1"), notifier.calls)
   }
 }

@@ -169,6 +169,7 @@
     <string name="action_unassigned">Unassigned %1$s</string>
     <string name="action_reviewed">Marked %1$s reviewed</string>
     <string name="action_resolve_failed">Couldn\'t resolve %1$s.</string>
+    <string name="alerts_action_account_unreadable">Triage couldn\'t read your connection on this phone. Open Triage to check it.</string>
     <string name="action_archive_failed">Couldn\'t archive %1$s.</string>
     <string name="action_assign_failed">Couldn\'t assign %1$s.</string>
     <string name="action_review_failed">Couldn\'t mark %1$s reviewed.</string>

@@ -88,6 +88,10 @@ class AlertNotifier(private val context: Context, private val channelPrefix: Str
     notify(issueTag(request.issueId), ISSUE_NOTIFICATION, buildFailed(request, error))
   }
 
+  override fun showAccountUnreadable(request: NotificationActionRequest) {
+    notify(issueTag(request.issueId), ISSUE_NOTIFICATION, buildAccountUnreadable(request))
+  }
+
   override fun cancelIssue(issueId: String) {
     val tag = issueTag(issueId)
     manager.cancel(tag, ISSUE_NOTIFICATION)
@@ -162,6 +166,18 @@ class AlertNotifier(private val context: Context, private val channelPrefix: Str
     return builder
       .setContentIntent(open)
       .addAction(R.drawable.ic_open_in_new, context.getString(R.string.alerts_open), open)
+      .setAutoCancel(true)
+      .build()
+  }
+
+  internal fun buildAccountUnreadable(request: NotificationActionRequest): Notification {
+    val text = context.getString(R.string.alerts_action_account_unreadable)
+    val launch = activity(launchIntent(context))
+    return statusBuilder(context.getString(failedTitle(request.action), request.shortId))
+      .setContentText(text)
+      .setStyle(NotificationCompat.BigTextStyle().bigText(text))
+      .setContentIntent(launch)
+      .addAction(R.drawable.ic_open_in_new, context.getString(R.string.alerts_open), launch)
       .setAutoCancel(true)
       .build()
   }
