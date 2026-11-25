@@ -18,6 +18,11 @@ android {
     }
 
     buildTypes {
+        // Installs next to the release build (the owner's daily app), so development never touches its connection.
+        getByName("debug") {
+            applicationIdSuffix = ".debug"
+            versionNameSuffix = "-debug"
+        }
         release {
             isMinifyEnabled = false
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
@@ -72,7 +77,6 @@ dependencies {
 
   // Core Android dependencies
   implementation(libs.androidx.core.ktx)
-  implementation(libs.androidx.lifecycle.runtime.ktx)
   implementation(libs.androidx.activity.compose)
 
   // Coroutines runtime: declared so the app and the unit tests run the same version
@@ -100,7 +104,6 @@ dependencies {
   androidTestImplementation(libs.androidx.test.core)
   androidTestImplementation(libs.androidx.test.ext.junit)
   androidTestImplementation(libs.androidx.test.runner)
-  androidTestImplementation(libs.androidx.test.espresso.core)
 
   // Navigation
   implementation(libs.androidx.navigation3.ui)
