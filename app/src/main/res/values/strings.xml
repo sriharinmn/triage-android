@@ -169,6 +169,7 @@
     <string name="action_unassigned">Unassigned %1$s</string>
     <string name="action_reviewed">Marked %1$s reviewed</string>
     <string name="action_resolve_failed">Couldn\'t resolve %1$s.</string>
+    <string name="alerts_action_account_unreadable">Triage couldn\'t read your connection on this phone. Open Triage to check it.</string>
     <string name="action_archive_failed">Couldn\'t archive %1$s.</string>
     <string name="action_assign_failed">Couldn\'t assign %1$s.</string>
     <string name="action_review_failed">Couldn\'t mark %1$s reviewed.</string>
@@ -311,6 +312,11 @@
     <string name="about_privacy_data">Issue data goes only between this phone and your Sentry server.</string>
     <string name="about_licenses">Open-source licenses</string>
     <string name="about_licenses_intro">Triage is built with these, and with the AndroidX libraries they use (Apache License 2.0). Tap one for its license.</string>
+    <string name="about_project">Project</string>
+    <string name="about_source">Source code and updates</string>
+    <string name="about_source_detail" translatable="false">github.com/sriharinmn/triage-android</string>
+    <string name="about_contact">Contact</string>
+    <string name="about_contact_detail" translatable="false">triagedev2026@gmail.com</string>
     <string name="about_close">Close</string>
     <plurals name="inbox_tile_events">
         <item quantity="one">event</item>

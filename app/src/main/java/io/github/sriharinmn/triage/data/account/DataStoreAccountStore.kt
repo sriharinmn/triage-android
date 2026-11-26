@@ -14,6 +14,7 @@ import java.security.ProviderException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.retryWhen
@@ -39,18 +40,32 @@ class DataStoreAccountStore(
         delay(READ_RETRY_DELAY_MS * (attempt + 1).coerceAtMost(MAX_RETRY_STEPS))
         true
       }
-      .map { prefs ->
-        val encryptedToken = prefs[Keys.TOKEN] ?: return@map null
-        val token = decryptOrNull(encryptedToken) ?: return@map null
-        Account(
-          apiBaseUrl = prefs[Keys.API_BASE_URL] ?: return@map null,
-          webBaseUrl = prefs[Keys.WEB_BASE_URL] ?: return@map null,
-          token = token,
-          orgSlug = prefs[Keys.ORG_SLUG] ?: return@map null,
-          orgName = prefs[Keys.ORG_NAME] ?: return@map null,
-        )
-      }
+      .map { prefs -> prefs.decryptedToken()?.let { prefs.toAccount(it) } }
       .flowOn(Dispatchers.IO)
+
+  override suspend fun read(): StoredAccount =
+    withContext(Dispatchers.IO) {
+      val prefs =
+        try {
+          dataStore.data.first()
+        } catch (_: IOException) {
+          return@withContext StoredAccount.Unreadable
+        }
+      if (prefs[Keys.TOKEN] == null) return@withContext StoredAccount.Missing
+      val account = prefs.decryptedToken()?.let { prefs.toAccount(it) } ?: return@withContext StoredAccount.Unreadable
+      StoredAccount.Connected(account)
+    }
+
+  private fun Preferences.decryptedToken(): String? = this[Keys.TOKEN]?.let(::decryptOrNull)
+
+  private fun Preferences.toAccount(token: String): Account? =
+    Account(
+      apiBaseUrl = this[Keys.API_BASE_URL] ?: return null,
+      webBaseUrl = this[Keys.WEB_BASE_URL] ?: return null,
+      token = token,
+      orgSlug = this[Keys.ORG_SLUG] ?: return null,
+      orgName = this[Keys.ORG_NAME] ?: return null,
+    )
 
   override suspend fun save(account: Account) {
     val encryptedToken = withContext(Dispatchers.IO) { cipher.encrypt(account.token) }

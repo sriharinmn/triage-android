@@ -149,6 +149,15 @@ class AlertNotifierTest {
   }
 
   @Test
+  fun anUnreadableAccount_saysSo_withOpen() {
+    val notification = notifier.buildAccountUnreadable(request)
+
+    assertEquals("Couldn't resolve DEMO-1.", notification.title())
+    assertEquals("Triage couldn't read your connection on this phone. Open Triage to check it.", notification.text())
+    assertEquals(listOf("Open"), notification.buttons())
+  }
+
+  @Test
   fun aFailure_saysWhyInPlainWords_withOpen() {
     val failed = notifier.buildFailed(request, DetailError.Network)
 

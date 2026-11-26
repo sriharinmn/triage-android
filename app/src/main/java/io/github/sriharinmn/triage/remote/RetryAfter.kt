@@ -33,4 +33,5 @@ fun rateLimitHoldSeconds(retryAfterSeconds: Long?): Long =
 
 private const val DEFAULT_RETRY_AFTER_SECONDS = 60L
 private const val MIN_RETRY_AFTER_SECONDS = 1L
-private const val MAX_RETRY_AFTER_SECONDS = 3600L
+/** The longest a rate-limit hold can last; the alert runner also uses it to spot a saved hold that can't be real. */
+const val MAX_RETRY_AFTER_SECONDS = 3600L

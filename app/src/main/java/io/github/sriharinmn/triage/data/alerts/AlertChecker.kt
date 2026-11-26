@@ -39,7 +39,10 @@ sealed interface CheckOutcome {
   /** 401 or 403: the token can't read issues any more. */
   data object AuthProblem : CheckOutcome
 
-  /** Offline, a timeout, a 429 (or its hold), a server error, or an answer too large or unreadable: try next period. */
+  /** A 429, or a round inside an earlier 429's hold: no check before [retryAfterSeconds] from now. */
+  data class RateLimited(val retryAfterSeconds: Long) : CheckOutcome
+
+  /** Offline, a timeout, a server error, or an answer too large or unreadable: try next period. */
   data object Failed : CheckOutcome
 }
 
@@ -81,7 +84,11 @@ class AlertChecker(private val api: SentryApi, private val gate: RateLimitGate) 
         when (val result = gate.call { api.listIssues(account.apiBaseUrl, account.token, account.orgSlug, params, cursor = null) }) {
           is DetailResult.Success -> pages[kind] = result.value.items
           is DetailResult.Failure ->
-            return if (result.error in AUTH_ERRORS) CheckOutcome.AuthProblem else CheckOutcome.Failed
+            return when (val error = result.error) {
+              in AUTH_ERRORS -> CheckOutcome.AuthProblem
+              is DetailError.RateLimited -> CheckOutcome.RateLimited(error.retryAfterSeconds)
+              else -> CheckOutcome.Failed
+            }
         }
       }
     }
@@ -99,6 +106,7 @@ class AlertChecker(private val api: SentryApi, private val gate: RateLimitGate) 
     val newPage = pages[AlertKind.New].orEmpty()
     val regressedPage = pages[AlertKind.Regressed].orEmpty()
     val escalatingPage = pages[AlertKind.Escalating].orEmpty()
+    val capped = pages.filterValues { it.size >= PAGE_SIZE }.keys
     // Older entries can't come back: the New search never looks further back than this.
     val recentNew = state.alertedNew.filterValues { it > lookbackStart }
 
@@ -120,8 +128,8 @@ class AlertChecker(private val api: SentryApi, private val gate: RateLimitGate) 
         lastSuccessAt = now,
         lastAttemptFailed = false,
         baselineFor = settings.baselineRequest,
-        regressed = regressedPage.mapTo(mutableSetOf()) { it.id },
-        escalating = escalatingPage.mapTo(mutableSetOf()) { it.id },
+        regressed = seenIds(regressedPage, state.regressed, AlertKind.Regressed in capped),
+        escalating = seenIds(escalatingPage, state.escalating, AlertKind.Escalating in capped),
         alertedNew =
           (recentNew + newPage.associate { it.id to (it.firstSeen.toInstantOrNull() ?: now) }).filterValues { it > lookbackStart },
         // A baseline only means "don't alert on what already existed": issues held back by quiet hours came from earlier
@@ -137,9 +145,19 @@ class AlertChecker(private val api: SentryApi, private val gate: RateLimitGate) 
       )
     return CheckOutcome.Checked(
       findings = if (baseline) emptyList() else found.values.sortedByDescending { it.kind },
-      capped = pages.filterValues { it.size >= PAGE_SIZE }.keys,
+      capped = capped,
       next = next,
     )
+  }
+
+  /**
+   * The ids to remember for a kind. A full first page may push issues seen before onto page 2. Kept, so they don't
+   * alert again when they come back to page 1. A page that isn't full shows every such issue, so it replaces the set,
+   * which drops the ones that stopped being regressed or escalating.
+   */
+  private fun seenIds(page: List<IssueDto>, before: Set<String>, capped: Boolean): Set<String> {
+    val ids = page.mapTo(mutableSetOf()) { it.id }
+    return if (capped) ids + before else ids
   }
 
   private fun query(kind: AlertKind, lastSuccessAt: Instant?, now: Instant): String =

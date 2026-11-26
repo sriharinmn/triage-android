@@ -1,6 +1,8 @@
 package io.github.sriharinmn.triage.data.alerts
 
 import io.github.sriharinmn.triage.data.account.Account
+import io.github.sriharinmn.triage.remote.MAX_RETRY_AFTER_SECONDS
+import java.time.Duration
 import java.time.Instant
 import java.time.ZoneId
 import java.util.concurrent.atomic.AtomicLong
@@ -58,11 +60,14 @@ class AlertCheckRunner(
       if (!settings.enabled) return
       val account = accounts.first() ?: return
       val state = stateStore.state.first()
+      val now = clock()
       // Reported once already; a successful inbox load or a reconnect lets checks run again.
       if (state.authProblemNotified) return
+      // Sentry asked the last check to wait; a new process doesn't know, so the saved hold says it.
+      // A clock that moved back can't stretch the hold past its bound, so a farther-off saved hold is ignored.
+      state.heldUntil?.let { if (now < it && Duration.between(now, it).seconds <= MAX_RETRY_AFTER_SECONDS) return }
       // Nothing found could be shown, so don't spend Sentry's requests on it.
       if (!poster.canPost()) return
-      val now = clock()
       val outcome = checker.check(account, settings, state, knownProjectIds(), now)
       writeLock.withLock { finish(startedIn, account, settings, state, outcome, now) }
     }
@@ -95,6 +100,9 @@ class AlertCheckRunner(
         stateStore.save(state.copy(lastAttemptFailed = true, authProblemNotified = true))
         poster.postAuthProblem()
       }
+      // Kept for the next check, which usually runs in a fresh process. The bound comes from rateLimitHoldSeconds.
+      is CheckOutcome.RateLimited ->
+        stateStore.save(state.copy(lastAttemptFailed = true, heldUntil = now.plusSeconds(outcome.retryAfterSeconds)))
       // Skipped quietly: the Alerts screen says the last attempt failed, and the next period tries again.
       CheckOutcome.Failed -> stateStore.save(state.copy(lastAttemptFailed = true))
       is CheckOutcome.Checked -> {

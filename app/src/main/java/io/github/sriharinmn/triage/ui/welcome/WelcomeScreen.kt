@@ -57,7 +57,7 @@ fun WelcomeScreen(onGetStarted: () -> Unit, modifier: Modifier = Modifier, sampl
     Wordmark()
     Text(stringResource(R.string.welcome_lede), style = MaterialTheme.typography.titleMedium)
     Column(verticalArrangement = Arrangement.spacedBy(20.dp)) {
-      WelcomePoint(R.drawable.ic_notification, R.string.welcome_alerts_title, R.string.welcome_alerts_body)
+      WelcomePoint(R.drawable.ic_notifications, R.string.welcome_alerts_title, R.string.welcome_alerts_body)
       WelcomePoint(R.drawable.ic_swipe, R.string.welcome_swipe_title, R.string.welcome_swipe_body)
       WelcomePoint(R.drawable.ic_lock, R.string.welcome_private_title, R.string.welcome_private_body)
     }

@@ -20,13 +20,13 @@ affiliated with Sentry / Functional Software, Inc. Licensed under Apache-2.0.
 
 ## Build & test commands
 Needs JDK 21 (`JAVA_HOME`) and the Android SDK (`ANDROID_HOME`). The Kotlin toolchain (JDK 17) is auto-provisioned.
-- Debug APK: `./gradlew assembleDebug`
+- Debug APK: `./gradlew assembleDebug` (package `io.github.sriharinmn.triage.debug`, label "Triage debug"; installs next to the release)
 - Unit tests (JVM): `./gradlew testDebugUnitTest`
 - Lint: `./gradlew lintDebug`
 - Device tests: `./gradlew connectedDebugAndroidTest` (phone connected, awake and unlocked)
 - Install and launch debug: `./gradlew installDebug`, then
-  `adb shell am start -n io.github.sriharinmn.triage/io.github.sriharinmn.triage.MainActivity`
-- Force an alert check (debug): `adb shell am broadcast -n io.github.sriharinmn.triage/io.github.sriharinmn.triage.debug.CheckNowReceiver`
+  `adb shell am start -n io.github.sriharinmn.triage.debug/io.github.sriharinmn.triage.MainActivity`
+- Force an alert check (debug): `adb shell am broadcast -n io.github.sriharinmn.triage.debug/io.github.sriharinmn.triage.debug.CheckNowReceiver`
 - Demo build (sample data, its own package): `./gradlew installSample`, launch
   `adb shell am start -n io.github.sriharinmn.triage.sample/io.github.sriharinmn.triage.MainActivity`
 

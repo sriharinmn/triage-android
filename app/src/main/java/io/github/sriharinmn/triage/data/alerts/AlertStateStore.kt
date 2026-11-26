@@ -50,6 +50,7 @@ class DataStoreAlertStateStore(private val dataStore: DataStore<Preferences>) : 
       prefs[Keys.ALERTED_NEW] = state.alertedNew.map { (id, firstSeen) -> "$id$SEPARATOR${firstSeen.toEpochMilli()}" }.toSet()
       prefs[Keys.BACKLOG] = state.backlog.map { (id, kind) -> "$id$SEPARATOR${kind.name}" }.toSet()
       if (state.authProblemNotified) prefs[Keys.AUTH_PROBLEM_NOTIFIED] = true
+      state.heldUntil?.let { prefs[Keys.HELD_UNTIL] = it.toEpochMilli() }
     }
   }
 
@@ -72,6 +73,7 @@ class DataStoreAlertStateStore(private val dataStore: DataStore<Preferences>) : 
       alertedNew = this[Keys.ALERTED_NEW].orEmpty().decode { millis -> millis.toLongOrNull()?.let(Instant::ofEpochMilli) },
       backlog = this[Keys.BACKLOG].orEmpty().decode { name -> AlertKind.entries.firstOrNull { it.name == name } },
       authProblemNotified = this[Keys.AUTH_PROBLEM_NOTIFIED] ?: false,
+      heldUntil = this[Keys.HELD_UNTIL]?.let(Instant::ofEpochMilli),
     )
 
   /** `id|value` entries back into a map; an entry this version can't read (another version's kind) is skipped. */
@@ -91,6 +93,7 @@ class DataStoreAlertStateStore(private val dataStore: DataStore<Preferences>) : 
     val ALERTED_NEW = stringSetPreferencesKey("alerted_new")
     val BACKLOG = stringSetPreferencesKey("backlog")
     val AUTH_PROBLEM_NOTIFIED = booleanPreferencesKey("auth_problem_notified")
+    val HELD_UNTIL = longPreferencesKey("held_until")
   }
 
   private companion object {

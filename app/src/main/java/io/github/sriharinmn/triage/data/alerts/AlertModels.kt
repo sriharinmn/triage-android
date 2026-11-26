@@ -68,4 +68,9 @@ data class AlertState(
   val backlog: Map<String, AlertKind> = emptyMap(),
   /** Sentry rejected the token (401 or 403) and the user was told once; checks wait for an inbox load or a reconnect. */
   val authProblemNotified: Boolean = false,
+  /**
+   * Sentry answered a check with 429: no check asks it anything before this. Saved because each background check
+   * usually runs in a fresh process, whose in-memory rate-limit gate knows nothing of the last one.
+   */
+  val heldUntil: Instant? = null,
 )

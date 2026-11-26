@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Themed-icon layer (Android 13+): Android tints it, so the shapes keep their relative opacity. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path android:fillColor="#FFFFFFFF" android:pathData="M35,34H73A5,5 0,0 1,73 44H35A5,5 0,0 1,35 34Z" />
+    <path android:fillColor="#FFFFFFFF" android:fillAlpha="0.72" android:pathData="M35,49H59A5,5 0,0 1,59 59H35A5,5 0,0 1,35 49Z" />
+    <path android:fillColor="#FFFFFFFF" android:fillAlpha="0.45" android:pathData="M35,64H45A5,5 0,0 1,45 74H35A5,5 0,0 1,35 64Z" />
+    <path android:fillColor="#FFFFFFFF" android:pathData="M65,69A7,7 0,1 0,79 69A7,7 0,1 0,65 69Z" />
+</vector>

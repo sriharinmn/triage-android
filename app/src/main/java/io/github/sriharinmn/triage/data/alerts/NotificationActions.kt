@@ -1,13 +1,11 @@
 package io.github.sriharinmn.triage.data.alerts
 
-import io.github.sriharinmn.triage.data.account.Account
+import io.github.sriharinmn.triage.data.account.StoredAccount
 import io.github.sriharinmn.triage.data.actions.IssueAction
 import io.github.sriharinmn.triage.data.actions.IssueActionRepository
 import io.github.sriharinmn.triage.data.detail.DetailError
 import io.github.sriharinmn.triage.data.detail.DetailResult
 import io.github.sriharinmn.triage.data.issues.IssueRepository
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.first
 
 /** The two buttons a single-issue notification has besides Open. */
 enum class AlertAction {
@@ -43,23 +41,34 @@ interface ActionNotifier {
 
   /** Sentry refused the action or couldn't be reached: says why, with Open. Never retried by itself. */
   fun showFailed(request: NotificationActionRequest, error: DetailError)
+
+  /** The saved connection couldn't be read, so nothing was sent: says so, and opens Triage to check it. */
+  fun showAccountUnreadable(request: NotificationActionRequest)
 }
 
 /**
  * Sends a notification's Resolve or Archive once its Undo window is over, with the same request as the in-app action and
- * through the app-wide rate-limit gate. It loads the account itself, and drops the action if that account is gone or is
- * for another org.
+ * through the app-wide rate-limit gate. It reads the account itself: a missing account or another org drops the action
+ * quietly, and an unreadable one says so.
  */
 class NotificationActionSender(
-  private val accounts: Flow<Account?>,
+  /** One read of the saved connection, at send time. */
+  private val readAccount: suspend () -> StoredAccount,
   private val actions: IssueActionRepository,
   private val issues: IssueRepository,
   private val notifier: ActionNotifier,
 ) {
   suspend fun send(request: NotificationActionRequest) {
-    val account = accounts.first()
-    if (account == null || account.orgSlug != request.orgSlug) {
-      // Disconnected, or connected to another org, since the tap: the action was for an account that's gone.
+    val account =
+      when (val stored = readAccount()) {
+        is StoredAccount.Connected -> stored.account
+        // Disconnected since the tap: the action was for an account that's gone.
+        StoredAccount.Missing -> return notifier.cancelIssue(request.issueId)
+        // Still connected as far as anyone knows, but unusable now: dropping it silently would look like it worked.
+        StoredAccount.Unreadable -> return notifier.showAccountUnreadable(request)
+      }
+    if (account.orgSlug != request.orgSlug) {
+      // Connected to another org since the tap.
       notifier.cancelIssue(request.issueId)
       return
     }

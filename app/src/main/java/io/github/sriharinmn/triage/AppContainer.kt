@@ -152,7 +152,7 @@ class AppContainer(context: Context) {
     )
 
   /** Sends Resolve and Archive from notifications once their Undo window is over; NotificationActionWorker calls it. */
-  val notificationActions = NotificationActionSender(accountStore.account, issueActions, issueRepository, alertNotifier)
+  val notificationActions = NotificationActionSender(accountStore::read, issueActions, issueRepository, alertNotifier)
 
   private val accountDataCleaner =
     AccountDataCleaner(

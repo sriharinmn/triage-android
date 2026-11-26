@@ -1,0 +1,177 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Triage: an error inbox for your Sentry issues, on Android</title>
+  <meta name="description" content="Triage watches your Sentry issues and tells you when something new, regressed or escalating shows up. Read the stack trace and resolve with a swipe. Free, open source, no tracking.">
+  <meta name="theme-color" content="#0a0e1a" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#f7f8fc" media="(prefers-color-scheme: light)">
+  <meta property="og:title" content="Triage: production broke. You'll know first.">
+  <meta property="og:description" content="A fast, private error inbox for your Sentry issues, on Android. Free and open source.">
+  <meta property="og:image" content="https://sriharinmn.github.io/triage-android/img/icon-512.png">
+  <meta property="og:type" content="website">
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="img/apple-touch-icon.png">
+  <link rel="preload" href="fonts/inter-subset.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <a class="skip" href="#main">Skip to content</a>
+  <div class="hero-bg">
+    <header class="wrap nav">
+      <a class="brand" href="./"><img src="img/icon.svg" alt="" width="30" height="30">Triage</a>
+      <nav aria-label="Main">
+        <ul>
+          <li class="hide-sm"><a href="#features">Features</a></li>
+          <li><a href="privacy.html">Privacy</a></li>
+          <li><a href="https://github.com/sriharinmn/triage-android">GitHub ↗</a></li>
+        </ul>
+      </nav>
+    </header>
+
+    <main id="main">
+      <div class="wrap hero">
+        <div>
+          <p class="eyebrow">Free · Open source · No tracking</p>
+          <h1>Production broke.<br><span>You'll know first.</span></h1>
+          <p class="lede">Triage watches your Sentry issues and taps you on the shoulder when something new, regressed or escalating shows up. Read the stack trace and resolve it before you're back at your desk.</p>
+          <div class="ctas">
+            <a class="btn btn-primary" href="https://github.com/sriharinmn/triage-android/releases/latest/download/triage.apk">↓ Download for Android</a>
+            <a class="btn btn-ghost" href="#demo">Try the demo, no account needed</a>
+          </div>
+          <p class="meta">Android 8+ · Works with sentry.io and self-hosted · <a href="https://github.com/sriharinmn/triage-android">View source</a></p>
+        </div>
+        <div class="phone">
+          <video autoplay muted loop playsinline preload="metadata" poster="img/swipe-poster.webp" width="540" height="1128" aria-label="Swiping an issue right to resolve it in Triage's inbox">
+            <source src="img/swipe.webm" type="video/webm">
+            <source src="img/swipe.mp4" type="video/mp4">
+          </video>
+          <button class="vid-toggle" type="button" aria-label="Pause the video">
+            <svg class="i-pause" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M7 5h3.5v14H7zM13.5 5H17v14h-3.5z"/></svg>
+            <svg class="i-play" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M8 5.5v13l10.5-6.5z"/></svg>
+          </button>
+          <picture class="still">
+            <source srcset="img/inbox-light.webp" media="(prefers-color-scheme: light)">
+            <img src="img/inbox-dark.webp" alt="Triage's inbox showing issues from a sample shop" width="720" height="1504">
+          </picture>
+        </div>
+      </div>
+
+      <div class="strip" id="features">
+        <div><b>Alerts</b>New, regressed and escalating issues</div>
+        <div><b>Swipe actions</b>Resolve, archive, assign, with undo</div>
+        <div><b>Stack traces</b>Your app's frames highlighted</div>
+        <div><b>Private</b>Your phone ↔ your Sentry server. Nothing else.</div>
+      </div>
+
+      <section class="wrap">
+        <div class="row">
+          <div class="copy">
+            <h2>An inbox, not a dashboard.</h2>
+            <p>Issues sorted the way you triage: for review, unresolved, regressed, escalating. Filter by project or environment, pull to refresh, and swipe right to resolve or left to archive.</p>
+            <p>Every action has an undo, and it's the same request Sentry's own website sends.</p>
+          </div>
+          <div class="shot">
+            <picture>
+              <source srcset="img/inbox-light.webp" media="(prefers-color-scheme: light)">
+              <img src="img/inbox-dark.webp" alt="The inbox with issue counts and project names" width="720" height="1504" loading="lazy">
+            </picture>
+          </div>
+        </div>
+
+        <div class="row flip">
+          <div class="copy">
+            <h2>The stack trace, readable on a phone.</h2>
+            <p>The latest event's stack trace with your app's frames highlighted, the lines around them, breadcrumbs, tags and a 24-hour trend.</p>
+            <p>Enough to know whether it can wait until morning.</p>
+          </div>
+          <div class="shot">
+            <picture>
+              <source srcset="img/detail-light.webp" media="(prefers-color-scheme: light)">
+              <img src="img/detail-dark.webp" alt="An issue's stack trace with in-app frames highlighted" width="720" height="1504" loading="lazy">
+            </picture>
+          </div>
+        </div>
+
+        <div class="row">
+          <div class="copy">
+            <h2>Alerts that respect your evening.</h2>
+            <p>Triage checks every 15, 30 or 60 minutes and notifies you about new, regressed and escalating issues, per project. Quiet hours hold them until morning.</p>
+            <p>Resolve or archive straight from the notification.</p>
+          </div>
+          <div class="shot">
+            <img src="img/alerts-dark.webp" alt="Alert settings: kinds, projects, check interval and quiet hours" width="720" height="1504" loading="lazy">
+          </div>
+        </div>
+      </section>
+
+      <section class="wrap center" id="demo">
+        <h2>Try it without a Sentry account.</h2>
+        <p class="lede">Install Triage and tap <b>Try with sample data</b>. You get a made-up online shop with real-looking issues, working actions and real alerts. Nothing leaves your phone. Connect your own Sentry whenever you like.</p>
+        <div class="ctas" style="justify-content:center">
+          <a class="btn btn-primary" href="https://github.com/sriharinmn/triage-android/releases/latest/download/triage.apk">↓ Download for Android</a>
+        </div>
+      </section>
+
+      <section class="wrap" id="install">
+        <h2 class="center">Install in a minute</h2>
+        <div class="steps" style="margin-top:32px">
+          <div class="card">
+            <h3>Download</h3>
+            <p>Tap <b>Download for Android</b> on your phone. You get <code>triage.apk</code>, the latest release.</p>
+          </div>
+          <div class="card">
+            <h3>Allow the install</h3>
+            <p>Android asks once to let your browser install apps: tap <b>Settings</b>, switch it on, go back. Google Play Protect may say it doesn't know this app yet. That's normal for apps from outside the Play Store: tap <b>More details → Install anyway</b>.</p>
+          </div>
+          <div class="card">
+            <h3>Connect or explore</h3>
+            <p>Paste a Sentry auth token (the app opens the right Sentry page), or tap <b>Try with sample data</b>.</p>
+          </div>
+        </div>
+        <div class="steps" style="margin-top:20px; grid-template-columns: 1fr 1fr">
+          <div class="card">
+            <h3>Check the download (optional)</h3>
+            <p>Each <a href="https://github.com/sriharinmn/triage-android/releases">release</a> lists the APK's SHA-256 fingerprint. Compare it with your download to be sure it wasn't changed on the way.</p>
+          </div>
+          <div class="card">
+            <h3>Stay up to date</h3>
+            <p>Come back here for new versions, or let the free <a href="https://github.com/ImranR98/Obtainium">Obtainium</a> app update Triage for you: add <code>https://github.com/sriharinmn/triage-android</code>.</p>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <footer>
+    <div class="wrap cols">
+      <div>
+        <p><b>Triage</b> · Made by <a href="https://github.com/sriharinmn">Srihari Kanakaraj</a></p>
+        <p>Not affiliated with Sentry / Functional Software, Inc.</p>
+      </div>
+      <div>
+        <p><a href="https://github.com/sriharinmn/triage-android">Source code</a> · <a href="privacy.html">Privacy</a> · <a href="mailto:triagedev2026@gmail.com">triagedev2026@gmail.com</a></p>
+        <p>Apache License 2.0</p>
+      </div>
+    </div>
+  </footer>
+  <script>
+    // The hero clip loops, so it gets a pause button (WCAG 2.2.2).
+    (function () {
+      var video = document.querySelector(".phone video");
+      var toggle = document.querySelector(".vid-toggle");
+      if (!video || !toggle) return;
+      toggle.addEventListener("click", function () {
+        if (video.paused) video.play(); else video.pause();
+      });
+      function sync() {
+        toggle.classList.toggle("paused", video.paused);
+        toggle.setAttribute("aria-label", video.paused ? "Play the video" : "Pause the video");
+      }
+      video.addEventListener("play", sync);
+      video.addEventListener("pause", sync);
+    })();
+  </script>
+</body>
+</html>
