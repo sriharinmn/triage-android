@@ -43,10 +43,14 @@
           <p class="meta">Android 8+ · Works with sentry.io and self-hosted · <a href="https://github.com/sriharinmn/triage-android">View source</a></p>
         </div>
         <div class="phone">
-          <video autoplay muted loop playsinline preload="metadata" poster="img/swipe-poster.webp" width="540" height="1170" aria-label="Swiping an issue right to resolve it in Triage's inbox">
+          <video autoplay muted loop playsinline preload="metadata" poster="img/swipe-poster.webp" width="540" height="1128" aria-label="Swiping an issue right to resolve it in Triage's inbox">
             <source src="img/swipe.webm" type="video/webm">
             <source src="img/swipe.mp4" type="video/mp4">
           </video>
+          <button class="vid-toggle" type="button" aria-label="Pause the video">
+            <svg class="i-pause" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M7 5h3.5v14H7zM13.5 5H17v14h-3.5z"/></svg>
+            <svg class="i-play" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M8 5.5v13l10.5-6.5z"/></svg>
+          </button>
           <picture class="still">
             <source srcset="img/inbox-light.webp" media="(prefers-color-scheme: light)">
             <img src="img/inbox-dark.webp" alt="Triage's inbox showing issues from a sample shop" width="720" height="1504">
@@ -152,5 +156,22 @@
       </div>
     </div>
   </footer>
+  <script>
+    // The hero clip loops, so it gets a pause button (WCAG 2.2.2).
+    (function () {
+      var video = document.querySelector(".phone video");
+      var toggle = document.querySelector(".vid-toggle");
+      if (!video || !toggle) return;
+      toggle.addEventListener("click", function () {
+        if (video.paused) video.play(); else video.pause();
+      });
+      function sync() {
+        toggle.classList.toggle("paused", video.paused);
+        toggle.setAttribute("aria-label", video.paused ? "Play the video" : "Pause the video");
+      }
+      video.addEventListener("play", sync);
+      video.addEventListener("pause", sync);
+    })();
+  </script>
 </body>
 </html>
