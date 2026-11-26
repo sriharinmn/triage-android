@@ -34,7 +34,7 @@
     --muted: #4a5164;
     --faint: #626a80;
     --accent: #3d5ba9;
-    --amber: #a86f00;
+    --amber: #8f5f00;
     --glow: rgba(74, 104, 190, 0.16);
     --btn-bg: #11151f;
     --btn-text: #ffffff;
@@ -53,7 +53,7 @@ body {
   font-feature-settings: "cv11", "ss01";
   -webkit-font-smoothing: antialiased;
 }
-img, video { max-width: 100%; display: block; }
+img, video { max-width: 100%; height: auto; display: block; }
 a { color: inherit; }
 a:focus-visible, .btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 8px; }
 .wrap { max-width: 1120px; margin: 0 auto; padding-inline: 24px; }
