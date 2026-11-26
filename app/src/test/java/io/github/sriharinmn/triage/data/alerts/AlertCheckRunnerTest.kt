@@ -350,6 +350,28 @@ class AlertCheckRunnerTest {
   }
 
   @Test
+  fun aSavedHoldBeyondTheMaximum_isIgnored_becauseTheClockMovedBack() = runTest {
+    baseline()
+    stateStore.save(stateStore.state.first().copy(heldUntil = clock.now().plusSeconds(3601)))
+    api.issueCalls.clear()
+
+    freshRunner().runCheck()
+
+    assertTrue(api.issueCalls.isNotEmpty())
+  }
+
+  @Test
+  fun aSavedHoldAtTheMaximum_stillHolds() = runTest {
+    baseline()
+    stateStore.save(stateStore.state.first().copy(heldUntil = clock.now().plusSeconds(3600)))
+    api.issueCalls.clear()
+
+    freshRunner().runCheck()
+
+    assertTrue(api.issueCalls.isEmpty())
+  }
+
+  @Test
   fun forgettingTheAccount_dropsTheHold() = runTest {
     baseline()
     api.issuesHandler = { ApiResult.Failure(ApiError.RateLimited(120)) }

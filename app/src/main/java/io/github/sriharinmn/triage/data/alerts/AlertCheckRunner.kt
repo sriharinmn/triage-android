@@ -1,6 +1,8 @@
 package io.github.sriharinmn.triage.data.alerts
 
 import io.github.sriharinmn.triage.data.account.Account
+import io.github.sriharinmn.triage.remote.MAX_RETRY_AFTER_SECONDS
+import java.time.Duration
 import java.time.Instant
 import java.time.ZoneId
 import java.util.concurrent.atomic.AtomicLong
@@ -62,7 +64,8 @@ class AlertCheckRunner(
       // Reported once already; a successful inbox load or a reconnect lets checks run again.
       if (state.authProblemNotified) return
       // Sentry asked the last check to wait; a new process doesn't know, so the saved hold says it.
-      state.heldUntil?.let { if (now < it) return }
+      // A clock that moved back can't stretch the hold past its bound, so a farther-off saved hold is ignored.
+      state.heldUntil?.let { if (now < it && Duration.between(now, it).seconds <= MAX_RETRY_AFTER_SECONDS) return }
       // Nothing found could be shown, so don't spend Sentry's requests on it.
       if (!poster.canPost()) return
       val outcome = checker.check(account, settings, state, knownProjectIds(), now)
